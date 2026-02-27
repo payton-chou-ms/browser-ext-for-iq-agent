@@ -7,14 +7,15 @@ import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
 import { CopilotClient, approveAll, type CopilotSession } from "@github/copilot-sdk";
-import type { Attachment, FoundryState, ProactiveConfig } from "./shared/types.js";
+import type { Attachment, FoundryState, ProactiveConfig, RouteTable } from "./shared/types.js";
 import { registerCoreRoutes } from "./routes/core.js";
 import { registerSessionRoutes } from "./routes/session.js";
 import { registerFoundryRoutes } from "./routes/foundry.js";
 import { registerProactiveRoutes } from "./routes/proactive.js";
 
-type RouteHandler = (req: http.IncomingMessage, res: http.ServerResponse) => Promise<void> | void;
-type RouteTable = Record<string, RouteHandler>;
+// ===== Body Size Limits (B3) =====
+const MAX_BODY_SIZE_BYTES = 5 * 1024 * 1024; // 5 MB
+const MAX_JSON_BODY_SIZE_BYTES = 2 * 1024 * 1024; // 2 MB
 
 const args = process.argv.slice(2);
 function getArg(name: string, fallback: string) {
@@ -102,12 +103,21 @@ function jsonRes(res: http.ServerResponse, status: number, data: unknown): void 
   res.end(JSON.stringify(data));
 }
 
-function readBody(req: http.IncomingMessage): Promise<string> {
+function readBody(req: http.IncomingMessage, maxSize = MAX_BODY_SIZE_BYTES): Promise<string> {
   return new Promise((resolve, reject) => {
     let body = "";
+    let size = 0;
+
     req.on("data", (chunk: Buffer | string) => {
+      size += Buffer.byteLength(chunk);
+      if (size > maxSize) {
+        req.destroy();
+        reject(new Error(`Request body too large (max ${Math.round(maxSize / 1024 / 1024)}MB)`));
+        return;
+      }
       body += chunk;
     });
+
     req.on("end", () => resolve(body));
     req.on("error", reject);
   });
@@ -127,7 +137,14 @@ async function readJsonBody(
   options: { schema?: { safeParse: (value: unknown) => { success: boolean; data?: unknown; error?: { issues: Array<{ path: Array<string | number>; message: string; code: string }> } } }; allowEmpty?: boolean } = {},
 ): Promise<Record<string, unknown> | null> {
   const { schema, allowEmpty = false } = options;
-  const raw = await readBody(req);
+
+  let raw: string;
+  try {
+    raw = await readBody(req, MAX_JSON_BODY_SIZE_BYTES);
+  } catch (err) {
+    jsonRes(res, 413, { ok: false, error: (err as Error).message });
+    return null;
+  }
 
   if (!raw || !raw.trim()) {
     if (!allowEmpty) {

@@ -8,6 +8,9 @@ let cliPort = 8321;
 let cliHost = "127.0.0.1";
 let connectionState = "disconnected"; // disconnected | connecting | connected | error
 let _currentSessionId = null;
+const CONNECTION_ALARM_NAME = "connection-health-check";
+const CONNECTION_CHECK_PERIOD_CONNECTED_MIN = 5;
+const CONNECTION_CHECK_PERIOD_DISCONNECTED_MIN = 1;
 
 // ── Session Storage for Sensitive Keys ──
 // chrome.storage.session is memory-only — cleared when browser closes.
@@ -260,6 +263,7 @@ async function checkAndUpdateConnection() {
   const result = await COPILOT_RPC.checkConnection();
   console.log(`[BG] checkConnection result:`, result);
   connectionState = result.connected ? "connected" : "disconnected";
+  scheduleConnectionHealthAlarm(connectionState);
   broadcastState(); // gated — only fires if state actually changed
 
   return { ...result, state: connectionState };
@@ -288,14 +292,23 @@ function broadcastState() {
   });
 }
 
-// Periodic connection check — broadcastState() gate handles dedup
-setInterval(async () => {
-  if (connectionState !== "connecting") {
-    const result = await COPILOT_RPC.checkConnection();
-    connectionState = result.connected ? "connected" : "disconnected";
-    broadcastState();
+async function scheduleConnectionHealthAlarm(state = connectionState) {
+  const periodInMinutes = state === "connected"
+    ? CONNECTION_CHECK_PERIOD_CONNECTED_MIN
+    : CONNECTION_CHECK_PERIOD_DISCONNECTED_MIN;
+
+  const existing = await chrome.alarms.get(CONNECTION_ALARM_NAME);
+  if (existing?.periodInMinutes === periodInMinutes) {
+    return;
   }
-}, 15000);
+
+  chrome.alarms.create(CONNECTION_ALARM_NAME, {
+    delayInMinutes: 1,
+    periodInMinutes,
+  });
+
+  console.log(`[BG] Connection polling alarm set: ${periodInMinutes} min (state=${state})`);
+}
 
 // ── Proactive Agent Scheduling ──
 // Set up alarms for proactive scans (with duplicate-creation guard)
@@ -338,6 +351,22 @@ function minutesUntilHour(targetHour) {
 }
 
 chrome.alarms.onAlarm.addListener(async (alarm) => {
+  if (alarm.name === CONNECTION_ALARM_NAME) {
+    if (connectionState === "connecting") return;
+    try {
+      const result = await COPILOT_RPC.checkConnection();
+      connectionState = result.connected ? "connected" : "disconnected";
+      scheduleConnectionHealthAlarm(connectionState);
+      broadcastState();
+    } catch (err) {
+      console.error("[BG] Connection alarm check failed:", err?.message || err);
+      connectionState = "disconnected";
+      scheduleConnectionHealthAlarm(connectionState);
+      broadcastState();
+    }
+    return;
+  }
+
   if (connectionState !== "connected") return;
   console.log(`[BG] Alarm fired: ${alarm.name}`);
 
@@ -372,3 +401,5 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
     }).catch(() => {});
   }
 });
+
+scheduleConnectionHealthAlarm(connectionState);

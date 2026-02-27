@@ -16,7 +16,8 @@
   "include": [
     "proxy.ts",
     "achievement-engine.ts",
-    "routes/**/*.js"
+    "shared/**/*.ts",
+    "routes/**/*.ts"
   ],
   "exclude": [
     "node_modules",

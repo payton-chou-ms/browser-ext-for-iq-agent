@@ -1,5 +1,8 @@
 # IQ Copilot — Achievement & Gamification System
 
+> **Last Updated:** 2026-02-27
+> **Status:** ✅ Core Engine 完成（`achievement-engine.ts` 853L strict TS），UI 整合完成，事件串接進行中
+
 ## 🎮 Vision
 
 **像 Xbox 成就系統一樣，讓每次與 Agent 互動都有意義。**
@@ -435,27 +438,29 @@ const ACHIEVEMENT_RULES = [
 
 ## 📅 Implementation Phases
 
-### Phase 1 — Core Engine (Week 1)
-- [x] 建立 `achievement-engine.js` 模組
+### Phase 1 — Core Engine (Week 1) ✅ DONE
+- [x] 建立 `achievement-engine.ts` 模組（853L strict TypeScript）
 - [x] 實作 XP 計算 + Level 系統
 - [x] 實作 counter 追蹤（messages, agents, tasks...）
 - [x] Chrome storage read/write
 - [x] 基礎成就判定邏輯（threshold-based）
+- [x] Custom 成就檢查邏輯（allPanelsVisited, usedBetween2and5am, etc.）
 
-### Phase 2 — UI 整合 (Week 2)
+### Phase 2 — UI 整合 (Week 2) ✅ DONE
 - [x] 新增 Achievement Panel (🏆 nav button)
 - [x] XP 進度條 + Level 顯示
 - [x] 成就清單 UI（已解鎖/進行中/未解鎖）
 - [x] Toast 解鎖通知元件 + 動畫
 - [x] Profile Card 元件
+- [x] 抽取為 `lib/panels/achievements.js` (292L)
 
-### Phase 3 — Event 串接 (Week 3)
-- [ ] sidebar.js 中所有 action 埋入 track() 呼叫
+### Phase 3 — Event 串接 (Week 3) 🔶 進行中
 - [x] Chat 發送 → track("chat_send")
 - [x] Agent 呼叫 → track("agent_call")
 - [x] Panel 切換 → track("panel_viewed")
 - [x] Streak 計算邏輯（daily login detection）
 - [x] 隱藏成就觸發條件
+- [ ] Proactive Agent 事件串接（briefing_view, deadline_avoided等）
 
 ---
 

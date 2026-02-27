@@ -143,3 +143,99 @@ export interface ProactiveConfig {
   workiqPrompt: string;
   model: string;
 }
+
+// ===== Route Handler Types =====
+
+import type http from "node:http";
+import type fs from "node:fs";
+import type path from "node:path";
+import type { CopilotSession, CopilotClient } from "@github/copilot-sdk";
+
+export type RouteHandler = (
+  req: http.IncomingMessage,
+  res: http.ServerResponse
+) => Promise<void> | void;
+
+export type RouteTable = Record<string, RouteHandler>;
+
+export type LogFn = (tag: string, ...msg: unknown[]) => void;
+export type JsonResFn = (res: http.ServerResponse, status: number, data: unknown) => void;
+export type CorsFn = (res: http.ServerResponse) => void;
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type ZodSchemaSafeParse = { safeParse: (value: unknown) => { success: boolean; data?: any; error?: any } };
+
+export interface ReadJsonBodyOptions {
+  schema?: ZodSchemaSafeParse;
+  allowEmpty?: boolean;
+}
+
+// The readJsonBody implementation returns Record<string, unknown> | null
+// Routes cast the result to their specific types via schema inference
+export type ReadJsonBodyFn = (
+  req: http.IncomingMessage,
+  res: http.ServerResponse,
+  options?: ReadJsonBodyOptions
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+) => Promise<any>;
+
+export type ReadBodyFn = (req: http.IncomingMessage, maxSize?: number) => Promise<string>;
+
+export type EnsureClientFn = () => Promise<CopilotClient>;
+export type GetClientStateFn = () => string;
+export type GetSessionOrResumeFn = (sessionId: string) => Promise<CopilotSession | null>;
+
+// ===== Route Dependency Types =====
+
+export interface CoreRouteDeps {
+  ensureClient: EnsureClientFn;
+  getClientState: GetClientStateFn;
+  cliPort: number;
+  httpPort: number;
+  jsonRes: JsonResFn;
+  readJsonBody: ReadJsonBodyFn;
+  log: LogFn;
+  loadMcpConfigFromDisk: () => { source: string | null; config: { mcpServers: Record<string, unknown> } };
+  getWritableMcpConfigPath: (existingSource: string | null) => string;
+  fs: typeof fs;
+  path: typeof path;
+  getFoundrySnapshot: () => { configured: boolean; endpoint: string | null };
+}
+
+export interface SessionRouteDeps {
+  ensureClient: EnsureClientFn;
+  getSessionOrResume: GetSessionOrResumeFn;
+  sessions: Map<string, CopilotSession>;
+  jsonRes: JsonResFn;
+  readJsonBody: ReadJsonBodyFn;
+  log: LogFn;
+  buildPromptWithAttachments: (prompt: string, attachments: readonly Attachment[]) => string;
+  cors: CorsFn;
+}
+
+export interface FoundryRouteDeps {
+  jsonRes: JsonResFn;
+  readJsonBody: ReadJsonBodyFn;
+  readBody: ReadBodyFn;
+  log: LogFn;
+  getFoundryState: () => FoundryState;
+  setFoundryState: (next: FoundryState) => void;
+  getFoundrySnapshot: () => { configured: boolean; endpoint: string | null };
+}
+
+export interface ProactiveModule {
+  getConfig: () => ProactiveConfig;
+  setConfig: (next: ProactiveConfig) => void;
+  invalidateSession: (reason: string) => void;
+  runBriefing: () => Promise<{ ok: boolean; data?: Record<string, unknown>; raw?: string; error?: string }>;
+  runDeadlines: () => Promise<{ ok: boolean; data?: Record<string, unknown>; raw?: string; error?: string }>;
+  runGhosts: () => Promise<{ ok: boolean; data?: Record<string, unknown>; raw?: string; error?: string }>;
+  runMeetingPrep: () => Promise<{ ok: boolean; data?: Record<string, unknown>; raw?: string; error?: string }>;
+}
+
+export interface ProactiveRouteDeps {
+  jsonRes: JsonResFn;
+  readJsonBody: ReadJsonBodyFn;
+  log: LogFn;
+  proactive: ProactiveModule;
+}

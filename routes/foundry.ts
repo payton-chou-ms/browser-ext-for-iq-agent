@@ -1,6 +1,7 @@
-import { Schemas } from "./schemas.js";
+import type { RouteTable, FoundryRouteDeps } from "../shared/types.js";
+import { Schemas, type FoundryConfigInput } from "./schemas.js";
 
-export function registerFoundryRoutes(routes, deps) {
+export function registerFoundryRoutes(routes: RouteTable, deps: FoundryRouteDeps): void {
   const {
     jsonRes,
     readJsonBody,
@@ -12,13 +13,17 @@ export function registerFoundryRoutes(routes, deps) {
   } = deps;
 
   routes["POST /api/foundry/config"] = async (req, res) => {
-    const body = await readJsonBody(req, res, { schema: Schemas.foundryConfig, allowEmpty: true });
+    const body = await readJsonBody(req, res, {
+      schema: Schemas.foundryConfig,
+      allowEmpty: true,
+    }) as FoundryConfigInput | null;
     if (!body) return;
 
     const current = getFoundryState();
     const next = {
       endpoint: typeof body.endpoint === "string" ? body.endpoint.trim() : current.endpoint,
-      apiKey: typeof body.apiKey === "string" && body.apiKey.trim() ? body.apiKey.trim() : current.apiKey,
+      apiKey:
+        typeof body.apiKey === "string" && body.apiKey.trim() ? body.apiKey.trim() : current.apiKey,
     };
 
     if (body.clearApiKey === true) {
@@ -35,7 +40,10 @@ export function registerFoundryRoutes(routes, deps) {
   routes["POST /api/foundry/chat"] = async (req, res) => {
     const { endpoint, apiKey } = getFoundryState();
     if (!endpoint || !apiKey) {
-      jsonRes(res, 400, { ok: false, error: "Foundry not configured. Set FOUNDRY_ENDPOINT and FOUNDRY_API_KEY env vars." });
+      jsonRes(res, 400, {
+        ok: false,
+        error: "Foundry not configured. Set FOUNDRY_ENDPOINT and FOUNDRY_API_KEY env vars.",
+      });
       return;
     }
 
@@ -53,18 +61,24 @@ export function registerFoundryRoutes(routes, deps) {
         body,
       });
 
-      const result = await upstream.json();
+      const result = (await upstream.json()) as {
+        model?: string;
+        error?: { message?: string };
+      };
       if (!upstream.ok) {
         log("FOUNDRY", `← HTTP ${upstream.status}:`, JSON.stringify(result));
-        jsonRes(res, upstream.status, { ok: false, error: result?.error?.message || `HTTP ${upstream.status}` });
+        jsonRes(res, upstream.status, {
+          ok: false,
+          error: result?.error?.message || `HTTP ${upstream.status}`,
+        });
         return;
       }
 
       log("FOUNDRY", `← OK (model: ${result?.model || "unknown"})`);
       jsonRes(res, 200, { ok: true, ...result });
     } catch (err) {
-      log("FOUNDRY", "Error:", err.message);
-      jsonRes(res, 502, { ok: false, error: err.message });
+      log("FOUNDRY", "Error:", (err as Error).message);
+      jsonRes(res, 502, { ok: false, error: (err as Error).message });
     }
   };
 

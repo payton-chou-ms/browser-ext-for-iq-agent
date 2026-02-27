@@ -6,93 +6,115 @@
 
 ---
 
-## 專案概覽
+## 專案概覽（最新狀態 2026-02-27）
 
 | 檔案 | 行數 | 職責 |
 |------|------|------|
-| `sidebar.js` | ~4,140 | 主 UI 邏輯（巨型單體，待 P2 拆分） |
-| `sidebar.css` | 3,375 | 所有樣式 |
-| `sidebar.html` | 856 | DOM 結構 |
-| `proxy.ts` | 558 | HTTP 代理伺服器來源（strict TS，esbuild → `dist/proxy.js`） |
-| `proxy.js` | 14 | 啟動器（啟動前自動 build，再載入 `dist/proxy.js`） |
-| `achievement-engine.ts` | 853 | 成就系統引擎來源（strict TS，build 輸出 `achievement-engine.js`） |
+| `sidebar.js` | 391 | Bootstrap（初始化/事件綁定/模組 wiring）✅ 已完成拆分 |
+| `sidebar.css` | 3,375 | 所有 UI 樣式 |
+| `sidebar.html` | 856+ | DOM 結構 + script 載入順序 |
+| `proxy.ts` | 558 | HTTP 代理伺服器來源（strict TS） |
+| `proxy.js` | 14 | 啟動器（啟動前自動 build） |
+| `routes/core.ts` | 173 | 核心 API 路由（strict TS）✅ |
+| `routes/session.ts` | 219 | Session 管理 API（strict TS）✅ |
+| `routes/schemas.ts` | 67 | Zod schema 定義（strict TS）✅ |
+| `routes/foundry.ts` | 91 | Foundry Agent API（strict TS）✅ |
+| `routes/proactive.ts` | 123 | Proactive Agent API（strict TS）✅ |
+| `achievement-engine.ts` | 853 | 成就系統引擎（strict TS） |
 | `background.js` | 368 | Service Worker |
 | `copilot-rpc.js` | 305 | REST 客戶端 |
 | `start.sh` | 194 | 啟動腳本 |
-| `content_script.js` | 33 | 內容腳本 |
+| **lib/ 核心模組** | | |
 | `lib/state.js` | 38 | CONFIG 常數、全域狀態 |
-| `lib/utils.js` | 168 | showToast, debugLog, switchPanel |
-| `lib/i18n.js` | 332 | I18N 物件 + `t()` + `translateStaticUi()` |
+| `lib/utils.js` | 187 | toast/cache/debug utilities |
+| `lib/i18n.js` | 408 | I18N 字典 + `t()` + `translateStaticUi()` |
 | `lib/theme.js` | 42 | `applyTheme()` + `applyLanguage()` |
-| `lib/connection.js` | 225 | `checkConnection()` + runtime message router |
-| `lib/chat.js` | 552 | sendMessage, ensureSession, streaming |
-| `lib/agents.js` | 204 | agent 系統, fleet mode |
-| `lib/file-upload.js` | 246 | drag-drop, paste, processAttachment |
-| `lib/panels/helpers.js` | 114 | renderProgressBar, renderQuotaBar, renderModelItem |
-| `lib/panels/usage.js` | 236 | updateStats, renderModelsCard, switchModel |
-| `lib/panels/context.js` | 169 | fetchCliContext, renderContext |
-| `lib/panels/history.js` | 108 | session history search |
-| `lib/panels/mcp.js` | 223 | MCP config panel |
+| `lib/connection.js` | 225 | 連線狀態、runtime router |
+| `lib/chat.js` | 559 | 對話狀態、streaming |
+| `lib/chat-session.js` | 90 | session 管理 |
+| `lib/chat-streaming.js` | 272 | SSE streaming 處理 |
+| `lib/agents.js` | 203 | agent 管理與 UI |
+| `lib/file-upload.js` | 245 | 附件上傳/預覽/貼上 |
+| **lib/panels/ 面板模組** | | |
+| `lib/panels/helpers.js` | 116 | 共用渲染函數 |
+| `lib/panels/usage.js` | 234 | 使用量統計面板 |
+| `lib/panels/context.js` | 170 | 上下文面板 |
+| `lib/panels/history.js` | 110 | 歷史紀錄面板 |
+| `lib/panels/mcp.js` | 223 | MCP 配置面板 |
+| `lib/panels/skills.js` | 259 | Skills 面板 |
+| `lib/panels/tasks.js` | 235 | 任務面板 |
+| `lib/panels/achievements.js` | 292 | 成就面板 |
+| `lib/panels/proactive.js` | 27 | Proactive 入口 |
+| `lib/panels/proactive-render.js` | 380 | Proactive UI 渲染 |
+| `lib/panels/proactive-scan.js` | 175 | Proactive 掃描邏輯 |
+| `lib/panels/proactive-state.js` | 165 | Proactive 狀態管理 |
 
 ---
 
-## Code Quality 待解決問題
+## Code Quality 待解決問題（更新 2026-02-27）
 
-| 嚴重度 | 問題 | 說明 | 對應 Phase |
-|--------|------|------|-----------|
-| **CRITICAL** | sidebar.js 巨型單體 | ~4,140 行，違反 800 行上限（已抽出 12 個 lib/ 模組，含 4 個 panel） | Phase 2 |
-| **HIGH** | ~~缺少 TypeScript~~ | ✅ `proxy.ts` + `achievement-engine.ts` 已遷移 strict TS（0 errors） | ~~Future~~ DONE |
-| **HIGH** | ~~缺少 Linter / Formatter~~ | ✅ ESLint v10 + typescript-eslint 已安裝；Prettier 待定 | ~~Future~~ DONE |
-| **HIGH** | 測試覆蓋率不足 | 僅 5 個 E2E，無 unit test | Future |
-| **MEDIUM** | ~~大量 inline style~~ | ✅ 已消除：33 → 7 個（剩餘皆為動態 width/CSS var） | ~~Phase 5~~ DONE |
-| **MEDIUM** | 全域變數汙染 | lib/ 已 namespace 化；sidebar.js 內仍有全域函數 | Phase 2/5 |
-| **MEDIUM** | 部分 mutation 模式 | `arr.length = 0` 直接修改陣列 | Future |
-| **LOW** | i18n 不完整 | ✅ Proactive 區塊已改走 `t()`；其餘 runtime 字串持續收斂中 | Future |
-| **LOW** | README 已擴充 | 80 行，含架構圖、安裝步驟（Future Work ✅） | — |
+| 嚴重度 | 問題 | 說明 | 狀態 |
+|--------|------|------|------|
+| ~~CRITICAL~~ | ~~sidebar.js 巨型單體~~ | ✅ 已從 ~4,140 行拆分至 391 行，12+ 模組已抽出 | DONE |
+| ~~HIGH~~ | ~~缺少 TypeScript~~ | ✅ `proxy.ts` + `routes/*.ts` + `achievement-engine.ts` | DONE |
+| ~~HIGH~~ | ~~缺少 Linter~~ | ✅ ESLint v10 + typescript-eslint 已安裝 | DONE |
+| **HIGH** | 測試覆蓋率不足 | 僅 5 個 E2E，無 unit test | P1 |
+| ~~MEDIUM~~ | ~~大量 inline style~~ | ✅ 已消除：33 → 7 個 | DONE |
+| **MEDIUM** | 全域變數污染 | lib/ 已 namespace 化，sidebar.js 仍有少量全域函數 | P2 |
+| **LOW** | i18n 不完整 | tasks runtime 字串尚未收斂，其餘已完成 | P3 |
+| ~~LOW~~ | ~~README 簡短~~ | ✅ 已擴充含架構圖、安裝步驟 | DONE |
 
 ---
 
-## 進度總覽
+## 進度總覽（更新 2026-02-27）
 
 ```
 Phase 0 (P0) — 修復無限迴圈          ✅ DONE
 Phase 1 (P1) — 網路效率優化          ✅ DONE
 Phase 4 (P4) — proxy.js 強化         ✅ DONE
-─────────────────────────────────────────────
-Phase 2 (P2) — sidebar.js 拆分       🔶 ~2 hrs remaining（核心模組已抽出）
+─────────────────────────────────────────
+Phase 2 (P2) — sidebar.js 拆分       ✅ DONE（391L + 12模組）
 Phase 3 (P3) — Memory & DOM 優化     ✅ DONE
-Phase 5 (P5) — Code Quality          ✅ DONE (5.4 awaits P2)
-─────────────────────────────────────────────
-                              剩餘合計 ~2 hrs
+Phase 5 (P5) — Code Quality          ✅ DONE
+─────────────────────────────────────────
+TypeScript 遷移                       ✅ proxy.ts + routes/*.ts + achievement-engine.ts
+─────────────────────────────────────────
+剩餘 P0 待修: start.sh 穩定性 + Idle 請求風暴
+剩餘 P1 待做: routes/foundry.ts + routes/proactive.ts + unit tests
 ```
 
 ---
 
-## Phase 2 — sidebar.js 拆分 🔶 ~2 hrs remaining
+## Phase 2 — sidebar.js 拆分 ✅ DONE
 
-### 目標架構
+### 當前架構（已完成）
 
 ```
-sidebar.js (~4,140 → ~200 行 bootstrap)
+sidebar.js (391 行 bootstrap) ✅
 └── lib/
-    ├── state.js            全域狀態管理
-    ├── utils.js            escapeHtml, showToast, debugLog, switchPanel
-    ├── i18n.js             I18N 物件 + t() + translateStaticUi()
-    ├── theme.js            applyTheme() + applyLanguage()
-    ├── connection.js       checkConnection() + onConnected()
-    ├── chat.js             sendMessage, ensureSession, streaming, history
-    ├── agents.js           agent 系統, fleet mode
-    ├── file-upload.js      drag-drop, paste, processAttachment
+    ├── state.js            ✅ 全域狀態管理 (38L)
+    ├── utils.js            ✅ toast/cache/debug utilities (187L)
+    ├── i18n.js             ✅ I18N 字典 + t() (408L)
+    ├── theme.js            ✅ applyTheme() + applyLanguage() (42L)
+    ├── connection.js       ✅ checkConnection() + onConnected() (225L)
+    ├── chat.js             ✅ 對話狀態、streaming (559L)
+    ├── chat-session.js     ✅ session 管理 (90L)
+    ├── chat-streaming.js   ✅ SSE streaming 處理 (272L)
+    ├── agents.js           ✅ agent 管理與 UI (203L)
+    ├── file-upload.js      ✅ 附件上傳/預覽/貼上 (245L)
     └── panels/
-        ├── helpers.js      ✅ renderProgressBar, renderQuotaBar, renderModelItem
-        ├── usage.js        ✅ updateStats, renderModelsCard, switchModel (236L)
-        ├── context.js      ✅ fetchCliContext, renderContext (169L)
-        ├── history.js      ✅ session history search (108L)
-        ├── mcp.js          ✅ MCP config panel (223L)
-        ├── skills.js       ⬜ loadSkills, custom skills CRUD
-        ├── tasks.js        ⬜ parallel task monitoring
-        ├── proactive.js    ⬜ proactive agent 全套
-        └── achievements.js ⬜ gamification UI
+        ├── helpers.js      ✅ 共用渲染函數 (116L)
+        ├── usage.js        ✅ 使用量統計 (234L)
+        ├── context.js      ✅ 上下文面板 (170L)
+        ├── history.js      ✅ 歷史紀錄 (110L)
+        ├── mcp.js          ✅ MCP 配置 (223L)
+        ├── skills.js       ✅ Skills CRUD (259L)
+        ├── tasks.js        ✅ 任務監控 (235L)
+        ├── achievements.js ✅ 成就系統 UI (292L)
+        ├── proactive.js    ✅ Proactive 入口 (27L)
+        ├── proactive-render.js  ✅ UI 渲染 (380L)
+        ├── proactive-scan.js    ✅ 掃描邏輯 (175L)
+        └── proactive-state.js   ✅ 狀態管理 (165L)
 ```
 
 ### 拆分策略
@@ -135,32 +157,33 @@ sidebar.js (~4,140 → ~200 行 bootstrap)
 <script src="sidebar.js"></script>            ✅ 已載入
 ```
 
-### Checklist
+### Checklist（已完成）
 
 - [x] 2.1 建立 `lib/` 目錄結構
-- [x] 2.2 抽取 `state.js`（38L）+ `utils.js`（168L）
-- [x] 2.3 抽取 `i18n.js`（332L）+ `theme.js`（42L）— code 就緒，sidebar.html 尚未載入
-- [x] 2.4 抽取 `connection.js`（225L）+ `chat.js`（552L）+ `agents.js`（204L）+ `file-upload.js`（246L）
-- [x] 2.4b 抽取 `panels/helpers.js`（114L）
-- [ ] 2.5 抽取 `panels/*.js`（4/8 完成：✅ usage, context, history, mcp；⬜ skills, tasks, proactive, achievements）
-- [ ] 2.6 sidebar.js 瘦身為 bootstrap（目前 ~4,140 行 → 目標 < 200 行）
-- [ ] 2.7 更新 sidebar.html script 載入順序（目前載入 7 個 lib/；待加 i18n, theme, agents, file-upload + 8 panels）
+- [x] 2.2 抽取 `state.js`（38L）+ `utils.js`（187L）
+- [x] 2.3 抽取 `i18n.js`（408L）+ `theme.js`（42L）
+- [x] 2.4 抽取 `connection.js`（225L）+ `chat.js`（559L）+ `agents.js`（203L）+ `file-upload.js`（245L）
+- [x] 2.4b 抽取 `chat-session.js`（90L）+ `chat-streaming.js`（272L）
+- [x] 2.5 抽取 `panels/helpers.js`（116L）
+- [x] 2.6 抽取 `panels/*.js`（8/8 完成：usage, context, history, mcp, skills, tasks, proactive, achievements）
+- [x] 2.7 sidebar.js 瘦身為 bootstrap（391 行）
+- [x] 2.8 更新 sidebar.html script 載入順序
 
 ---
 
 ## Future Work（優化計畫之外）
 
-| 優先級 | 任務 | 說明 |
+| 優先級 | 任務 | 狀態 |
 |--------|------|------|
-| P0 | ESLint + Prettier | ✅ ESLint v10 已安裝（0 errors, 31 warnings）；Prettier 待定 |
-| P1 | 遷移至 TypeScript | ✅ 漸進式完成：`proxy.ts` → `achievement-engine.ts`，`proxy.js` 改為 build launcher |
-| P1 | Unit Tests | 達 80% 覆蓋率（achievement-engine, copilot-rpc） |
-| P1 | ~~消除 inline styles~~ | ✅ 33 → 7（剩餘為動態 width% / CSS custom property） |
-| P2 | Zod 驗證 | ✅ proxy.js route handler 完整 schema 驗證 |
-| P2 | 模組化 proxy.js | ✅ 已拆為 `routes/*.js` |
-| P2 | 完善 README | ✅ 已補架構圖、安裝步驟、開發指南、截圖章節 |
-| P3 | Bundler | ✅ 已加入 esbuild 打包（tree-shaking 啟用） |
-| P3 | 完善 i18n | ⏳ 進行中：Proactive 區塊 runtime 字串已收斂至 `t()`；其餘面板持續收斂至 `t()` / `localizeRuntimeMessage()` |
+| ~~P0~~ | ~~ESLint + Prettier~~ | ✅ ESLint v10 已安裝（0 errors） |
+| ~~P1~~ | ~~遷移至 TypeScript~~ | ✅ proxy.ts + routes/{core,session,schemas}.ts + achievement-engine.ts |
+| **P1** | Unit Tests | 待達 80% 覆蓋率 |
+| ~~P1~~ | ~~消除 inline styles~~ | ✅ 33 → 7 |
+| ~~P2~~ | ~~Zod 驗證~~ | ✅ proxy route handler 完整 schema 驗證 |
+| ~~P2~~ | ~~模組化 proxy.js~~ | ✅ 已拆為 `routes/*.ts` |
+| ~~P2~~ | ~~完善 README~~ | ✅ 已補架構圖、安裝步驟、開發指南 |
+| ~~P3~~ | ~~Bundler~~ | ✅ esbuild 打包（tree-shaking 啟用） |
+| **P3** | 完善 i18n | ⬼ tasks runtime 字串待收斂，其餘已完成 |
 
 ### P3 完善 i18n — 可執行子項（面板拆解）
 

@@ -11,7 +11,14 @@ set -euo pipefail
 
 # ── Load .env (if present) ──
 if [[ -f .env ]]; then
-  export $(grep -v '^#' .env | grep -v '^\s*$' | xargs)
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    [[ -z "$line" || "$line" =~ ^[[:space:]]*# ]] && continue
+    key="${line%%=*}"
+    value="${line#*=}"
+    key="${key//[[:space:]]/}"
+    [[ -z "$key" ]] && continue
+    export "$key=$value"
+  done < .env
 fi
 
 CLI_PORT="${CLI_PORT:-4321}"
@@ -64,15 +71,22 @@ free_port() {
 
 # ── Cleanup on exit ──
 cleanup() {
+  [[ "${_CLEANED_UP:-0}" -eq 1 ]] && return
+  _CLEANED_UP=1
+  trap - EXIT SIGINT SIGTERM
   echo ""
   log "${P_SYS} ⏹ Shutting down..."
   [[ -n "${PROXY_PID:-}" ]] && kill "$PROXY_PID" 2>/dev/null && debug "Killed proxy PID $PROXY_PID"
   [[ -n "${CLI_PID:-}" ]]   && kill "$CLI_PID"   2>/dev/null && debug "Killed CLI PID $CLI_PID"
   wait 2>/dev/null
   log "${P_SYS} ✦ All processes stopped."
+}
+on_signal() {
+  cleanup
   exit 0
 }
-trap cleanup SIGINT SIGTERM EXIT
+trap on_signal SIGINT SIGTERM
+trap cleanup EXIT
 
 # ── Banner ──
 echo ""
@@ -95,9 +109,11 @@ free_port "$HTTP_PORT"
 
 # 2) Start Copilot CLI
 log "${P_CLI} Starting copilot --headless --port $CLI_PORT"
-copilot --headless --port "$CLI_PORT" 2>&1 | while IFS= read -r line; do
-  echo -e "${DIM}[$(ts)]${NC} ${P_CLI} $line"
-done &
+copilot --headless --port "$CLI_PORT" > >(
+  while IFS= read -r line; do
+    echo -e "${DIM}[$(ts)]${NC} ${P_CLI} $line"
+  done
+) 2>&1 &
 CLI_PID=$!
 debug "${P_CLI} launched with PID $CLI_PID"
 
@@ -121,9 +137,11 @@ ok "${P_CLI} Copilot CLI ready (PID $CLI_PID, port $CLI_PORT)"
 
 # 3) Start HTTP proxy
 log "${P_PROXY} Starting node proxy.js --cli-port $CLI_PORT --http-port $HTTP_PORT"
-node proxy.js --cli-port "$CLI_PORT" --http-port "$HTTP_PORT" 2>&1 | while IFS= read -r line; do
-  echo -e "${DIM}[$(ts)]${NC} ${P_PROXY} $line"
-done &
+node proxy.js --cli-port "$CLI_PORT" --http-port "$HTTP_PORT" > >(
+  while IFS= read -r line; do
+    echo -e "${DIM}[$(ts)]${NC} ${P_PROXY} $line"
+  done
+) 2>&1 &
 PROXY_PID=$!
 debug "${P_PROXY} launched with PID $PROXY_PID"
 
@@ -213,9 +231,11 @@ while true; do
     fi
     log "${P_PROXY} ⚠ Proxy died (attempt $PROXY_RESTART_COUNT/$MAX_PROXY_RESTARTS). Restarting..."
     sleep 2
-    node proxy.js --cli-port "$CLI_PORT" --http-port "$HTTP_PORT" 2>&1 | while IFS= read -r line; do
-      echo -e "${DIM}[$(ts)]${NC} ${P_PROXY} $line"
-    done &
+    node proxy.js --cli-port "$CLI_PORT" --http-port "$HTTP_PORT" > >(
+      while IFS= read -r line; do
+        echo -e "${DIM}[$(ts)]${NC} ${P_PROXY} $line"
+      done
+    ) 2>&1 &
     PROXY_PID=$!
     sleep 1
     if kill -0 "$PROXY_PID" 2>/dev/null; then

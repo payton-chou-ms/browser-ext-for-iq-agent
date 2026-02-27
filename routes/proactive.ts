@@ -1,26 +1,30 @@
-import { Schemas } from "./schemas.js";
+import type { RouteTable, ProactiveRouteDeps } from "../shared/types.js";
+import { Schemas, type ProactiveConfigInput } from "./schemas.js";
 
-export function registerProactiveRoutes(routes, deps) {
-  const {
-    jsonRes,
-    readJsonBody,
-    log,
-    proactive,
-  } = deps;
+// ===== Scan-all throttling (A2) =====
+// Prevent re-entry within SCAN_ALL_THROTTLE_MS (default 5 minutes)
+const SCAN_ALL_THROTTLE_MS = 5 * 60 * 1000;
+let lastScanAllTimestamp = 0;
+
+export function registerProactiveRoutes(routes: RouteTable, deps: ProactiveRouteDeps): void {
+  const { jsonRes, readJsonBody, log, proactive } = deps;
 
   routes["GET /api/proactive/config"] = async (_req, res) => {
     jsonRes(res, 200, { ok: true, config: proactive.getConfig() });
   };
 
   routes["POST /api/proactive/config"] = async (req, res) => {
-    const body = await readJsonBody(req, res, { schema: Schemas.proactiveConfig, allowEmpty: true });
+    const body = await readJsonBody(req, res, {
+      schema: Schemas.proactiveConfig,
+      allowEmpty: true,
+    }) as ProactiveConfigInput | null;
     if (!body) return;
 
     const current = proactive.getConfig();
-    const nextPrompt = typeof body.workiqPrompt === "string" ? body.workiqPrompt : current.workiqPrompt;
-    const nextModel = typeof body.model === "string" && body.model.trim()
-      ? body.model.trim()
-      : current.model;
+    const nextPrompt =
+      typeof body.workiqPrompt === "string" ? body.workiqPrompt : current.workiqPrompt;
+    const nextModel =
+      typeof body.model === "string" && body.model.trim() ? body.model.trim() : current.model;
 
     proactive.setConfig({ workiqPrompt: nextPrompt, model: nextModel });
     proactive.invalidateSession("config updated");
@@ -34,8 +38,8 @@ export function registerProactiveRoutes(routes, deps) {
       const result = await proactive.runBriefing();
       jsonRes(res, 200, result);
     } catch (err) {
-      log("ERROR", "Briefing error:", err.message);
-      jsonRes(res, 500, { ok: false, error: err.message });
+      log("ERROR", "Briefing error:", (err as Error).message);
+      jsonRes(res, 500, { ok: false, error: (err as Error).message });
     }
   };
 
@@ -45,8 +49,8 @@ export function registerProactiveRoutes(routes, deps) {
       const result = await proactive.runDeadlines();
       jsonRes(res, 200, result);
     } catch (err) {
-      log("ERROR", "Deadlines error:", err.message);
-      jsonRes(res, 500, { ok: false, error: err.message });
+      log("ERROR", "Deadlines error:", (err as Error).message);
+      jsonRes(res, 500, { ok: false, error: (err as Error).message });
     }
   };
 
@@ -56,8 +60,8 @@ export function registerProactiveRoutes(routes, deps) {
       const result = await proactive.runGhosts();
       jsonRes(res, 200, result);
     } catch (err) {
-      log("ERROR", "Ghosts error:", err.message);
-      jsonRes(res, 500, { ok: false, error: err.message });
+      log("ERROR", "Ghosts error:", (err as Error).message);
+      jsonRes(res, 500, { ok: false, error: (err as Error).message });
     }
   };
 
@@ -67,12 +71,31 @@ export function registerProactiveRoutes(routes, deps) {
       const result = await proactive.runMeetingPrep();
       jsonRes(res, 200, result);
     } catch (err) {
-      log("ERROR", "Meeting prep error:", err.message);
-      jsonRes(res, 500, { ok: false, error: err.message });
+      log("ERROR", "Meeting prep error:", (err as Error).message);
+      jsonRes(res, 500, { ok: false, error: (err as Error).message });
     }
   };
 
   routes["POST /api/proactive/scan-all"] = async (_req, res) => {
+    const now = Date.now();
+    const elapsed = now - lastScanAllTimestamp;
+
+    // Throttle: skip if called too frequently
+    if (elapsed < SCAN_ALL_THROTTLE_MS) {
+      const retryAfterMs = SCAN_ALL_THROTTLE_MS - elapsed;
+      const remainingSec = Math.ceil(retryAfterMs / 1000);
+      log("PROACTIVE", `scan-all throttled — skip (${remainingSec}s remaining)`);
+      jsonRes(res, 200, {
+        ok: true,
+        throttled: true,
+        retryAfterMs,
+        scannedAt: new Date(lastScanAllTimestamp).toISOString(),
+        results: {},
+      });
+      return;
+    }
+
+    lastScanAllTimestamp = now;
     log("PROACTIVE", "Running full proactive scan (parallel)...");
 
     // Run all scans in parallel for ~4x speedup
@@ -83,7 +106,9 @@ export function registerProactiveRoutes(routes, deps) {
       proactive.runMeetingPrep(),
     ]);
 
-    const unwrap = (result) =>
+    const unwrap = (
+      result: PromiseSettledResult<{ ok: boolean; data?: Record<string, unknown>; raw?: string; error?: string }>
+    ) =>
       result.status === "fulfilled"
         ? result.value
         : { ok: false, error: result.reason?.message || "Unknown error" };

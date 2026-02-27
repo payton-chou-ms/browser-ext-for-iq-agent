@@ -1,6 +1,7 @@
-import { Schemas } from "./schemas.js";
+import type { RouteTable, CoreRouteDeps } from "../shared/types.js";
+import { Schemas, type ToolsListInput, type McpConfigWriteInput } from "./schemas.js";
 
-export function registerCoreRoutes(routes, deps) {
+export function registerCoreRoutes(routes: RouteTable, deps: CoreRouteDeps): void {
   const {
     ensureClient,
     getClientState,
@@ -33,12 +34,16 @@ export function registerCoreRoutes(routes, deps) {
       const result = await c.listModels();
       jsonRes(res, 200, { ok: true, models: result });
     } catch (err) {
-      log("WARN", "listModels not available:", err.message);
+      log("WARN", "listModels not available:", (err as Error).message);
       jsonRes(res, 200, {
         ok: true,
         models: [
-          "gpt-4.1", "gpt-4.1-mini", "gpt-4o", "gpt-4o-mini",
-          "claude-sonnet-4-20250514", "claude-haiku-4-20250414",
+          "gpt-4.1",
+          "gpt-4.1-mini",
+          "gpt-4o",
+          "gpt-4o-mini",
+          "claude-sonnet-4-20250514",
+          "claude-haiku-4-20250414",
           "o4-mini",
         ],
         fallback: true,
@@ -47,7 +52,10 @@ export function registerCoreRoutes(routes, deps) {
   };
 
   routes["POST /api/tools"] = async (req, res) => {
-    const params = await readJsonBody(req, res, { schema: Schemas.toolsList, allowEmpty: true });
+    const params = await readJsonBody(req, res, {
+      schema: Schemas.toolsList,
+      allowEmpty: true,
+    }) as ToolsListInput | null;
     if (!params) return;
 
     const c = await ensureClient();
@@ -55,8 +63,8 @@ export function registerCoreRoutes(routes, deps) {
       const result = await c.rpc.tools.list(params.model ? { model: params.model } : {});
       jsonRes(res, 200, { ok: true, tools: result.tools || [] });
     } catch (err) {
-      log("WARN", "tools.list not available:", err.message);
-      jsonRes(res, 200, { ok: true, tools: [], fallback: true, error: err.message });
+      log("WARN", "tools.list not available:", (err as Error).message);
+      jsonRes(res, 200, { ok: true, tools: [], fallback: true, error: (err as Error).message });
     }
   };
 
@@ -66,54 +74,59 @@ export function registerCoreRoutes(routes, deps) {
       const result = await c.rpc.account.getQuota();
       jsonRes(res, 200, { ok: true, quota: result.quotaSnapshots || {} });
     } catch (err) {
-      log("WARN", "account.getQuota not available:", err.message);
-      jsonRes(res, 200, { ok: true, quota: {}, fallback: true, error: err.message });
+      log("WARN", "account.getQuota not available:", (err as Error).message);
+      jsonRes(res, 200, { ok: true, quota: {}, fallback: true, error: (err as Error).message });
     }
   };
 
   routes["POST /api/context"] = async (_req, res) => {
     const c = await ensureClient();
-    const context = {};
+    const context: Record<string, unknown> = {};
 
     try {
       context.status = await c.getStatus();
     } catch (err) {
-      log("WARN", "getStatus not available:", err.message);
+      log("WARN", "getStatus not available:", (err as Error).message);
       context.status = { version: "unknown", protocolVersion: 0 };
     }
 
     try {
       context.auth = await c.getAuthStatus();
     } catch (err) {
-      log("WARN", "getAuthStatus not available:", err.message);
+      log("WARN", "getAuthStatus not available:", (err as Error).message);
       context.auth = { isAuthenticated: false };
     }
 
     try {
       const models = await c.listModels();
-      context.models = models.map((m) => ({ id: m.id, name: m.name }));
+      context.models = models.map((m: { id: string; name: string }) => ({ id: m.id, name: m.name }));
     } catch (err) {
-      log("WARN", "listModels not available:", err.message);
+      log("WARN", "listModels not available:", (err as Error).message);
       context.models = [];
     }
 
     try {
       const toolsResult = await c.rpc.tools.list({});
-      context.tools = (toolsResult.tools || []).map((t) => ({ name: t.name, description: t.description }));
+      context.tools = (toolsResult.tools || []).map((t: { name: string; description?: string }) => ({
+        name: t.name,
+        description: t.description,
+      }));
     } catch (err) {
-      log("WARN", "tools.list not available:", err.message);
+      log("WARN", "tools.list not available:", (err as Error).message);
       context.tools = [];
     }
 
     try {
       const sessionsList = await c.listSessions();
-      context.sessions = sessionsList.map((session) => ({
-        sessionId: session.sessionId,
-        summary: session.summary,
-        context: session.context || {},
-      }));
+      context.sessions = sessionsList.map(
+        (session) => ({
+          sessionId: session.sessionId,
+          summary: session.summary,
+          context: session.context || {},
+        })
+      );
     } catch (err) {
-      log("WARN", "listSessions not available:", err.message);
+      log("WARN", "listSessions not available:", (err as Error).message);
       context.sessions = [];
     }
 
@@ -121,7 +134,7 @@ export function registerCoreRoutes(routes, deps) {
       const quotaResult = await c.rpc.account.getQuota();
       context.quota = quotaResult.quotaSnapshots || {};
     } catch (err) {
-      log("WARN", "account.getQuota not available:", err.message);
+      log("WARN", "account.getQuota not available:", (err as Error).message);
       context.quota = {};
     }
 
@@ -140,7 +153,7 @@ export function registerCoreRoutes(routes, deps) {
   };
 
   routes["POST /api/mcp/config"] = async (req, res) => {
-    const body = await readJsonBody(req, res, { schema: Schemas.mcpConfigWrite });
+    const body = await readJsonBody(req, res, { schema: Schemas.mcpConfigWrite }) as McpConfigWriteInput | null;
     if (!body) return;
 
     try {
@@ -154,7 +167,7 @@ export function registerCoreRoutes(routes, deps) {
       log("MCP", `Saved config to ${targetPath}`);
       jsonRes(res, 200, { ok: true, source: targetPath, config: body.config });
     } catch (err) {
-      jsonRes(res, 500, { ok: false, error: err.message });
+      jsonRes(res, 500, { ok: false, error: (err as Error).message });
     }
   };
 }

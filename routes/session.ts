@@ -1,7 +1,14 @@
 import { approveAll } from "@github/copilot-sdk";
-import { Schemas } from "./schemas.js";
+import type { RouteTable, SessionRouteDeps } from "../shared/types.js";
+import {
+  Schemas,
+  type SwitchModelInput,
+  type SessionCreateInput,
+  type SessionIdOnlyInput,
+  type SessionSendInput,
+} from "./schemas.js";
 
-export function registerSessionRoutes(routes, deps) {
+export function registerSessionRoutes(routes: RouteTable, deps: SessionRouteDeps): void {
   const {
     ensureClient,
     getSessionOrResume,
@@ -14,7 +21,7 @@ export function registerSessionRoutes(routes, deps) {
   } = deps;
 
   routes["POST /api/session/switch-model"] = async (req, res) => {
-    const body = await readJsonBody(req, res, { schema: Schemas.switchModel });
+    const body = await readJsonBody(req, res, { schema: Schemas.switchModel }) as SwitchModelInput | null;
     if (!body) return;
 
     const session = await getSessionOrResume(body.sessionId);
@@ -28,13 +35,16 @@ export function registerSessionRoutes(routes, deps) {
       log("MODEL", `[${body.sessionId.slice(0, 8)}] Switched to model: ${body.modelId}`, result);
       jsonRes(res, 200, { ok: true, modelId: result?.modelId || body.modelId });
     } catch (err) {
-      log("WARN", `model.switchTo failed: ${err.message}`);
-      jsonRes(res, 500, { ok: false, error: err.message });
+      log("WARN", `model.switchTo failed: ${(err as Error).message}`);
+      jsonRes(res, 500, { ok: false, error: (err as Error).message });
     }
   };
 
   routes["POST /api/session/create"] = async (req, res) => {
-    const body = await readJsonBody(req, res, { schema: Schemas.sessionCreate, allowEmpty: true });
+    const body = await readJsonBody(req, res, {
+      schema: Schemas.sessionCreate,
+      allowEmpty: true,
+    }) as SessionCreateInput | null;
     if (!body) return;
 
     log("SESSION", "Creating session with config:", JSON.stringify(body));
@@ -55,7 +65,7 @@ export function registerSessionRoutes(routes, deps) {
   };
 
   routes["POST /api/session/resume"] = async (req, res) => {
-    const body = await readJsonBody(req, res, { schema: Schemas.sessionIdOnly });
+    const body = await readJsonBody(req, res, { schema: Schemas.sessionIdOnly }) as SessionIdOnlyInput | null;
     if (!body) return;
 
     log("SESSION", `Resuming session: ${body.sessionId}`);
@@ -74,7 +84,7 @@ export function registerSessionRoutes(routes, deps) {
   };
 
   routes["POST /api/session/delete"] = async (req, res) => {
-    const body = await readJsonBody(req, res, { schema: Schemas.sessionIdOnly });
+    const body = await readJsonBody(req, res, { schema: Schemas.sessionIdOnly }) as SessionIdOnlyInput | null;
     if (!body) return;
 
     const c = await ensureClient();
@@ -86,7 +96,7 @@ export function registerSessionRoutes(routes, deps) {
   };
 
   routes["POST /api/session/destroy"] = async (req, res) => {
-    const body = await readJsonBody(req, res, { schema: Schemas.sessionIdOnly });
+    const body = await readJsonBody(req, res, { schema: Schemas.sessionIdOnly }) as SessionIdOnlyInput | null;
     if (!body) return;
 
     const session = sessions.get(body.sessionId);
@@ -100,7 +110,7 @@ export function registerSessionRoutes(routes, deps) {
   };
 
   routes["POST /api/session/messages"] = async (req, res) => {
-    const body = await readJsonBody(req, res, { schema: Schemas.sessionIdOnly });
+    const body = await readJsonBody(req, res, { schema: Schemas.sessionIdOnly }) as SessionIdOnlyInput | null;
     if (!body) return;
 
     const session = await getSessionOrResume(body.sessionId);
@@ -114,7 +124,7 @@ export function registerSessionRoutes(routes, deps) {
   };
 
   routes["POST /api/session/sendAndWait"] = async (req, res) => {
-    const body = await readJsonBody(req, res, { schema: Schemas.sessionSend });
+    const body = await readJsonBody(req, res, { schema: Schemas.sessionSend }) as SessionSendInput | null;
     if (!body) return;
 
     const session = await getSessionOrResume(body.sessionId);
@@ -124,7 +134,10 @@ export function registerSessionRoutes(routes, deps) {
     }
 
     const fullPrompt = buildPromptWithAttachments(body.prompt, body.attachments);
-    log("CHAT", `[${body.sessionId.slice(0, 8)}] sendAndWait: ${fullPrompt.slice(0, 100)}... (${body.attachments?.length || 0} files)`);
+    log(
+      "CHAT",
+      `[${body.sessionId.slice(0, 8)}] sendAndWait: ${fullPrompt.slice(0, 100)}... (${body.attachments?.length || 0} files)`
+    );
     const result = await session.sendAndWait({ prompt: fullPrompt });
     log("CHAT", `[${body.sessionId.slice(0, 8)}] Response received`);
 
@@ -140,7 +153,7 @@ export function registerSessionRoutes(routes, deps) {
   };
 
   routes["POST /api/session/send"] = async (req, res) => {
-    const body = await readJsonBody(req, res, { schema: Schemas.sessionSend });
+    const body = await readJsonBody(req, res, { schema: Schemas.sessionSend }) as SessionSendInput | null;
     if (!body) return;
 
     const session = await getSessionOrResume(body.sessionId);
@@ -150,7 +163,10 @@ export function registerSessionRoutes(routes, deps) {
     }
 
     const fullPrompt = buildPromptWithAttachments(body.prompt, body.attachments);
-    log("CHAT", `[${body.sessionId.slice(0, 8)}] send (streaming): ${fullPrompt.slice(0, 100)}... (${body.attachments?.length || 0} files)`);
+    log(
+      "CHAT",
+      `[${body.sessionId.slice(0, 8)}] send (streaming): ${fullPrompt.slice(0, 100)}... (${body.attachments?.length || 0} files)`
+    );
 
     cors(res);
     res.writeHead(200, {
@@ -159,13 +175,13 @@ export function registerSessionRoutes(routes, deps) {
       Connection: "keep-alive",
     });
 
-    const sendSSE = (event, data) => {
+    const sendSSE = (event: string, data: unknown) => {
       res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
     };
 
     let finished = false;
 
-    const unsubscribe = session.on((event) => {
+    const unsubscribe = session.on((event: { type: string }) => {
       if (finished) return;
       log("SSE", `[${body.sessionId.slice(0, 8)}] event: ${event.type}`);
       sendSSE(event.type, event);
@@ -191,10 +207,10 @@ export function registerSessionRoutes(routes, deps) {
       const msgId = await session.send({ prompt: fullPrompt });
       log("SSE", `[${body.sessionId.slice(0, 8)}] send() returned msgId: ${msgId}`);
     } catch (err) {
-      log("ERROR", `[${body.sessionId.slice(0, 8)}] send() error:`, err.message);
+      log("ERROR", `[${body.sessionId.slice(0, 8)}] send() error:`, (err as Error).message);
       if (!finished) {
         finished = true;
-        sendSSE("error", { type: "error", message: err.message });
+        sendSSE("error", { type: "error", message: (err as Error).message });
         res.end();
         unsubscribe();
       }

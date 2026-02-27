@@ -1,5 +1,14 @@
 # Plan: Agent 工作視覺化 — 在 IQ Copilot Browser Extension 中呈現 Agent 工作狀態
 
+> **Implementation Status**: 部分完成
+> - ✅ TODO 1: Thinking Card CSS 已實作（`sidebar.css` `.thinking-card` + animations）
+> - ✅ TODO 4 (部分): Sub-Agent 事件處理已實作（`lib/chat-streaming.js`）
+> - ✅ TODO 7 (部分): SSE 事件解析增強（subagent.spawn/complete, fleet events）
+> - ⬜ TODO 2: Tool Call 卡片增強（計時器、圖示）
+> - ⬜ TODO 3: Intent 即時顯示
+> - ⬜ TODO 5: Fleet 模式儀表板 UI
+> - ⬜ TODO 6: Timeline 時間軸視圖
+
 ## 問題陳述
 
 目前 IQ Copilot 瀏覽器擴充功能在與 Copilot CLI 對話時，只有基本的 typing indicator（三個跳動的點）和簡單的 tool call 卡片。使用者無法直觀地看到 Agent 真正在「做什麼」：正在思考、呼叫哪些工具、子 Agent 分工、Fleet 模式平行任務等。

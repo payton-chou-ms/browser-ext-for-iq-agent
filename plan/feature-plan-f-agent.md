@@ -1,5 +1,8 @@
 # IQ Copilot — Foundry Agent Integration Plan
 
+> **Last Updated:** 2026-02-27
+> **Status:** Phase 1-2 ✅ 完成，routes/foundry.ts (91L) 已遷移 TypeScript，基礎 Agent Hub UI 已實作
+
 ## 🎯 Vision
 
 **透過 Copilot CLI 作為橋接層，讓 Extension 直接與 Azure AI Foundry Agent 對話。**
@@ -730,32 +733,33 @@ User 操作                         系統處理
 
 ## 📅 Implementation Phases
 
-### Phase 1 — CLI Agent 整合 + 基礎對話 (Week 1)
-- [ ] copilot-rpc.js 新增 createAgentSession / sendToAgent / streamToAgent / listAgents
-- [ ] background.js 新增 CREATE_AGENT_SESSION / SEND_TO_AGENT / LIST_AGENTS handlers
-- [ ] background.js streaming port 新增 STREAM_AGENT_SEND
-- [ ] 端到端測試：Extension → proxy → CLI (customAgents) → Foundry → 回覆
-- [ ] 驗證 CLI customAgents 參數格式與 Foundry Agent 路由
+### Phase 1 — CLI Agent 整合 + 基礎對話 (Week 1) ✅ DONE
+- [x] `routes/foundry.ts` 實作 Foundry Agent API (91L strict TS)
+- [x] copilot-rpc.js 新增 createAgentSession / sendToAgent / streamToAgent / listAgents
+- [x] background.js 新增 CREATE_AGENT_SESSION / SEND_TO_AGENT / LIST_AGENTS handlers
+- [x] background.js streaming port 新增 STREAM_AGENT_SEND
+- [x] 端到端測試：Extension → proxy → CLI (customAgents) → Foundry → 回覆
+- [x] 驗證 CLI customAgents 參數格式與 Foundry Agent 路由
 
-### Phase 2 — Agent UI (Week 2)
+### Phase 2 — Agent UI (Week 2) ✅ DONE
 - [x] Agent Hub Panel（卡片列表 + 新增按鈕）
-- [ ] Agent 設定 Modal（表單 + 測試連線）
-- [ ] Agent Chat 視圖（專屬對話介面）
-- [ ] Chat Panel Agent Selector（dropdown 切換）
+- [x] Agent 設定 Modal（表單 + 測試連線）
+- [x] Agent Chat 視圖（專屬對話介面）
+- [x] Chat Panel Agent Selector（dropdown 切換）
 - [x] 新增 CSS 樣式（卡片、Modal、Chat、Tags）
 
-### Phase 3 — Conversation 管理 (Week 3)
-- [ ] Stateless 模式：client-side history 管理
+### Phase 3 — Conversation 管理 (Week 3) 🔶 進行中
+- [x] Stateless 模式：client-side history 管理
 - [x] 網頁上下文注入（附帶當前頁面資訊）
 - [ ] PDF 內容注入
-- [ ] 對話歷史持久化（chrome.storage）
+- [x] 對話歷史持久化（chrome.storage）
 - [ ] 對話匯出（Markdown / JSON）
 
-### Phase 4 — 統計 + 整合 (Week 4)
+### Phase 4 — 統計 + 整合 (Week 4) 🔶 進行中
 - [ ] Agent 統計面板（呼叫、token、回應時間）
 - [ ] 結構化回覆渲染（信件卡片、會議卡片、deadline 卡片）
 - [x] 成就系統串接（agent_call 事件 → XP）
-- [ ] CLI 認證錯誤處理（提示使用者 copilot auth login）
+- [x] CLI 認證錯誤處理（提示使用者 copilot auth login）
 - [ ] 多 Agent 並行對話支援
 
 ---

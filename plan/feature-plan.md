@@ -1,5 +1,8 @@
 # IQ Copilot — Proactive Agent Feature Plan
 
+> **Last Updated:** 2026-02-27
+> **Status:** ✅ MVP 完成（Idea 1-4 全部實作完成），僅 WorkIQ OAuth 待整合
+
 ## Vision
 
 **Proactive Agent = 不等你問，主動告訴你該做什麼**

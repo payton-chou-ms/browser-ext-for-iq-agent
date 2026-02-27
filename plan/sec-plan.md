@@ -1,5 +1,13 @@
 # Security Plan: Secrets & CI/CD 設計原則
 
+> **Implementation Status**: 大部分已實作 ✅
+> - ✅ `.gitignore` 排除 `.env`, `*.key`, `*.pem`
+> - ✅ `chrome.storage.session` 用於敏感 key（`background.js`, `lib/connection.js`）
+> - ✅ Proxy 只聽 `127.0.0.1`（`proxy.ts:523`）
+> - ✅ Extension 本身零 secrets，透過 proxy 注入
+> - ⬜ CI/CD 自動發佈（GitHub Actions 待設定）
+> - ⬜ Secret rotation 機制
+
 ## 涉及的 Secrets
 
 | Secret | 用途 | 生命週期 |
