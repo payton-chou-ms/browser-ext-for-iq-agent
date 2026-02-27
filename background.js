@@ -9,6 +9,11 @@ let cliHost = "127.0.0.1";
 let connectionState = "disconnected"; // disconnected | connecting | connected | error
 let currentSessionId = null;
 
+// ── Session Storage for Sensitive Keys ──
+// chrome.storage.session is memory-only — cleared when browser closes.
+// Used for user-provided secrets (Foundry API key) that should NOT persist to disk.
+chrome.storage.session.setAccessLevel?.({ accessLevel: "TRUSTED_AND_UNTRUSTED_CONTEXTS" });
+
 // ── Init ──
 chrome.sidePanel
   .setPanelBehavior({ openPanelOnActionClick: true })
@@ -111,9 +116,99 @@ async function handleMessage(msg) {
     case "GET_MCP_CONFIG":
       return await COPILOT_RPC.getMcpConfig();
 
+    case "SET_MCP_CONFIG":
+      return await COPILOT_RPC.setMcpConfig(msg.config);
+
+    // Proactive Agent
+    case "PROACTIVE_BRIEFING":
+      return await COPILOT_RPC.proactiveBriefing();
+
+    case "PROACTIVE_DEADLINES":
+      return await COPILOT_RPC.proactiveDeadlines();
+
+    case "PROACTIVE_GHOSTS":
+      return await COPILOT_RPC.proactiveGhosts();
+
+    case "PROACTIVE_MEETING_PREP":
+      return await COPILOT_RPC.proactiveMeetingPrep();
+
+    case "PROACTIVE_SCAN_ALL":
+      return await COPILOT_RPC.proactiveScanAll();
+
+    case "GET_PROACTIVE_CONFIG": {
+      const local = await new Promise((resolve) => chrome.storage.local.get(["proactiveWorkiqPrompt"], resolve));
+      try {
+        const remote = await COPILOT_RPC.getProactiveConfig();
+        if (remote?.ok) {
+          const prompt = typeof remote.config?.workiqPrompt === "string" ? remote.config.workiqPrompt : "";
+          if (prompt !== (local.proactiveWorkiqPrompt || "")) {
+            chrome.storage.local.set({ proactiveWorkiqPrompt: prompt });
+          }
+          return { ok: true, config: { workiqPrompt: prompt } };
+        }
+      } catch {
+        // fallback to local storage
+      }
+      return { ok: true, config: { workiqPrompt: local.proactiveWorkiqPrompt || "" } };
+    }
+
+    case "SET_PROACTIVE_CONFIG": {
+      const prompt = typeof msg.workiqPrompt === "string" ? msg.workiqPrompt : "";
+      chrome.storage.local.set({ proactiveWorkiqPrompt: prompt });
+      try {
+        return await COPILOT_RPC.setProactiveConfig(prompt);
+      } catch {
+        return { ok: true, config: { workiqPrompt: prompt }, localOnly: true };
+      }
+    }
+
     // Tab info
     case "GET_TAB_INFO":
       return { url: msg.url, tabId: msg.tabId };
+
+    // ── Foundry Config (sensitive key via session storage) ──
+    case "SET_FOUNDRY_CONFIG": {
+      // Endpoint is non-sensitive → chrome.storage.local
+      if (msg.endpoint) {
+        chrome.storage.local.set({ foundryEndpoint: msg.endpoint });
+      }
+      // API key is sensitive → chrome.storage.session (memory-only)
+      if (msg.apiKey) {
+        chrome.storage.session.set({ foundryApiKey: msg.apiKey });
+      }
+      try {
+        await COPILOT_RPC.setFoundryConfig(msg.endpoint || "", msg.apiKey || undefined);
+      } catch {
+        // Proxy may be disconnected; local/session storage is still updated.
+      }
+      return { ok: true };
+    }
+
+    case "GET_FOUNDRY_CONFIG": {
+      const local = await new Promise((r) => chrome.storage.local.get("foundryEndpoint", r));
+      const session = await new Promise((r) => chrome.storage.session.get("foundryApiKey", r));
+      let proxyStatus = { configured: false, endpoint: local.foundryEndpoint || "" };
+      try {
+        const status = await COPILOT_RPC.getFoundryStatus();
+        if (status?.ok) proxyStatus = status;
+      } catch {
+        // keep local fallback
+      }
+      return {
+        endpoint: local.foundryEndpoint || proxyStatus.endpoint || "",
+        hasApiKey: !!(session.foundryApiKey) || !!proxyStatus.configured,
+      };
+    }
+
+    case "CLEAR_FOUNDRY_KEY": {
+      chrome.storage.session.remove("foundryApiKey");
+      try {
+        await COPILOT_RPC.clearFoundryKey();
+      } catch {
+        // Proxy may be disconnected; key is still cleared from session storage.
+      }
+      return { ok: true };
+    }
 
     default:
       return { error: `Unknown message type: ${msg.type}` };
@@ -183,3 +278,73 @@ setInterval(async () => {
     if (connectionState !== prev) broadcastState();
   }
 }, 15000);
+
+// ── Proactive Agent Scheduling ──
+// Set up alarms for proactive scans
+chrome.alarms.create("proactive-briefing", {
+  // Fire at next 8:00 AM, then every 24 hours
+  periodInMinutes: 24 * 60,
+  delayInMinutes: minutesUntilHour(8),
+});
+
+chrome.alarms.create("proactive-deadlines", {
+  // Every 12 hours
+  periodInMinutes: 12 * 60,
+  delayInMinutes: 1,
+});
+
+chrome.alarms.create("proactive-ghosts", {
+  // Every 4 hours
+  periodInMinutes: 4 * 60,
+  delayInMinutes: 2,
+});
+
+chrome.alarms.create("proactive-meeting-prep", {
+  // Every 30 minutes (checks if meeting is within 15 min)
+  periodInMinutes: 30,
+  delayInMinutes: 3,
+});
+
+function minutesUntilHour(targetHour) {
+  const now = new Date();
+  const target = new Date(now);
+  target.setHours(targetHour, 0, 0, 0);
+  if (target <= now) target.setDate(target.getDate() + 1);
+  return Math.max(1, Math.round((target - now) / 60000));
+}
+
+chrome.alarms.onAlarm.addListener(async (alarm) => {
+  if (connectionState !== "connected") return;
+  console.log(`[BG] Alarm fired: ${alarm.name}`);
+
+  let result = null;
+  try {
+    switch (alarm.name) {
+      case "proactive-briefing":
+        result = await COPILOT_RPC.proactiveBriefing();
+        break;
+      case "proactive-deadlines":
+        result = await COPILOT_RPC.proactiveDeadlines();
+        break;
+      case "proactive-ghosts":
+        result = await COPILOT_RPC.proactiveGhosts();
+        break;
+      case "proactive-meeting-prep":
+        result = await COPILOT_RPC.proactiveMeetingPrep();
+        break;
+    }
+  } catch (err) {
+    console.error(`[BG] Proactive scan error (${alarm.name}):`, err.message);
+    return;
+  }
+
+  if (result && result.ok) {
+    // Broadcast to sidebar
+    chrome.runtime.sendMessage({
+      type: "PROACTIVE_UPDATE",
+      agent: alarm.name.replace("proactive-", ""),
+      data: result.data || result.results,
+      scannedAt: new Date().toISOString(),
+    }).catch(() => {});
+  }
+});
