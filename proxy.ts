@@ -215,6 +215,12 @@ function getWritableMcpConfigPath(existingSource: string | null): string {
 const TEMP_DIR = path.join(os.tmpdir(), "iq-copilot-uploads");
 fs.mkdirSync(TEMP_DIR, { recursive: true });
 
+const TEMP_FILE_TTL_MS = Number(process.env.UPLOAD_TEMP_TTL_MS || 24 * 60 * 60 * 1000);
+const TEMP_MAX_TOTAL_BYTES = Number(process.env.UPLOAD_TEMP_MAX_TOTAL_BYTES || 200 * 1024 * 1024);
+const TEMP_MAX_FILE_COUNT = Number(process.env.UPLOAD_TEMP_MAX_FILE_COUNT || 200);
+const TEMP_CLEANUP_INTERVAL_MS = Number(process.env.UPLOAD_TEMP_CLEANUP_INTERVAL_MS || 60 * 1000);
+let lastTempCleanupAt = 0;
+
 function formatBytes(bytes: number): string {
   if (!bytes) return "0 B";
   if (bytes < 1024) return `${bytes} B`;
@@ -222,7 +228,75 @@ function formatBytes(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+function cleanupTempUploads(force = false): void {
+  const now = Date.now();
+  if (!force && now - lastTempCleanupAt < TEMP_CLEANUP_INTERVAL_MS) return;
+  lastTempCleanupAt = now;
+
+  let entries: fs.Dirent[];
+  try {
+    entries = fs.readdirSync(TEMP_DIR, { withFileTypes: true });
+  } catch (err) {
+    log("WARN", `Temp cleanup skipped: ${(err as Error).message}`);
+    return;
+  }
+
+  const files = entries
+    .filter((entry) => entry.isFile())
+    .map((entry) => {
+      const fullPath = path.join(TEMP_DIR, entry.name);
+      const stat = fs.statSync(fullPath);
+      return {
+        fullPath,
+        size: stat.size,
+        mtimeMs: stat.mtimeMs,
+      };
+    })
+    .sort((a, b) => a.mtimeMs - b.mtimeMs);
+
+  if (files.length === 0) return;
+
+  const expired = files.filter((file) => now - file.mtimeMs > TEMP_FILE_TTL_MS);
+  let removed = 0;
+  let reclaimedBytes = 0;
+
+  for (const file of expired) {
+    try {
+      fs.unlinkSync(file.fullPath);
+      removed += 1;
+      reclaimedBytes += file.size;
+    } catch {
+      // best effort cleanup
+    }
+  }
+
+  const remainingFiles = files.filter((file) => now - file.mtimeMs <= TEMP_FILE_TTL_MS);
+  let totalBytes = remainingFiles.reduce((sum, file) => sum + file.size, 0);
+  let totalCount = remainingFiles.length;
+
+  for (const file of remainingFiles) {
+    if (totalCount <= TEMP_MAX_FILE_COUNT && totalBytes <= TEMP_MAX_TOTAL_BYTES) break;
+    try {
+      fs.unlinkSync(file.fullPath);
+      removed += 1;
+      reclaimedBytes += file.size;
+      totalBytes -= file.size;
+      totalCount -= 1;
+    } catch {
+      // best effort cleanup
+    }
+  }
+
+  if (removed > 0) {
+    log(
+      "FILE",
+      `Temp cleanup removed ${removed} file(s), reclaimed ${formatBytes(reclaimedBytes)} (ttl=${TEMP_FILE_TTL_MS}ms maxFiles=${TEMP_MAX_FILE_COUNT} maxBytes=${formatBytes(TEMP_MAX_TOTAL_BYTES)})`
+    );
+  }
+}
+
 function saveTempFile(file: Attachment): string {
+  cleanupTempUploads();
   const base64 = file.dataUrl?.split(",")[1] || "";
   const buf = Buffer.from(base64, "base64");
   const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
@@ -438,6 +512,8 @@ function getFoundrySnapshot() {
 }
 
 const routes: RouteTable = {};
+
+cleanupTempUploads(true);
 
 registerCoreRoutes(routes, {
   ensureClient,

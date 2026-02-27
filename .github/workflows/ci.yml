@@ -81,10 +81,38 @@ jobs:
           fi
           echo "✅ No inline scripts found"
 
+  tests:
+    name: Typecheck & Tests
+    runs-on: ubuntu-latest
+    needs: lint-and-security
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type check
+        run: npm run typecheck
+
+      - name: Run unit tests
+        run: npm run test:unit
+
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+
+      - name: Run Playwright E2E
+        env:
+          CI: true
+        run: npm test
+
   build:
     name: Build & Package
     runs-on: ubuntu-latest
-    needs: lint-and-security
+    needs: [lint-and-security, tests]
     steps:
       - uses: actions/checkout@v4
 

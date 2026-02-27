@@ -7,6 +7,7 @@ const __dirname = path.dirname(__filename);
 
 test.describe('Extension Sidebar', () => {
   test.describe.configure({ mode: 'serial' });
+  const isCi = Boolean(process.env.CI);
 
   let context;
   let extensionId;
@@ -19,8 +20,9 @@ test.describe('Extension Sidebar', () => {
     // Launch browser with the extension loaded
     // Extensions only work in persistent contexts (headed or headless=new)
     context = await chromium.launchPersistentContext('', {
-      headless: false, 
+      headless: isCi,
       args: [
+        ...(isCi ? ['--headless=new'] : []),
         `--disable-extensions-except=${extensionPath}`,
         `--load-extension=${extensionPath}`,
       ],

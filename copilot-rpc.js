@@ -13,12 +13,25 @@ const COPILOT_RPC = (() => {
   function getBaseUrl() { return _baseUrl; }
   function isConnected() { return _connected; }
 
+  const MAX_LOG_CHARS = 2048;
+
+  function truncateForLog(value) {
+    try {
+      const serialized = typeof value === "string" ? value : JSON.stringify(value);
+      if (!serialized) return value;
+      if (serialized.length <= MAX_LOG_CHARS) return value;
+      return `${serialized.slice(0, MAX_LOG_CHARS)}... [truncated ${serialized.length - MAX_LOG_CHARS} chars]`;
+    } catch {
+      return "[unserializable payload]";
+    }
+  }
+
   // ── Core REST call with timeout ──
   const DEFAULT_TIMEOUT_MS = 30000;
 
   async function apiCall(path, body = {}, timeoutMs = DEFAULT_TIMEOUT_MS) {
     const url = `${_baseUrl}${path}`;
-    console.log(`[RPC] → POST ${path}`, body);
+    console.log(`[RPC] → POST ${path}`, truncateForLog(body));
 
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
@@ -40,7 +53,7 @@ const COPILOT_RPC = (() => {
       }
 
       const json = await res.json();
-      console.log(`[RPC] ← ${path} OK:`, json);
+      console.log(`[RPC] ← ${path} OK:`, truncateForLog(json));
       _connected = true;
 
       if (json.ok === false && json.error) {
@@ -52,7 +65,7 @@ const COPILOT_RPC = (() => {
       if (err.name === "AbortError") {
         console.error(`[RPC] ✗ ${path} timeout after ${timeoutMs}ms`);
         _connected = false;
-        throw new Error(`Request timeout after ${timeoutMs}ms`);
+        throw new Error(`Request timeout after ${timeoutMs}ms`, { cause: err });
       }
       console.error(`[RPC] ✗ ${path} error:`, err.message);
       if (err.message.includes("Failed to fetch") || err.message.includes("NetworkError")) {
