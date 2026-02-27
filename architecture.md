@@ -38,9 +38,9 @@ flowchart LR
   - `sidebar.js`
 - 功能模組由 `lib/*` 與 `lib/panels/*` 載入。
 - UI 主要職責：
-  - 面板導覽（`chat`、`context`、`agent`、`history`、`usage`、`tasks`、`skills`、`mcp`、`notifications`、`achievements`、`config`、`version`）
+  - 面板導覽（`chat`、`context`、`history`、`usage`、`tasks`、`skills`、`mcp`、`notifications`、`achievements`、`config`、`version`）
   - 聊天輸入與檔案上傳體驗
-  - tool / sub-agent / fleet 視覺化
+  - tool 視覺化
   - Foundry / MCP 設定體驗
 
 ### B. 擴充功能背景層（MV3 Service Worker）
@@ -89,9 +89,8 @@ flowchart LR
 - `lib/chat.js` / `lib/chat-streaming.js` / `lib/chat-session.js`：
   - session 管理
   - 串流事件渲染
-  - tool / sub-agent / fleet UI 狀態
+  - tool UI 狀態
 - `lib/file-upload.js`：附件管理
-- `lib/agents.js`：Agent 面板設定
 
 ### 3.3 面板模組（`lib/panels/*`）
 - `context.js`、`history.js`、`usage.js`、`tasks.js`、`skills.js`、`mcp.js`、`achievements.js`
@@ -152,8 +151,6 @@ flowchart LR
 7. Chat 模組更新：
    - assistant delta
    - tool 卡片（狀態 + 計時 + 摘要）
-   - sub-agent 卡片
-   - fleet 儀表
    - intent bar
 
 ### 5.2 連線初始化流程
@@ -195,7 +192,7 @@ flowchart LR
 
 ### 記憶體內狀態
 - Proxy：`sessions: Map<string, CopilotSession>`
-- Chat 模組：session/model/history/tool/subagent/fleet 執行期狀態
+- Chat 模組：session/model/history/tool 執行期狀態
 - Connection 模組：debounce、初始化標記與執行期 gate
 
 ### 檔案系統狀態
@@ -255,4 +252,4 @@ flowchart LR
 1. 持續維持 `lib/*` 與 `lib/panels/*` 的 UI 模組化。
 2. 持續維持 Proxy 路由領域隔離與相依注入。
 3. 優先採用聚合 context 讀取 + 輕量重連同步。
-4. 持續強化事件驅動 UX（tool/sub-agent/fleet）與 proactive 工作流。
+4. 持續強化事件驅動 UX（tool）與 proactive 工作流。

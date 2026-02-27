@@ -20,8 +20,8 @@
     - [等級階梯](#等級階梯)
   - [Achievement Categories](#achievement-categories)
     - [🗨️ Chat 類（對話互動）](#️-chat-類對話互動)
-    - [🤖 Agent 類](#-agent-類)
-    - [📋 Proactive Agent 類](#-proactive-agent-類)
+    - [🛠️ Skills/Tools 類](#️-skillstools-類)
+    - [📋 Proactive 掃描類](#-proactive-掃描類)
     - [🔥 連續使用 \& 隱藏成就](#-連續使用--隱藏成就)
   - [UI Overview](#ui-overview)
     - [成就面板](#成就面板)
@@ -42,12 +42,12 @@
 
 ## Summary
 
-**像 Xbox 成就系統一樣，讓每次與 Agent 互動都有意義。**
+**像 Xbox 成就系統一樣，讓每次與 Skills/Tools 互動都有意義。**
 
-IQ Copilot 的成就系統會追蹤你的每一個操作——提問、使用 Agent、完成任務、探索功能——並給予經驗值（XP）、解鎖徽章、提升等級。
+IQ Copilot 的成就系統會追蹤你的每一個操作——提問、使用 Skills/Tools、完成任務、探索功能——並給予經驗值（XP）、解鎖徽章、提升等級。
 
 **核心價值：**
-- 🎯 **正向回饋循環**：養成使用 Agent 的習慣
+- 🎯 **正向回饋循環**：養成使用 Skills/Tools 的習慣
 - 📊 **生產力可視化**：量化 AI 帶來的效益（節省時間、處理任務數）
 - 🏆 **功能探索**：透過隱藏成就發現未使用的功能
 
@@ -81,10 +81,10 @@ IQ Copilot 的成就系統會追蹤你的每一個操作——提問、使用 Ag
 | 行為 | XP | 說明 |
 |------|-----|------|
 | 發送訊息 | +5 | 基礎互動 |
-| 使用 Agent | +15 | 採納 AI 建議 |
+| 使用 Skills/Tools | +15 | 採納 AI 建議 |
 | 完成任務 | +20 | 任務管理 |
 | 使用 MCP 工具 | +10 | 進階功能 |
-| 查看每日晨報 | +10 | Proactive Agent |
+| 查看每日晨報 | +10 | Proactive 掃描 |
 | 處理未回覆提醒 | +25 | 最高價值行為 |
 | 連續登入 | +8/天 | 養成習慣 |
 
@@ -95,7 +95,7 @@ IQ Copilot 的成就系統會追蹤你的每一個操作——提問、使用 Ag
 | 1 | 🌱 Newbie | 0 | 基礎功能 |
 | 2 | 💡 Explorer | 50 | 解鎖 Usage 統計 |
 | 3 | ⚡ Learner | 150 | 解鎖快捷指令 |
-| 4 | 🔥 Active User | 350 | 進階 Agent 模式 |
+| 4 | 🔥 Active User | 350 | 進階 Skills/Tools 模式 |
 | 5 | 🚀 Power User | 600 | MCP 自訂工具 |
 | 6 | 💎 Expert | 1000 | 主題色彩自訂 |
 | 7 | 🏆 Champion | 1500 | 排行榜功能 |
@@ -117,17 +117,17 @@ IQ Copilot 的成就系統會追蹤你的每一個操作——提問、使用 Ag
 | 🧠 深度對話 | 單次對話超過 20 回合 | 🟪 |
 | 📖 千言萬語 | 累計 5000 則訊息 | 🟨 |
 
-### 🤖 Agent 類
+### 🛠️ Skills/Tools 類
 
 | 成就 | 條件 | 稀有度 |
 |------|------|--------|
-| 🤖 Agent 初體驗 | 首次呼叫 Agent | ⬜ |
-| 💙 Agent 愛好者 | 使用 Agent 50 次 | 🟦 |
-| ⭐ Agent 達人 | 使用 Agent 200 次 | 🟪 |
-| 🎯 全能指揮官 | 使用過所有類型 Agent | 🟧 |
-| 🧬 AI 共生體 | 單日使用 Agent 50+ 次 | 🟨 |
+| 🛠️ Skills 初體驗 | 首次呼叫 Skill/Tool | ⬜ |
+| 💙 Skills 愛好者 | 使用 Skills/Tools 50 次 | 🟦 |
+| ⭐ Tools 達人 | 使用 Skills/Tools 200 次 | 🟪 |
+| 🎯 全能指揮官 | 使用過所有類型 Skills/Tools | 🟧 |
+| 🧬 AI 共生體 | 單日使用 Skills/Tools 50+ 次 | 🟨 |
 
-### 📋 Proactive Agent 類
+### 📋 Proactive 掃描類
 
 | 成就 | 條件 | 稀有度 |
 |------|------|--------|
@@ -136,7 +136,7 @@ IQ Copilot 的成就系統會追蹤你的每一個操作——提問、使用 Ag
 | 📋 有備而來 | 使用 Meeting Prep 準備 10 場會議 | 🟪 |
 | 📭 信件零遺漏 | Ghost Detector 清零 | 🟧 |
 | 🌅 連續早起 | 連續 7 天查看晨報 | 🟪 |
-| 🛡️ 零死角 | 同時使用全部 4 個 Proactive Agent | 🟨 |
+| 🛡️ 零死角 | 同時使用全部 4 個 Proactive 掃描項目 | 🟨 |
 
 ### 🔥 連續使用 & 隱藏成就
 
@@ -182,11 +182,11 @@ IQ Copilot 的成就系統會追蹤你的每一個操作——提問、使用 Ag
 
 | 指標 | 說明 | 範例 |
 |------|------|------|
-| 節省時間 | Agent 呼叫 × 平均每次省 5 分鐘 | "本月已節省 18.5 小時" |
+| 節省時間 | Skills/Tools 呼叫 × 平均每次省 5 分鐘 | "本月已節省 18.5 小時" |
 | 處理信件 | Ghost Detector 回覆數 | "已處理 32 封遺漏信件" |
 | 會議準備 | Meeting Prep 使用數 | "準備了 15 場會議" |
 | 避免逾期 | Deadline Hawk 成功數 | "避免了 8 次逾期" |
-| AI 互動量 | 總訊息 + Agent 呼叫 | "累計 1,234 次 AI 互動" |
+| AI 互動量 | 總訊息 + Skills/Tools 呼叫 | "累計 1,234 次 AI 互動" |
 
 ---
 
@@ -196,10 +196,10 @@ IQ Copilot 的成就系統會追蹤你的每一個操作——提問、使用 Ag
 |------|------|------|
 | Phase 1 — Core Engine | ✅ 完成 | XP 計算、Level 系統、成就判定邏輯 |
 | Phase 2 — UI 整合 | ✅ 完成 | 成就面板、Toast 通知、Profile Card |
-| Phase 3 — 事件串接 | 🔶 進行中 | Chat/Agent/Panel 事件已串接 |
+| Phase 3 — 事件串接 | 🔶 進行中 | Chat/Skills-Tools/Panel 事件已串接 |
 
 **待完成：**
-- Proactive Agent 事件串接（briefing_view, deadline_avoided 等）
+- Proactive 掃描事件串接（briefing_view, deadline_avoided 等）
 
 ---
 
@@ -258,7 +258,7 @@ User Action → Achievement Engine → Local Store
 
 **Integration Points:**
 - `sidebar.js`: chat 事件 → track("chat_send")
-- `lib/chat.js`: agent 呼叫 → track("agent_call")
+- `lib/chat.js`: skills/tools 呼叫 → 事件追蹤
 - `background.js`: RPC 回應追蹤
 
 ### A4. 成就規則類型

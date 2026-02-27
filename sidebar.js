@@ -14,7 +14,6 @@
   const CHAT      = IQ.chat   || {};
   const I18N_MOD  = IQ.i18n   || {};
   const THEME_MOD = IQ.theme  || {};
-  const AGENTS    = IQ.agents || {};
   const FILE_UP   = IQ.fileUpload || {};
   const PANELS    = IQ.panels || {};
   const localizeRuntimeMessage = I18N_MOD.localizeRuntimeMessage || ((m) => m);
@@ -40,7 +39,6 @@
 
   const COMMAND_GROUP_LABEL = {
     general: "General",
-    agent: "Agent",
     skills: "Skills",
     mcp: "MCP",
   };
@@ -56,29 +54,11 @@
         run: async () => [
           "**可用命令**",
           "- `/help` 顯示命令說明",
-          "- `/agent list` 列出代理",
-          "- `/agent use <id>` 切換代理",
           "- `/skills list` 讀取技能",
           "- `/skills refresh` 刷新技能",
           "- `/mcp status` 檢視 MCP 狀態",
           "- `/mcp reload` 重新載入 MCP 設定",
         ].join("\n"),
-      },
-      {
-        id: "agent-list",
-        group: "agent",
-        title: "列出代理",
-        description: "顯示目前可選代理與狀態",
-        command: "/agent list",
-        run: async () => {
-          const allAgents = AGENTS.getAllAgents?.() || [];
-          const selectedId = AGENTS.getSelectedAgentId?.();
-          if (allAgents.length === 0) return "目前沒有可用代理";
-          return [
-            "**Agents**",
-            ...allAgents.map((agent) => `- ${agent.id === selectedId ? "✅" : "▫️"} ${agent.id} · ${agent.name}`),
-          ].join("\n");
-        },
       },
       {
         id: "skills-list",
@@ -142,19 +122,7 @@
       },
     ];
 
-    const agentItems = (AGENTS.getAllAgents?.() || []).map((agent) => ({
-      id: `agent-use-${agent.id}`,
-      group: "agent",
-      title: `切換 Agent: ${agent.name}`,
-      description: `使用 ${agent.id}`,
-      command: `/agent use ${agent.id}`,
-      run: async () => {
-        await AGENTS.selectAgent?.(agent.id, { showToast: false });
-        return `已切換 Agent 為 **${agent.name}** (${agent.id})。`;
-      },
-    }));
-
-    return [...baseItems, ...agentItems];
+    return baseItems;
   }
 
   function closeCommandMenu() {
@@ -726,18 +694,15 @@
     loadFoundryConfig();
     CHAT.showWelcome?.();
     PANELS.usage?.updateStats?.();
-    AGENTS.loadAgentConfig?.();
     loadCliConfig();
     CONN.checkConnection?.("cold-start");
     PANELS.mcp?.initMcpPanel?.();
-    AGENTS.renderAgentPanel?.();
     PANELS.proactive?.restoreProactiveState?.();
     PANELS.proactive?.loadProactiveConfig?.();
     PANELS.proactive?.renderTopPriority?.();
     PANELS.achievements?.initAchievements?.();
 
     // Bind panel events
-    AGENTS.bindEvents?.();
     FILE_UP.bindEvents?.();
     PANELS.context?.bindEvents?.();
     PANELS.history?.bindEvents?.();

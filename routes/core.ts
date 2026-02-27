@@ -1,5 +1,5 @@
 import type { RouteTable, CoreRouteDeps } from "../shared/types.js";
-import { Schemas, type ToolsListInput, type McpConfigWriteInput } from "./schemas.js";
+import { Schemas, type ToolsListInput, type McpConfigWriteInput, type SkillsExecuteInput } from "./schemas.js";
 
 export function registerCoreRoutes(routes: RouteTable, deps: CoreRouteDeps): void {
   const {
@@ -66,6 +66,44 @@ export function registerCoreRoutes(routes: RouteTable, deps: CoreRouteDeps): voi
       log("WARN", "tools.list not available:", (err as Error).message);
       jsonRes(res, 200, { ok: true, tools: [], fallback: true, error: (err as Error).message });
     }
+  };
+
+  routes["POST /api/skills/execute"] = async (req, res) => {
+    const body = await readJsonBody(req, res, {
+      schema: Schemas.skillsExecute,
+    }) as SkillsExecuteInput | null;
+    if (!body) return;
+
+    const skillName = body.skillName.trim();
+    const command = (body.command || "status").trim();
+    const payload = body.payload || {};
+    const normalized = skillName.toLowerCase();
+
+    if (!normalized.includes("foundry")) {
+      jsonRes(res, 400, {
+        ok: false,
+        error: `Only foundry mock skill is enabled in MVP: ${skillName}`,
+      });
+      return;
+    }
+
+    log("SKILL", `Mock execute ${skillName} command=${command}`);
+    jsonRes(res, 200, {
+      ok: true,
+      mode: "mock",
+      result: {
+        skillName,
+        command,
+        status: "completed",
+        startedAt: new Date().toISOString(),
+        summary: `Mock Foundry agent executed command: ${command}`,
+        output: {
+          message: "Mock response from Foundry Agent",
+          nextAction: "Replace /api/skills/execute mock handler with real Foundry invocation",
+          payloadEcho: payload,
+        },
+      },
+    });
   };
 
   routes["POST /api/quota"] = async (_req, res) => {

@@ -24,11 +24,6 @@
             <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/>
           </svg>
         </button>
-        <button class="nav-btn" data-panel="agent" title="Agent">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
-          </svg>
-        </button>
         <button class="nav-btn" data-panel="usage" title="Usage">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>
@@ -211,17 +206,6 @@
           </div>
           <div class="action-row">
             <button class="action-btn" id="ctx-refresh">🔄 重新載入</button>
-          </div>
-        </div>
-      </div>
-
-      <!-- Panel: Agent -->
-      <div class="panel" id="panel-agent">
-        <div class="panel-scroll">
-          <div class="glass-card">
-            <div class="card-header"><span class="card-icon">🤖</span><h3>Agent 模式</h3></div>
-            <div class="agent-list" id="agent-list">
-            </div>
           </div>
         </div>
       </div>
@@ -616,7 +600,7 @@
               <div class="changelog-item">
                 <span class="changelog-version">v3.0.0</span>
                 <span class="changelog-date">2026-03</span>
-                <p>Copilot CLI SDK 整合、連線設定面板、Tool Call 卡片、Agent/MCP/Skills Config 上傳</p>
+                <p>Copilot CLI SDK 整合、連線設定面板、Tool Call 卡片、MCP/Skills Config 上傳</p>
               </div>
               <div class="changelog-item">
                 <span class="changelog-version">v2.0.0</span>
@@ -806,7 +790,6 @@
   <script src="lib/chat-session.js"></script>
   <script src="lib/chat-streaming.js"></script>
   <script src="lib/chat.js"></script>
-  <script src="lib/agents.js"></script>
   <script src="lib/file-upload.js"></script>
   <script src="lib/panels/helpers.js"></script>
   <script src="lib/panels/context.js"></script>

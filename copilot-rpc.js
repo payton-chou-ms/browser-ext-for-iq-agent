@@ -151,6 +151,10 @@ const COPILOT_RPC = (() => {
     return res.tools || [];
   }
 
+  async function executeSkill(skillName, command = "status", payload = {}) {
+    return await apiCall("/api/skills/execute", { skillName, command, payload });
+  }
+
   async function getQuota() {
     const res = await apiCall("/api/quota");
     return res.quota || {};
@@ -303,6 +307,7 @@ const COPILOT_RPC = (() => {
     ping,
     listModels,
     listTools,
+    executeSkill,
     getQuota,
     switchModel,
     createSession,

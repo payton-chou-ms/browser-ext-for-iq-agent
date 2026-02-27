@@ -1,6 +1,8 @@
 # IQ Copilot Browser Extension Lab
 
-Chrome Extension（MV3）+ 本機 `proxy.js`，提供側欄 AI 助手、MCP/Skills、任務追蹤與 Proactive Agent。
+Chrome Extension（MV3）+ 本機 `proxy.js`，提供側欄 AI 助手、MCP/Skills、任務追蹤與 Proactive 掃描。
+
+> 目前狀態：Browser UI **暫不支援 Agent 模式**（包含 Agent 面板與 Agent 視覺化）；目前支援的是 Skills/Tools 流程。
 
 ## 架構圖
 
@@ -58,10 +60,12 @@ npm install
 ./start.sh
 ```
 
-## Foundry Agent 整合與 Browser UI 呈現
+## Foundry 整合與 Browser UI 呈現
 
-若你要把 Foundry Agent 功能加進 Copilot CLI skills（例如 skills 內呼叫 Python script 來執行 Foundry Agent），
+若你要把 Foundry 功能加進 Copilot CLI skills（例如 skills 內呼叫 Python script 來執行 Foundry 流程），
 建議在 UI 上採用「技能 + 工具執行」可視化，與現有聊天體驗一致：
+
+> Foundry 目前在 Browser UI 中僅支援 Skills/Tools 流程，不支援 Agent mode。
 
 1. **Skills 面板**
 	- 顯示 Foundry 相關 skills（名稱、描述、可用狀態）。
@@ -70,14 +74,26 @@ npm install
 	- 當模型呼叫該 skill 時，顯示 tool 卡片（running/success/error、耗時、摘要）。
 	- Python script 的執行結果可彙整為可讀摘要顯示在 assistant 回覆中。
 3. **Context / History 面板**
-	- 在 session 歷史中保留該次 Foundry Agent 執行紀錄（哪個 skill、何時執行、結果）。
+	- 在 session 歷史中保留該次 Foundry 執行紀錄（哪個 skill、何時執行、結果）。
 4. **設定面板（可選）**
 	- 若需要切換 endpoint 或 auth method，可沿用既有 Foundry 設定區塊（`/api/foundry/*`）。
 
 這樣可以讓使用者同時看到：
 - 「我有哪些 Foundry skills 可用」
-- 「這次對話是否真的觸發了 Foundry Agent」
+- 「這次對話是否真的觸發了 Foundry skill」
 - 「執行成功/失敗與輸出摘要」
+
+### MVP（已實作）
+
+目前已先完成最小流程：
+
+1. 在 `Skills` 面板點選名稱包含 `foundry` 的 skill。
+2. Browser UI 送出 `EXECUTE_SKILL` 到 background。
+3. proxy `POST /api/skills/execute` 先走 **mock handler**（不連真實 Foundry）。
+4. mock 結果回到 Browser，顯示在 chat 區（含 summary + JSON output）。
+
+> 注意：這一版是「Foundry 模擬回傳」，目的是先驗證 UI/CLI/proxy 串接。
+> 下一步只要把 `/api/skills/execute` 的 mock 邏輯替換成真實 Foundry 呼叫即可。
 
 ## 開發指南
 

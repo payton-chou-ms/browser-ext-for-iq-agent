@@ -34,6 +34,11 @@ export const Schemas = {
       model: z.string().min(1).optional(),
     })
     .default({}),
+  skillsExecute: z.object({
+    skillName: z.string().min(1),
+    command: z.string().optional().default("status"),
+    payload: z.record(z.string(), z.unknown()).optional().default({}),
+  }),
   foundryConfig: z
     .object({
       endpoint: z.string().optional(),
@@ -62,6 +67,7 @@ export type SessionCreateInput = z.infer<typeof Schemas.sessionCreate>;
 export type SessionIdOnlyInput = z.infer<typeof Schemas.sessionIdOnly>;
 export type SessionSendInput = z.infer<typeof Schemas.sessionSend>;
 export type ToolsListInput = z.infer<typeof Schemas.toolsList>;
+export type SkillsExecuteInput = z.infer<typeof Schemas.skillsExecute>;
 export type FoundryConfigInput = z.infer<typeof Schemas.foundryConfig>;
 export type McpConfigWriteInput = z.infer<typeof Schemas.mcpConfigWrite>;
 export type ProactiveConfigInput = z.infer<typeof Schemas.proactiveConfig>;

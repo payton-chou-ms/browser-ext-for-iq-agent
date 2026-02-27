@@ -136,6 +136,9 @@ async function handleMessage(msg) {
     case "LIST_TOOLS":
       return await COPILOT_RPC.listTools(msg.model);
 
+    case "EXECUTE_SKILL":
+      return await COPILOT_RPC.executeSkill(msg.skillName, msg.command, msg.payload || {});
+
     // Quota
     case "GET_QUOTA":
       return await COPILOT_RPC.getQuota();
