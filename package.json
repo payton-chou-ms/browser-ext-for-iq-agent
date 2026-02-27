@@ -5,12 +5,20 @@
   "main": "proxy.js",
   "type": "module",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "playwright test",
+    "test:ui": "playwright test --ui",
+    "test:debug": "playwright test --debug",
+    "test:headed": "playwright test --headed",
+    "test:watch": "node scripts/watch-tests.mjs",
+    "test:report": "playwright show-report"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "dependencies": {
     "@github/copilot-sdk": "^0.1.26"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.58.2"
   }
 }

@@ -1,0 +1,165 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  lint-and-security:
+    name: Lint & Security Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Ensure no secrets are hardcoded in source
+      - name: Scan for hardcoded secrets
+        run: |
+          echo "🔍 Scanning for hardcoded secrets..."
+          PATTERNS='(api[_-]?key|secret|password|token)\s*[:=]\s*["\x27][A-Za-z0-9+/=_-]{8,}'
+          if grep -rPn "$PATTERNS" --include="*.js" --include="*.json" --include="*.html" \
+            --exclude-dir=node_modules --exclude-dir=.git --exclude=".env.example" .; then
+            echo "❌ Potential hardcoded secrets found!"
+            exit 1
+          fi
+          echo "✅ No hardcoded secrets found"
+
+      # Verify .gitignore has security entries
+      - name: Verify .gitignore security entries
+        run: |
+          echo "🔍 Checking .gitignore..."
+          for pattern in ".env" "*.key" "*.pem"; do
+            if grep -qF "$pattern" .gitignore; then
+              echo "  ✅ $pattern is excluded"
+            else
+              echo "  ❌ $pattern is NOT in .gitignore"
+              exit 1
+            fi
+          done
+
+      # Check manifest.json permissions are not over-broad
+      - name: Audit manifest permissions
+        run: |
+          echo "🔍 Auditing manifest.json permissions..."
+          node -e "
+            const m = require('./manifest.json');
+            const dangerous = ['<all_urls>', '*://*/*'];
+            const hostPerms = m.host_permissions || [];
+            const hasDangerous = hostPerms.some(p => dangerous.includes(p));
+            if (hasDangerous) {
+              console.error('❌ Over-broad host_permissions:', hostPerms);
+              process.exit(1);
+            }
+            console.log('✅ host_permissions are scoped:', hostPerms);
+
+            // Check no eval in CSP (Manifest V3 blocks it by default)
+            if (m.content_security_policy?.extension_pages?.includes('unsafe-eval')) {
+              console.error('❌ CSP allows unsafe-eval');
+              process.exit(1);
+            }
+            console.log('✅ CSP does not allow unsafe-eval');
+          "
+
+      # Validate no inline scripts in HTML files
+      - name: Check for inline scripts
+        run: |
+          echo "🔍 Checking for inline scripts in HTML..."
+          if grep -Pn '<script[^>]*>[^<]+</script>' --include="*.html" -r . --exclude-dir=node_modules; then
+            echo "❌ Inline scripts found (Manifest V3 violation)"
+            exit 1
+          fi
+          echo "✅ No inline scripts found"
+
+  build:
+    name: Build & Package
+    runs-on: ubuntu-latest
+    needs: lint-and-security
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Package extension (zip for Chrome Web Store)
+      - name: Package extension
+        run: |
+          mkdir -p dist
+          zip -r dist/iq-copilot-extension.zip \
+            manifest.json \
+            background.js \
+            content_script.js \
+            copilot-rpc.js \
+            sidebar.html \
+            sidebar.css \
+            sidebar.js \
+            icons/ \
+            -x "*.DS_Store"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: extension-package
+          path: dist/iq-copilot-extension.zip
+
+  # ── Chrome Web Store Publish (production only) ──
+  publish:
+    name: Publish to Chrome Web Store
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    environment: production  # Requires manual approval via GitHub Environments
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: extension-package
+
+      - name: Publish to Chrome Web Store
+        env:
+          CHROME_EXTENSION_ID: ${{ secrets.CHROME_EXTENSION_ID }}
+          CHROME_CLIENT_ID: ${{ secrets.CHROME_CLIENT_ID }}
+          CHROME_CLIENT_SECRET: ${{ secrets.CHROME_CLIENT_SECRET }}
+          CHROME_REFRESH_TOKEN: ${{ secrets.CHROME_REFRESH_TOKEN }}
+        run: |
+          if [[ -z "$CHROME_EXTENSION_ID" ]]; then
+            echo "⚠ Chrome Web Store secrets not configured — skipping publish"
+            exit 0
+          fi
+
+          echo "📦 Publishing to Chrome Web Store..."
+
+          # Get access token
+          ACCESS_TOKEN=$(curl -s -X POST "https://oauth2.googleapis.com/token" \
+            -d "client_id=$CHROME_CLIENT_ID" \
+            -d "client_secret=$CHROME_CLIENT_SECRET" \
+            -d "refresh_token=$CHROME_REFRESH_TOKEN" \
+            -d "grant_type=refresh_token" | jq -r '.access_token')
+
+          # Upload
+          curl -s -X PUT \
+            "https://www.googleapis.com/upload/chromewebstore/v1.1/items/$CHROME_EXTENSION_ID" \
+            -H "Authorization: Bearer $ACCESS_TOKEN" \
+            -H "x-goog-api-version: 2" \
+            -T iq-copilot-extension.zip
+
+          # Publish
+          curl -s -X POST \
+            "https://www.googleapis.com/chromewebstore/v1.1/items/$CHROME_EXTENSION_ID/publish" \
+            -H "Authorization: Bearer $ACCESS_TOKEN" \
+            -H "x-goog-api-version: 2"
+
+          echo "✅ Published!"
