@@ -7,7 +7,7 @@ importScripts("copilot-rpc.js");
 let cliPort = 8321;
 let cliHost = "127.0.0.1";
 let connectionState = "disconnected"; // disconnected | connecting | connected | error
-let currentSessionId = null;
+let _currentSessionId = null;
 
 // ── Session Storage for Sensitive Keys ──
 // chrome.storage.session is memory-only — cleared when browser closes.
@@ -72,13 +72,13 @@ async function handleMessage(msg) {
     // Session management
     case "CREATE_SESSION": {
       const session = await COPILOT_RPC.createSession(msg.config || {});
-      currentSessionId = session.sessionId || session.id;
+      _currentSessionId = session.sessionId || session.id;
       return session;
     }
 
     case "RESUME_SESSION": {
       const resumed = await COPILOT_RPC.resumeSession(msg.sessionId);
-      currentSessionId = msg.sessionId;
+      _currentSessionId = msg.sessionId;
       return resumed;
     }
 
@@ -298,27 +298,33 @@ setInterval(async () => {
 }, 15000);
 
 // ── Proactive Agent Scheduling ──
-// Set up alarms for proactive scans
-chrome.alarms.create("proactive-briefing", {
-  // Fire at next 8:00 AM, then every 24 hours
+// Set up alarms for proactive scans (with duplicate-creation guard)
+async function ensureAlarm(name, options) {
+  const existing = await chrome.alarms.get(name);
+  if (!existing) {
+    chrome.alarms.create(name, options);
+    console.log(`[BG] Alarm created: ${name}`);
+  } else {
+    console.log(`[BG] Alarm already exists: ${name}`);
+  }
+}
+
+ensureAlarm("proactive-briefing", {
   periodInMinutes: 24 * 60,
   delayInMinutes: minutesUntilHour(8),
 });
 
-chrome.alarms.create("proactive-deadlines", {
-  // Every 12 hours
+ensureAlarm("proactive-deadlines", {
   periodInMinutes: 12 * 60,
   delayInMinutes: 1,
 });
 
-chrome.alarms.create("proactive-ghosts", {
-  // Every 4 hours
+ensureAlarm("proactive-ghosts", {
   periodInMinutes: 4 * 60,
   delayInMinutes: 2,
 });
 
-chrome.alarms.create("proactive-meeting-prep", {
-  // Every 30 minutes (checks if meeting is within 15 min)
+ensureAlarm("proactive-meeting-prep", {
   periodInMinutes: 30,
   delayInMinutes: 3,
 });

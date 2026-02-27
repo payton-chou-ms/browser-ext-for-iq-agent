@@ -17,6 +17,7 @@
   const AGENTS    = IQ.agents || {};
   const FILE_UP   = IQ.fileUpload || {};
   const PANELS    = IQ.panels || {};
+  const localizeRuntimeMessage = I18N_MOD.localizeRuntimeMessage || ((m) => m);
 
   // ── DOM refs ──
   const navBtns      = document.querySelectorAll(".nav-btn[data-panel]");
@@ -57,7 +58,6 @@
 
   // ── Debug Log (DOM-bound) ──
   const debugLogEl = document.getElementById("debug-log");
-  const debugLog = UTILS.debugLog || ((...args) => console.log(...args));
   // Bind debugLog to DOM element
   if (debugLogEl && UTILS.debugLog) {
     // debugLog in utils already writes to console;
@@ -134,12 +134,12 @@
       } else {
         CONN.updateConnectionUI?.("disconnected");
         UTILS.debugLog?.("ERR", "Connection failed, response:", res);
-        UTILS.showToast?.("連線失敗");
+        UTILS.showToast?.(localizeRuntimeMessage("連線失敗"));
       }
     } catch (err) {
       UTILS.debugLog?.("ERR", "Connect error:", err.message, err.stack);
       CONN.updateConnectionUI?.("disconnected");
-      UTILS.showToast?.("連線失敗: " + err.message);
+      UTILS.showToast?.(localizeRuntimeMessage("連線失敗: ") + err.message);
     }
   });
 
@@ -165,34 +165,34 @@
   document.getElementById("btn-save-foundry")?.addEventListener("click", async () => {
     const endpoint = document.getElementById("config-foundry-endpoint")?.value?.trim();
     const apiKey   = document.getElementById("config-foundry-key")?.value?.trim();
-    if (!endpoint) { UTILS.showToast?.("請輸入 Endpoint"); return; }
+    if (!endpoint) { UTILS.showToast?.(localizeRuntimeMessage("請輸入 Endpoint")); return; }
     try {
       await UTILS.sendToBackground?.({ type: "SET_FOUNDRY_CONFIG", endpoint, apiKey: apiKey || undefined });
       document.getElementById("config-foundry-key").value = "";
-      UTILS.showToast?.("Foundry 設定已儲存");
+      UTILS.showToast?.(localizeRuntimeMessage("Foundry 設定已儲存"));
       loadFoundryConfig();
     } catch (err) {
-      UTILS.showToast?.("儲存失敗: " + err.message);
+      UTILS.showToast?.(localizeRuntimeMessage("儲存失敗: ") + err.message);
     }
   });
 
   document.getElementById("btn-test-foundry")?.addEventListener("click", async () => {
-    UTILS.showToast?.("測試連線中...");
+    UTILS.showToast?.(localizeRuntimeMessage("測試連線中..."));
     try {
       const res = await UTILS.sendToBackground?.({ type: "CHECK_CONNECTION" });
-      UTILS.showToast?.(res?.connected ? "✅ Proxy 連線正常" : "⚠ Proxy 未連線");
+      UTILS.showToast?.(localizeRuntimeMessage(res?.connected ? "✅ Proxy 連線正常" : "⚠ Proxy 未連線"));
     } catch (err) {
-      UTILS.showToast?.("連線失敗: " + err.message);
+      UTILS.showToast?.(localizeRuntimeMessage("連線失敗: ") + err.message);
     }
   });
 
   document.getElementById("btn-clear-foundry")?.addEventListener("click", async () => {
     try {
       await UTILS.sendToBackground?.({ type: "CLEAR_FOUNDRY_KEY" });
-      UTILS.showToast?.("API Key 已清除");
+      UTILS.showToast?.(localizeRuntimeMessage("API Key 已清除"));
       loadFoundryConfig();
     } catch (err) {
-      UTILS.showToast?.("清除失敗: " + err.message);
+      UTILS.showToast?.(localizeRuntimeMessage("清除失敗: ") + err.message);
     }
   });
 
@@ -217,7 +217,7 @@
         if (input.files.length > 0) {
           const fileName = input.files[0].name;
           zone.querySelector("span").textContent = `✅ ${fileName}`;
-          UTILS.showToast?.("設定已上傳（模擬）");
+          UTILS.showToast?.(localizeRuntimeMessage("設定已上傳（模擬）"));
           if (typeof AchievementEngine !== "undefined") AchievementEngine.track("config_updated");
         }
       });
@@ -335,7 +335,7 @@
     onTools: (tools) => {
       PANELS.skills?.renderSkillsFromData?.(tools);
     },
-    onQuota: (quota) => {
+    onQuota: (_quota) => {
       // quota data is cached by connection; usage panel reads from cache
     },
     onContext: (ctx) => {
