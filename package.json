@@ -5,6 +5,11 @@
   "main": "proxy.js",
   "type": "module",
   "scripts": {
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "typecheck": "tsc --noEmit",
+    "build": "node scripts/build.mjs",
+    "build:watch": "node scripts/build.mjs --watch",
     "test": "playwright test",
     "test:ui": "playwright test --ui",
     "test:debug": "playwright test --debug",
@@ -16,9 +21,17 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@github/copilot-sdk": "^0.1.26"
+    "@github/copilot-sdk": "^0.1.26",
+    "zod": "^4.3.6"
   },
   "devDependencies": {
-    "@playwright/test": "^1.58.2"
+    "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.58.2",
+    "@types/node": "^25.3.2",
+    "esbuild": "^0.25.11",
+    "eslint": "^10.0.2",
+    "globals": "^17.3.0",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.56.1"
   }
 }
