@@ -1,5 +1,5 @@
 // ===== IQ Copilot Background Service Worker =====
-// Acts as RPC proxy between sidebar and Copilot CLI server
+// Acts as REST proxy bridge between sidebar and Copilot SDK Proxy (proxy.js)
 
 importScripts("copilot-rpc.js");
 
@@ -15,8 +15,7 @@ chrome.sidePanel
   .catch((error) => console.error(error));
 
 chrome.runtime.onInstalled.addListener(() => {
-  console.log("IQ Copilot v3.0.0 installed");
-  // Load saved settings
+  console.log("IQ Copilot v3.0.0 installed (SDK mode)");
   chrome.storage.local.get(["cliHost", "cliPort"], (data) => {
     if (data.cliHost) cliHost = data.cliHost;
     if (data.cliPort) cliPort = data.cliPort;
@@ -40,17 +39,20 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 });
 
 async function handleMessage(msg) {
+  console.log(`[BG] handleMessage: ${msg.type}`, msg);
   switch (msg.type) {
     // Connection
     case "CHECK_CONNECTION":
       return await checkAndUpdateConnection();
 
-    case "SET_CLI_CONFIG":
-      cliHost = msg.host || "localhost";
-      cliPort = msg.port || 4321;
+    case "SET_CLI_CONFIG": {
+      cliHost = msg.host || "127.0.0.1";
+      cliPort = msg.port || 8321;
+      console.log(`[BG] SET_CLI_CONFIG → baseUrl=http://${cliHost}:${cliPort}`);
       COPILOT_RPC.setBaseUrl(`http://${cliHost}:${cliPort}`);
       chrome.storage.local.set({ cliHost, cliPort });
       return await checkAndUpdateConnection();
+    }
 
     case "GET_CLI_CONFIG":
       return { host: cliHost, port: cliPort, state: connectionState };
@@ -63,15 +65,17 @@ async function handleMessage(msg) {
       return await COPILOT_RPC.ping();
 
     // Session management
-    case "CREATE_SESSION":
+    case "CREATE_SESSION": {
       const session = await COPILOT_RPC.createSession(msg.config || {});
       currentSessionId = session.sessionId || session.id;
       return session;
+    }
 
-    case "RESUME_SESSION":
-      const resumed = await COPILOT_RPC.resumeSession(msg.sessionId, msg.config || {});
+    case "RESUME_SESSION": {
+      const resumed = await COPILOT_RPC.resumeSession(msg.sessionId);
       currentSessionId = msg.sessionId;
       return resumed;
+    }
 
     case "LIST_SESSIONS":
       return await COPILOT_RPC.listSessions();
@@ -79,15 +83,35 @@ async function handleMessage(msg) {
     case "DELETE_SESSION":
       return await COPILOT_RPC.deleteSession(msg.sessionId);
 
-    // Chat (non-streaming — streaming handled via port)
+    // Chat (non-streaming)
     case "SEND_AND_WAIT":
-      return await COPILOT_RPC.sendAndWait(msg.sessionId, msg.prompt);
+      return await COPILOT_RPC.sendAndWait(msg.sessionId, msg.prompt, msg.attachments);
 
     // Models
     case "LIST_MODELS":
       return await COPILOT_RPC.listModels();
 
-    // Tab info (for content script)
+    // Switch model in session
+    case "SWITCH_MODEL":
+      return await COPILOT_RPC.switchModel(msg.sessionId, msg.modelId);
+
+    // Tools (Skills)
+    case "LIST_TOOLS":
+      return await COPILOT_RPC.listTools(msg.model);
+
+    // Quota
+    case "GET_QUOTA":
+      return await COPILOT_RPC.getQuota();
+
+    // Context (aggregated CLI info)
+    case "GET_CONTEXT":
+      return await COPILOT_RPC.getContext();
+
+    // MCP config from local filesystem
+    case "GET_MCP_CONFIG":
+      return await COPILOT_RPC.getMcpConfig();
+
+    // Tab info
     case "GET_TAB_INFO":
       return { url: msg.url, tabId: msg.tabId };
 
@@ -102,13 +126,13 @@ chrome.runtime.onConnect.addListener((port) => {
     port.onMessage.addListener(async (msg) => {
       if (msg.type === "STREAM_SEND") {
         try {
-          const { stream, cancel } = COPILOT_RPC.sendMessage(msg.sessionId, msg.prompt);
+          const { stream, cancel } = COPILOT_RPC.sendMessage(msg.sessionId, msg.prompt, msg.attachments);
 
           port.onDisconnect.addListener(() => cancel());
 
           for await (const event of stream) {
             try {
-              port.postMessage({ type: "STREAM_EVENT", event });
+              port.postMessage({ type: "STREAM_EVENT", data: event });
             } catch {
               cancel();
               break;
@@ -129,20 +153,14 @@ chrome.runtime.onConnect.addListener((port) => {
 
 // ── Connection management ──
 async function checkAndUpdateConnection() {
+  console.log(`[BG] checkAndUpdateConnection — baseUrl=${COPILOT_RPC.getBaseUrl()}`);
   connectionState = "connecting";
   broadcastState();
 
   const result = await COPILOT_RPC.checkConnection();
+  console.log(`[BG] checkConnection result:`, result);
   connectionState = result.connected ? "connected" : "disconnected";
   broadcastState();
-
-  if (result.connected) {
-    try {
-      await COPILOT_RPC.initialize();
-    } catch {
-      // Initialize may not be required for all CLI versions
-    }
-  }
 
   return { ...result, state: connectionState };
 }
