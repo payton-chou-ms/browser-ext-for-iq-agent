@@ -436,34 +436,26 @@ const ACHIEVEMENT_RULES = [
 ## 📅 Implementation Phases
 
 ### Phase 1 — Core Engine (Week 1)
-- [ ] 建立 `achievement-engine.js` 模組
-- [ ] 實作 XP 計算 + Level 系統
-- [ ] 實作 counter 追蹤（messages, agents, tasks...）
-- [ ] Chrome storage read/write
-- [ ] 基礎成就判定邏輯（threshold-based）
+- [x] 建立 `achievement-engine.js` 模組
+- [x] 實作 XP 計算 + Level 系統
+- [x] 實作 counter 追蹤（messages, agents, tasks...）
+- [x] Chrome storage read/write
+- [x] 基礎成就判定邏輯（threshold-based）
 
 ### Phase 2 — UI 整合 (Week 2)
-- [ ] 新增 Achievement Panel (🏆 nav button)
-- [ ] XP 進度條 + Level 顯示
-- [ ] 成就清單 UI（已解鎖/進行中/未解鎖）
-- [ ] Toast 解鎖通知元件 + 動畫
-- [ ] Profile Card 元件
+- [x] 新增 Achievement Panel (🏆 nav button)
+- [x] XP 進度條 + Level 顯示
+- [x] 成就清單 UI（已解鎖/進行中/未解鎖）
+- [x] Toast 解鎖通知元件 + 動畫
+- [x] Profile Card 元件
 
 ### Phase 3 — Event 串接 (Week 3)
 - [ ] sidebar.js 中所有 action 埋入 track() 呼叫
-- [ ] Chat 發送 → track("chat_send")
-- [ ] Agent 呼叫 → track("agent_call")
-- [ ] Panel 切換 → track("panel_viewed")
-- [ ] Streak 計算邏輯（daily login detection）
-- [ ] 隱藏成就觸發條件
-
-### Phase 4 — Polish & Advanced (Week 4)
-- [ ] 自訂成就檢查（custom rules）
-- [ ] Proactive Agent 事件串接
-- [ ] 成就分享功能（截圖/匯出）
-- [ ] 音效（optional）
-- [ ] Foundry Agent 同步成就資料
-- [ ] 排行榜 UI（團隊功能，mock 先行）
+- [x] Chat 發送 → track("chat_send")
+- [x] Agent 呼叫 → track("agent_call")
+- [x] Panel 切換 → track("panel_viewed")
+- [x] Streak 計算邏輯（daily login detection）
+- [x] 隱藏成就觸發條件
 
 ---
 

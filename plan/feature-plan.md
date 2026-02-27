@@ -158,41 +158,41 @@ Week 1          Week 2          Week 3          Week 4
 
 ### Idea 1：每日晨報 Agent（Daily Briefing）
 
-- [ ] **1.1 Foundry Agent 設定** — 建立 Daily Briefing Agent，設定 system prompt 定義輸出格式
-- [ ] **1.2 WorkIQ 查詢整合** — 實作 email/calendar/tasks/teams 的查詢邏輯
-- [ ] **1.3 排程機制** — 每日 8:00 定時觸發（cron / Azure Functions Timer）
-- [ ] **1.4 Extension Briefing UI** — sidebar 新增「晨報」卡片元件，含 4 個可折疊區段
-- [ ] **1.5 通知推送** — Extension badge 通知 + 開啟 sidebar 自動顯示當日晨報
-- [ ] **1.6 一鍵行動** — 每個項目旁加「回覆」「開啟」「標記完成」按鈕
+- [x] **1.1 Foundry Agent 設定** — 建立 Daily Briefing Agent，設定 system prompt 定義輸出格式
+- [x] **1.2 WorkIQ 查詢整合** — 實作 email/calendar/tasks/teams 的查詢邏輯
+- [x] **1.3 排程機制** — 每日 8:00 定時觸發（cron / Azure Functions Timer）
+- [x] **1.4 Extension Briefing UI** — sidebar 新增「晨報」卡片元件，含 4 個可折疊區段
+- [x] **1.5 通知推送** — Extension badge 通知 + 開啟 sidebar 自動顯示當日晨報
+- [x] **1.6 一鍵行動** — 每個項目旁加「回覆」「開啟」「標記完成」按鈕
 
 ### Idea 2：費用與截止日追蹤 Agent（Deadline Hawk）
 
-- [ ] **2.1 日期抽取邏輯** — Foundry Agent prompt 設計：從 email 中抽取 deadline 日期
-- [ ] **2.2 Deadline 資料庫** — 用 chrome.storage 或後端儲存追蹤中的 deadlines
-- [ ] **2.3 多級提醒** — 提前 3 天/1 天/當天 的提醒觸發邏輯
-- [ ] **2.4 Extension Deadline UI** — sidebar 新增「截止日」倒數列表，紅黃綠標記
-- [ ] **2.5 掃描排程** — 每日掃描一次新信件中的 deadline 關鍵字
+- [x] **2.1 日期抽取邏輯** — Foundry Agent prompt 設計：從 email 中抽取 deadline 日期
+- [x] **2.2 Deadline 資料庫** — 用 chrome.storage 或後端儲存追蹤中的 deadlines
+- [x] **2.3 多級提醒** — 提前 3 天/1 天/當天 的提醒觸發邏輯
+- [x] **2.4 Extension Deadline UI** — sidebar 新增「截止日」倒數列表，紅黃綠標記
+- [x] **2.5 掃描排程** — 每日掃描一次新信件中的 deadline 關鍵字
 
 ### Idea 3：會議準備 Agent（Meeting Prep）
 
-- [ ] **3.1 會議偵測** — 監聽行事曆，會議前 15 分鐘觸發 Agent
-- [ ] **3.2 跨系統資料收集** — WorkIQ 查詢參與者、相關檔案、Teams 對話
-- [ ] **3.3 Action Items 追蹤** — 從上次會議紀錄中抽取你承諾的事項
-- [ ] **3.4 Extension Meeting Prep UI** — 會議準備卡片：參與者、文件、對話摘要、action items
-- [ ] **3.5 一鍵開啟** — 連結到 SharePoint 文件、Teams 對話、日曆事件
+- [x] **3.1 會議偵測** — 監聽行事曆，會議前 15 分鐘觸發 Agent
+- [x] **3.2 跨系統資料收集** — WorkIQ 查詢參與者、相關檔案、Teams 對話
+- [x] **3.3 Action Items 追蹤** — 從上次會議紀錄中抽取你承諾的事項
+- [x] **3.4 Extension Meeting Prep UI** — 會議準備卡片：參與者、文件、對話摘要、action items
+- [x] **3.5 一鍵開啟** — 連結到 SharePoint 文件、Teams 對話、日曆事件
 
 ### Idea 4：未回覆偵測 Agent（Ghost Detector）
 
-- [ ] **4.1 未回覆演算法** — 比對 inbox vs sent，找出需要回覆但尚未回覆的信件
-- [ ] **4.2 優先級分類** — Foundry Agent 依據寄件者（客戶/主管/內部/HR）自動分級
-- [ ] **4.3 草擬回覆** — 整合 Copilot SDK chat，一鍵生成回覆草稿
-- [ ] **4.4 Extension Ghost UI** — 未回覆列表，優先級標記，「草擬回覆」按鈕
-- [ ] **4.5 定期掃描** — 每 4 小時掃描一次，有新的未回覆時推送通知
+- [x] **4.1 未回覆演算法** — 比對 inbox vs sent，找出需要回覆但尚未回覆的信件
+- [x] **4.2 優先級分類** — Foundry Agent 依據寄件者（客戶/主管/內部/HR）自動分級
+- [x] **4.3 草擬回覆** — 整合 Copilot SDK chat，一鍵生成回覆草稿
+- [x] **4.4 Extension Ghost UI** — 未回覆列表，優先級標記，「草擬回覆」按鈕
+- [x] **4.5 定期掃描** — 每 4 小時掃描一次，有新的未回覆時推送通知
 
 ### 共用基礎建設
 
-- [ ] **0.1 Foundry Agent 連線** — Extension 透過 proxy 連接 Foundry Agent endpoint
+- [x] **0.1 Foundry Agent 連線** — Extension 透過 proxy 連接 Foundry Agent endpoint
 - [ ] **0.2 WorkIQ 認證** — M365 OAuth 認證流程整合到 Extension login
-- [ ] **0.3 通知系統** — Extension 內建通知面板（🔔 nav button）+ badge 計數
-- [ ] **0.4 排程框架** — 定時觸發各 Agent 的基礎框架（background.js alarm API）
-- [ ] **0.5 洞察卡片元件** — 可複用的 Insight Card UI 元件（標題/內容/action buttons）
+- [x] **0.3 通知系統** — Extension 內建通知面板（🔔 nav button）+ badge 計數
+- [x] **0.4 排程框架** — 定時觸發各 Agent 的基礎框架（background.js alarm API）
+- [x] **0.5 洞察卡片元件** — 可複用的 Insight Card UI 元件（標題/內容/action buttons）

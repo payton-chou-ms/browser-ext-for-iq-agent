@@ -738,15 +738,15 @@ User 操作                         系統處理
 - [ ] 驗證 CLI customAgents 參數格式與 Foundry Agent 路由
 
 ### Phase 2 — Agent UI (Week 2)
-- [ ] Agent Hub Panel（卡片列表 + 新增按鈕）
+- [x] Agent Hub Panel（卡片列表 + 新增按鈕）
 - [ ] Agent 設定 Modal（表單 + 測試連線）
 - [ ] Agent Chat 視圖（專屬對話介面）
 - [ ] Chat Panel Agent Selector（dropdown 切換）
-- [ ] 新增 CSS 樣式（卡片、Modal、Chat、Tags）
+- [x] 新增 CSS 樣式（卡片、Modal、Chat、Tags）
 
 ### Phase 3 — Conversation 管理 (Week 3)
 - [ ] Stateless 模式：client-side history 管理
-- [ ] 網頁上下文注入（附帶當前頁面資訊）
+- [x] 網頁上下文注入（附帶當前頁面資訊）
 - [ ] PDF 內容注入
 - [ ] 對話歷史持久化（chrome.storage）
 - [ ] 對話匯出（Markdown / JSON）
@@ -754,7 +754,7 @@ User 操作                         系統處理
 ### Phase 4 — 統計 + 整合 (Week 4)
 - [ ] Agent 統計面板（呼叫、token、回應時間）
 - [ ] 結構化回覆渲染（信件卡片、會議卡片、deadline 卡片）
-- [ ] 成就系統串接（agent_call 事件 → XP）
+- [x] 成就系統串接（agent_call 事件 → XP）
 - [ ] CLI 認證錯誤處理（提示使用者 copilot auth login）
 - [ ] 多 Agent 並行對話支援
 
