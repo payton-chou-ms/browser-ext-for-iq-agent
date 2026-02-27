@@ -13,6 +13,7 @@
     "build:watch": "node scripts/build.mjs --watch",
     "test": "playwright test",
     "test:unit": "vitest run",
+    "test:unit:coverage": "vitest run --coverage",
     "test:unit:watch": "vitest",
     "test:ui": "playwright test --ui",
     "test:debug": "playwright test --debug",
@@ -31,12 +32,13 @@
     "@eslint/js": "^10.0.1",
     "@playwright/test": "^1.58.2",
     "@types/node": "^25.3.2",
+    "@vitest/coverage-v8": "^3.2.4",
     "esbuild": "^0.25.11",
     "eslint": "^10.0.2",
     "globals": "^17.3.0",
+    "jsdom": "^26.1.0",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.56.1",
-    "vitest": "^3.2.4",
-    "jsdom": "^26.1.0"
+    "vitest": "^3.2.4"
   }
 }

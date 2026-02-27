@@ -7,10 +7,12 @@ importScripts("copilot-rpc.js");
 let cliPort = 8321;
 let cliHost = "127.0.0.1";
 let connectionState = "disconnected"; // disconnected | connecting | connected | error
+let _lastBroadcastState = "disconnected"; // Track last broadcast to prevent spurious notifications
 let _currentSessionId = null;
 const CONNECTION_ALARM_NAME = "connection-health-check";
 const CONNECTION_CHECK_PERIOD_CONNECTED_MIN = 5;
 const CONNECTION_CHECK_PERIOD_DISCONNECTED_MIN = 1;
+const LAST_BROADCAST_STATE_KEY = "iq_lastBroadcastState";
 
 // ── Session Storage for Sensitive Keys ──
 // chrome.storage.session is memory-only — cleared when browser closes.
@@ -36,6 +38,16 @@ chrome.storage.local.get(["cliHost", "cliPort"], (data) => {
   if (data.cliHost) cliHost = data.cliHost;
   if (data.cliPort) cliPort = data.cliPort;
   COPILOT_RPC.setBaseUrl(`http://${cliHost}:${cliPort}`);
+});
+
+// Restore last broadcast state from session storage (survives service worker restart)
+chrome.storage.session.get([LAST_BROADCAST_STATE_KEY], (data) => {
+  const restored = data?.[LAST_BROADCAST_STATE_KEY];
+  if (restored && typeof restored === "string") {
+    _lastBroadcastState = restored;
+    connectionState = restored; // Keep in sync to prevent false transitions
+    console.log(`[BG] Restored last broadcast state: ${restored}`);
+  }
 });
 
 // ── Message Router ──
@@ -273,7 +285,7 @@ chrome.runtime.onConnect.addListener((port) => {
 
 // ── Connection management ──
 // Phase 0.4: track last broadcast state so we only notify on actual changes
-let _lastBroadcastState = "disconnected";
+// (moved _lastBroadcastState declaration to top State section for persistence)
 
 async function checkAndUpdateConnection(source = "manual") {
   console.log(`[BG] checkAndUpdateConnection — baseUrl=${COPILOT_RPC.getBaseUrl()}`);
@@ -305,6 +317,8 @@ function broadcastState(source = "manual") {
   }
   const prev = _lastBroadcastState;
   _lastBroadcastState = connectionState;
+  // Persist to session storage so service worker restart doesn't cause false broadcasts
+  chrome.storage.session.set({ [LAST_BROADCAST_STATE_KEY]: connectionState }).catch(() => {});
   console.log(`[BG] broadcastState: ${prev} → ${connectionState} (source=${source})`);
   chrome.runtime.sendMessage({
     type: "CONNECTION_STATE_CHANGED",

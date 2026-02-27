@@ -64,4 +64,76 @@ describe("proxy body helpers", () => {
       expect.objectContaining({ ok: false, error: expect.stringContaining("Request body too large") })
     );
   });
+
+  test("readJsonBody rejects empty body when allowEmpty is false", async () => {
+    const req = createReq(["   "]);
+    const res = {} as any;
+    const jsonRes = vi.fn();
+
+    const parsed = await readJsonBody(req, res, jsonRes, { allowEmpty: false });
+
+    expect(parsed).toBeNull();
+    expect(jsonRes).toHaveBeenCalledWith(
+      res,
+      400,
+      expect.objectContaining({ ok: false, error: "Request body is required" })
+    );
+  });
+
+  test("readJsonBody returns empty object for allowEmpty without schema", async () => {
+    const req = createReq([""]);
+    const res = {} as any;
+    const jsonRes = vi.fn();
+
+    const parsed = await readJsonBody(req, res, jsonRes, { allowEmpty: true });
+
+    expect(parsed).toEqual({});
+    expect(jsonRes).not.toHaveBeenCalled();
+  });
+
+  test("readJsonBody rejects non-object JSON payloads", async () => {
+    const req = createReq(["[]"]);
+    const res = {} as any;
+    const jsonRes = vi.fn();
+
+    const parsed = await readJsonBody(req, res, jsonRes);
+
+    expect(parsed).toBeNull();
+    expect(jsonRes).toHaveBeenCalledWith(
+      res,
+      400,
+      expect.objectContaining({ ok: false, error: "Request body must be a JSON object" })
+    );
+  });
+
+  test("readJsonBody returns schema validation details", async () => {
+    const req = createReq(["{}"]);
+    const res = {} as any;
+    const jsonRes = vi.fn();
+    const schema = {
+      safeParse: vi.fn(() => ({
+        success: false,
+        error: {
+          issues: [
+            { path: ["sessionId"], message: "Required", code: "invalid_type" },
+          ],
+        },
+      })),
+    };
+
+    const parsed = await readJsonBody(req, res, jsonRes, { schema: schema as any });
+
+    expect(parsed).toBeNull();
+    expect(jsonRes).toHaveBeenCalledWith(
+      res,
+      400,
+      expect.objectContaining({
+        ok: false,
+        error: "Invalid request body",
+        details: [
+          expect.objectContaining({ path: "sessionId", message: "Required", code: "invalid_type" }),
+        ],
+      })
+    );
+  });
 });

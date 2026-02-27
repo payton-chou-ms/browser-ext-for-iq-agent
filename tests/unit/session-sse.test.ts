@@ -139,4 +139,112 @@ describe("session SSE routes", () => {
 
     expect(unsubscribe).toHaveBeenCalled();
   });
+
+  test("switch-model returns 404 when session cannot be resumed", async () => {
+    const routes: RouteTable = {};
+    const jsonRes = vi.fn();
+
+    registerSessionRoutes(routes, {
+      ensureClient: vi.fn(),
+      getSessionOrResume: vi.fn(async () => null),
+      sessions: new Map(),
+      jsonRes,
+      readJsonBody: vi.fn(async () => ({ sessionId: "missing", modelId: "gpt-5" })),
+      log: vi.fn(),
+      buildPromptWithAttachments: vi.fn((prompt: string) => prompt),
+      cors: vi.fn(),
+    });
+
+    await routes["POST /api/session/switch-model"]!({} as never, {} as never);
+
+    expect(jsonRes).toHaveBeenCalledWith(
+      expect.anything(),
+      404,
+      expect.objectContaining({ ok: false, error: expect.stringContaining("not found") })
+    );
+  });
+
+  test("switch-model returns 200 on successful rpc model switch", async () => {
+    const routes: RouteTable = {};
+    const jsonRes = vi.fn();
+    const switchTo = vi.fn(async () => ({ modelId: "gpt-5" }));
+
+    const session = {
+      rpc: {
+        model: {
+          switchTo,
+        },
+      },
+    };
+
+    registerSessionRoutes(routes, {
+      ensureClient: vi.fn(),
+      getSessionOrResume: vi.fn(async () => session as never),
+      sessions: new Map(),
+      jsonRes,
+      readJsonBody: vi.fn(async () => ({ sessionId: "s1", modelId: "gpt-5" })),
+      log: vi.fn(),
+      buildPromptWithAttachments: vi.fn((prompt: string) => prompt),
+      cors: vi.fn(),
+    });
+
+    await routes["POST /api/session/switch-model"]!({} as never, {} as never);
+
+    expect(switchTo).toHaveBeenCalledWith({ modelId: "gpt-5" });
+    expect(jsonRes).toHaveBeenCalledWith(
+      expect.anything(),
+      200,
+      expect.objectContaining({ ok: true, modelId: "gpt-5" })
+    );
+  });
+
+  test("messages route returns 404 for missing session", async () => {
+    const routes: RouteTable = {};
+    const jsonRes = vi.fn();
+
+    registerSessionRoutes(routes, {
+      ensureClient: vi.fn(),
+      getSessionOrResume: vi.fn(async () => null),
+      sessions: new Map(),
+      jsonRes,
+      readJsonBody: vi.fn(async () => ({ sessionId: "missing" })),
+      log: vi.fn(),
+      buildPromptWithAttachments: vi.fn((prompt: string) => prompt),
+      cors: vi.fn(),
+    });
+
+    await routes["POST /api/session/messages"]!({} as never, {} as never);
+
+    expect(jsonRes).toHaveBeenCalledWith(
+      expect.anything(),
+      404,
+      expect.objectContaining({ ok: false, error: expect.stringContaining("not found") })
+    );
+  });
+
+  test("messages route returns messages for active session", async () => {
+    const routes: RouteTable = {};
+    const jsonRes = vi.fn();
+    const getMessages = vi.fn(async () => [{ role: "user", content: "hi" }]);
+
+    registerSessionRoutes(routes, {
+      ensureClient: vi.fn(),
+      getSessionOrResume: vi.fn(async () => ({ getMessages }) as never),
+      sessions: new Map(),
+      jsonRes,
+      readJsonBody: vi.fn(async () => ({ sessionId: "s1" })),
+      log: vi.fn(),
+      buildPromptWithAttachments: vi.fn((prompt: string) => prompt),
+      cors: vi.fn(),
+    });
+
+    await routes["POST /api/session/messages"]!({} as never, {} as never);
+
+    expect(getMessages).toHaveBeenCalledTimes(1);
+    expect(jsonRes).toHaveBeenCalledWith(
+      expect.anything(),
+      200,
+      expect.objectContaining({ ok: true, messages: [{ role: "user", content: "hi" }] })
+    );
+  });
 });

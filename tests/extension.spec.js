@@ -74,9 +74,11 @@ test.describe('Extension Sidebar', () => {
 
   test('Suggestion chip sends message and receives simulated reply', async () => {
     const firstChip = page.locator('#chat-suggestions .suggestion-chip').first();
+    const chipText = (await firstChip.textContent()) || '';
+    const normalizedChipText = chipText.includes(' ') ? chipText.split(' ').slice(1).join(' ').trim() : chipText.trim();
     await firstChip.click();
 
-    await expect(page.locator('#chat-messages .message.user').last()).toContainText('摘要此頁');
+    await expect(page.locator('#chat-messages .message.user').last()).toContainText(normalizedChipText);
     await expect(page.locator('#chat-messages .message.bot').last()).toContainText(/頁面摘要|模擬回覆|無法直接存取|web_fetch/);
   });
 
