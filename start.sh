@@ -190,5 +190,38 @@ echo -e "  ${CYAN}[CLI]${NC}   = Copilot CLI logs (port $CLI_PORT)"
 echo -e "  ${YELLOW}[PROXY]${NC} = HTTP Proxy logs (port $HTTP_PORT)"
 echo ""
 
-# Keep alive
-wait
+# Keep alive with proxy restart loop
+MAX_PROXY_RESTARTS=3
+PROXY_RESTART_COUNT=0
+
+while true; do
+  # Wait for any child to exit
+  wait -n 2>/dev/null || sleep 5
+
+  # Check if CLI is still alive
+  if ! kill -0 "$CLI_PID" 2>/dev/null; then
+    err "${P_CLI} CLI process died. Exiting."
+    exit 1
+  fi
+
+  # Check if proxy is still alive
+  if ! kill -0 "$PROXY_PID" 2>/dev/null; then
+    PROXY_RESTART_COUNT=$((PROXY_RESTART_COUNT + 1))
+    if [[ $PROXY_RESTART_COUNT -gt $MAX_PROXY_RESTARTS ]]; then
+      err "${P_PROXY} Proxy died $MAX_PROXY_RESTARTS times. Giving up."
+      exit 1
+    fi
+    log "${P_PROXY} ⚠ Proxy died (attempt $PROXY_RESTART_COUNT/$MAX_PROXY_RESTARTS). Restarting..."
+    sleep 2
+    node proxy.js --cli-port "$CLI_PORT" --http-port "$HTTP_PORT" 2>&1 | while IFS= read -r line; do
+      echo -e "${DIM}[$(ts)]${NC} ${P_PROXY} $line"
+    done &
+    PROXY_PID=$!
+    sleep 1
+    if kill -0 "$PROXY_PID" 2>/dev/null; then
+      ok "${P_PROXY} Proxy restarted (PID $PROXY_PID)"
+    else
+      err "${P_PROXY} Proxy failed to restart"
+    fi
+  fi
+done

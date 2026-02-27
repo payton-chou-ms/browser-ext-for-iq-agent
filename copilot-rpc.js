@@ -13,17 +13,25 @@ const COPILOT_RPC = (() => {
   function getBaseUrl() { return _baseUrl; }
   function isConnected() { return _connected; }
 
-  // ── Core REST call ──
-  async function apiCall(path, body = {}) {
+  // ── Core REST call with timeout ──
+  const DEFAULT_TIMEOUT_MS = 30000;
+
+  async function apiCall(path, body = {}, timeoutMs = DEFAULT_TIMEOUT_MS) {
     const url = `${_baseUrl}${path}`;
     console.log(`[RPC] → POST ${path}`, body);
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
     try {
       const res = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
+        signal: controller.signal,
       });
+
+      clearTimeout(timeoutId);
 
       if (!res.ok) {
         const errText = await res.text().catch(() => "");
@@ -40,6 +48,12 @@ const COPILOT_RPC = (() => {
       }
       return json;
     } catch (err) {
+      clearTimeout(timeoutId);
+      if (err.name === "AbortError") {
+        console.error(`[RPC] ✗ ${path} timeout after ${timeoutMs}ms`);
+        _connected = false;
+        throw new Error(`Request timeout after ${timeoutMs}ms`);
+      }
       console.error(`[RPC] ✗ ${path} error:`, err.message);
       if (err.message.includes("Failed to fetch") || err.message.includes("NetworkError")) {
         _connected = false;
