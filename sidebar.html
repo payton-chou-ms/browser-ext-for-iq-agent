@@ -49,8 +49,19 @@
             <path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/>
           </svg>
         </button>
+        <button class="nav-btn" data-panel="notifications" title="Notifications" id="nav-notifications">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/>
+          </svg>
+          <span class="notification-badge" id="notification-badge" style="display:none">0</span>
+        </button>
       </div>
       <div class="nav-bottom">
+        <button class="nav-btn" data-panel="achievements" title="Achievements">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="8" r="6"/><path d="M15.477 12.89L17 22l-5-3-5 3 1.523-9.11"/>
+          </svg>
+        </button>
         <button class="nav-btn" data-panel="config" title="Config">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/>
@@ -85,11 +96,7 @@
           <span class="header-icon">✦</span>
           <h1 id="panel-title">IQ Copilot</h1>
         </div>
-        <div class="header-right">
-          <button class="icon-btn" id="btn-new-chat" title="New Chat">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-          </button>
-        </div>
+        <div class="header-right"></div>
       </header>
 
       <!-- Panel: Chat -->
@@ -97,8 +104,12 @@
         <div class="chat-context-bar" id="context-bar">
           <span class="context-badge">�</span>
           <span class="context-text" id="context-bar-text">Copilot CLI</span>
-        </div>
-        <div class="chat-messages" id="chat-messages">
+        </div>        <!-- Intent Status Bar (floating above messages) -->
+        <div class="intent-bar" id="intent-bar" style="display:none">
+          <span class="intent-icon">🤖</span>
+          <span class="intent-text" id="intent-text">Processing...</span>
+          <span class="intent-pulse"></span>
+        </div>        <div class="chat-messages" id="chat-messages">
           <!-- Welcome message -->
         </div>
         <div class="chat-suggestions" id="chat-suggestions">
@@ -122,7 +133,7 @@
           </div>
           <input type="file" id="file-input" multiple hidden accept=".txt,.md,.json,.js,.ts,.jsx,.tsx,.py,.html,.css,.csv,.xml,.yaml,.yml,.toml,.sh,.bash,.log,.pdf,.png,.jpg,.jpeg,.gif,.webp,.svg">
           <div class="chat-input-hint">
-            <span>IQ Copilot · 按 <kbd>Ctrl+Enter</kbd> 送出 · 📎 拖放或點擊附加檔案</span>
+            <span>IQ Copilot · 按 <kbd>Enter</kbd> 送出（<kbd>Shift+Enter</kbd> 換行）· 📎 拖放或點擊附加檔案</span>
           </div>
         </div>
       </div>
@@ -206,36 +217,11 @@
         <div class="panel-scroll">
           <div class="glass-card">
             <div class="card-header"><span class="card-icon">🤖</span><h3>Agent 模式</h3></div>
-            <div class="agent-list">
-              <label class="agent-option selected">
-                <input type="radio" name="agent" value="general" checked>
-                <div class="agent-info">
-                  <span class="agent-name">General Assistant</span>
-                  <span class="agent-desc">通用型助手，適合大部分任務</span>
-                </div>
-                <span class="agent-badge">預設</span>
-              </label>
-              <label class="agent-option">
-                <input type="radio" name="agent" value="coder">
-                <div class="agent-info">
-                  <span class="agent-name">Code Expert</span>
-                  <span class="agent-desc">程式碼分析、除錯、最佳化</span>
-                </div>
-              </label>
-              <label class="agent-option">
-                <input type="radio" name="agent" value="writer">
-                <div class="agent-info">
-                  <span class="agent-name">Writer</span>
-                  <span class="agent-desc">文章撰寫、摘要、翻譯</span>
-                </div>
-              </label>
-              <label class="agent-option">
-                <input type="radio" name="agent" value="researcher">
-                <div class="agent-info">
-                  <span class="agent-name">Researcher</span>
-                  <span class="agent-desc">深度研究、資料分析</span>
-                </div>
-              </label>
+            <div class="action-row agent-action-row">
+              <button class="action-btn" id="btn-agent-add">＋ 新增 Agent</button>
+              <button class="action-btn" id="btn-agent-delete">－ 刪除 Agent</button>
+            </div>
+            <div class="agent-list" id="agent-list">
             </div>
           </div>
         </div>
@@ -382,9 +368,24 @@
             <div class="card-header">
               <span class="card-icon">⚡</span>
               <h3>Skills</h3>
+              <button class="action-btn" id="btn-add-skill" style="flex:0 0 auto; padding:4px 8px; font-size:11px">＋ 新增 Skill</button>
               <button class="icon-btn" id="btn-refresh-skills" title="重新載入" style="margin-left:auto">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
               </button>
+            </div>
+            <div class="skill-create-list" id="skill-create-list" style="display:none">
+              <div class="skill-create-row">
+                <label for="skill-name-input">Skill 名稱</label>
+                <input id="skill-name-input" type="text" class="skill-create-input" placeholder="例如: my_skill" />
+              </div>
+              <div class="skill-create-row">
+                <label for="skill-description-input">Skill 描述</label>
+                <textarea id="skill-description-input" class="skill-create-input" rows="2" placeholder="描述這個 skill 的用途"></textarea>
+              </div>
+              <div class="action-row" style="margin-top:8px">
+                <button class="action-btn" id="btn-skill-create-save">儲存 Skill</button>
+                <button class="action-btn" id="btn-skill-create-cancel">取消</button>
+              </div>
             </div>
             <p class="text-muted" id="skills-source-label" style="font-size:11px;margin:4px 0 0">從 Copilot CLI 載入</p>
           </div>
@@ -405,7 +406,207 @@
             <div id="mcp-server-list" class="mcp-list">
               <div class="mcp-loading"><span class="task-spinner"></span> 載入中…</div>
             </div>
+            <div class="form-group" style="margin-top:10px;">
+              <label for="mcp-config-editor">MCP JSON 設定</label>
+              <textarea id="mcp-config-editor" class="form-textarea" rows="10" placeholder='{"mcpServers":{}}'></textarea>
+            </div>
+            <div class="action-row" style="margin-top:8px;">
+              <button class="action-btn primary" id="btn-save-mcp">儲存設定</button>
+              <button class="action-btn" id="btn-format-mcp">格式化</button>
+            </div>
             <p class="text-muted" style="font-size:10px;margin-top:8px" id="mcp-source-label">從本機設定檔讀取</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Panel: Notifications (Proactive Agent) -->
+      <div class="panel" id="panel-notifications">
+        <div class="panel-scroll">
+          <!-- Refresh / Status -->
+          <div class="glass-card notification-header-card">
+            <div class="card-header">
+              <span class="card-icon">🔔</span>
+              <h3>Proactive Agent</h3>
+              <span class="agent-badge" id="notif-total-count">0</span>
+              <button class="icon-btn" id="btn-refresh-proactive" title="立即掃描" style="margin-left:auto">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
+              </button>
+            </div>
+            <p class="text-muted" style="font-size:11px;margin-top:4px" id="notif-last-scan">尚未掃描</p>
+          </div>
+
+          <div class="glass-card" id="top-priority-card">
+            <div class="card-header">
+              <span class="card-icon">⭐</span>
+              <h3>Top Thing To Do</h3>
+            </div>
+            <div id="top-priority-content" class="top-priority-content">
+              <div class="empty-state" id="top-priority-empty">
+                <span class="empty-icon">🫧</span>
+                <p>目前沒有高優先事項</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="glass-card" id="proactive-config-card">
+            <div class="card-header">
+              <span class="card-icon">🧠</span>
+              <h3>WorkIQ Prompt</h3>
+            </div>
+            <div class="form-group">
+              <label for="proactive-workiq-prompt">自訂 Proactive Agent 指示</label>
+              <textarea id="proactive-workiq-prompt" class="form-textarea" rows="4" placeholder="例如：優先找出今天最重要的 1 件事，並給我可直接執行的下一步。"></textarea>
+            </div>
+            <div class="action-row" style="margin-top:8px;">
+              <button class="action-btn primary" id="btn-save-proactive-config">儲存 Prompt</button>
+              <button class="action-btn" id="btn-clear-proactive-config">清除 Prompt</button>
+            </div>
+          </div>
+
+          <!-- Idea 1: Daily Briefing -->
+          <div class="glass-card insight-section" id="briefing-section">
+            <div class="card-header insight-section-header" data-toggle="briefing-content">
+              <span class="card-icon">☀️</span>
+              <h3>每日晨報</h3>
+              <span class="insight-count" id="briefing-count">0</span>
+              <svg class="section-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+            </div>
+            <div class="insight-section-body" id="briefing-content">
+              <!-- 📬 Emails needing reply -->
+              <div class="insight-subsection">
+                <div class="insight-subsection-header">
+                  <span>📬</span><span>需要回覆的信件</span>
+                  <span class="insight-sub-count" id="briefing-emails-count">0</span>
+                </div>
+                <div class="insight-items" id="briefing-emails"></div>
+              </div>
+              <!-- 📅 Today's meetings -->
+              <div class="insight-subsection">
+                <div class="insight-subsection-header">
+                  <span>📅</span><span>今日會議</span>
+                  <span class="insight-sub-count" id="briefing-meetings-count">0</span>
+                </div>
+                <div class="insight-items" id="briefing-meetings"></div>
+              </div>
+              <!-- ✅ Tasks due soon -->
+              <div class="insight-subsection">
+                <div class="insight-subsection-header">
+                  <span>✅</span><span>即將到期待辦</span>
+                  <span class="insight-sub-count" id="briefing-tasks-count">0</span>
+                </div>
+                <div class="insight-items" id="briefing-tasks"></div>
+              </div>
+              <!-- ⚠️ Teams mentions -->
+              <div class="insight-subsection">
+                <div class="insight-subsection-header">
+                  <span>⚠️</span><span>Teams @mention</span>
+                  <span class="insight-sub-count" id="briefing-mentions-count">0</span>
+                </div>
+                <div class="insight-items" id="briefing-mentions"></div>
+              </div>
+              <div class="empty-state" id="briefing-empty">
+                <span class="empty-icon">☀️</span>
+                <p>尚無晨報資料</p>
+                <p class="text-muted" style="font-size:11px">點擊上方刷新按鈕或等待每日自動掃描</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Idea 2: Deadline Hawk -->
+          <div class="glass-card insight-section" id="deadline-section">
+            <div class="card-header insight-section-header" data-toggle="deadline-content">
+              <span class="card-icon">⏰</span>
+              <h3>截止日追蹤</h3>
+              <span class="insight-count" id="deadline-count">0</span>
+              <svg class="section-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+            </div>
+            <div class="insight-section-body" id="deadline-content">
+              <div class="insight-items" id="deadline-list"></div>
+              <div class="empty-state" id="deadline-empty">
+                <span class="empty-icon">⏰</span>
+                <p>沒有追蹤中的截止日</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Idea 4: Ghost Detector (unreplied) -->
+          <div class="glass-card insight-section" id="ghost-section">
+            <div class="card-header insight-section-header" data-toggle="ghost-content">
+              <span class="card-icon">👻</span>
+              <h3>未回覆偵測</h3>
+              <span class="insight-count" id="ghost-count">0</span>
+              <svg class="section-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+            </div>
+            <div class="insight-section-body" id="ghost-content">
+              <div class="insight-items" id="ghost-list"></div>
+              <div class="empty-state" id="ghost-empty">
+                <span class="empty-icon">👻</span>
+                <p>沒有需要回覆的信件</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Idea 3: Meeting Prep -->
+          <div class="glass-card insight-section" id="meeting-prep-section">
+            <div class="card-header insight-section-header" data-toggle="meeting-prep-content">
+              <span class="card-icon">📋</span>
+              <h3>會議準備</h3>
+              <span class="insight-count" id="meeting-prep-count">0</span>
+              <svg class="section-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+            </div>
+            <div class="insight-section-body" id="meeting-prep-content">
+              <div class="insight-items" id="meeting-prep-list"></div>
+              <div class="empty-state" id="meeting-prep-empty">
+                <span class="empty-icon">📋</span>
+                <p>近期沒有需要準備的會議</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Panel: Achievements -->
+      <div class="panel" id="panel-achievements">
+        <div class="panel-scroll">
+          <!-- Profile Card -->
+          <div class="glass-card ach-profile-card" id="ach-profile-card">
+            <div class="ach-profile-icon" id="ach-profile-icon">🌱</div>
+            <div class="ach-profile-title" id="ach-profile-title">Newbie</div>
+            <div class="ach-profile-level" id="ach-profile-level">Level 1</div>
+            <div class="ach-xp-bar-wrap">
+              <div class="ach-xp-bar">
+                <div class="ach-xp-fill" id="ach-xp-fill" style="width:0%"></div>
+              </div>
+              <span class="ach-xp-text" id="ach-xp-text">0 / 50 XP</span>
+            </div>
+            <div class="ach-profile-stats">
+              <div class="ach-stat"><span class="ach-stat-val" id="ach-stat-streak">0</span><span class="ach-stat-label">🔥 Streak</span></div>
+              <div class="ach-stat"><span class="ach-stat-val" id="ach-stat-unlocked">0/0</span><span class="ach-stat-label">🏅 Unlocked</span></div>
+              <div class="ach-stat"><span class="ach-stat-val" id="ach-stat-time">0h</span><span class="ach-stat-label">⏱️ Saved</span></div>
+            </div>
+          </div>
+
+          <!-- Recent Unlocks -->
+          <div class="glass-card" id="ach-recent-card" style="display:none">
+            <div class="card-header"><span class="card-icon">🏅</span><h3>Recent Unlocks</h3></div>
+            <div id="ach-recent-list" class="ach-recent-list"></div>
+          </div>
+
+          <!-- Categories Progress -->
+          <div class="glass-card">
+            <div class="card-header"><span class="card-icon">📊</span><h3>Categories</h3></div>
+            <div id="ach-categories" class="ach-categories"></div>
+          </div>
+
+          <!-- All Achievements -->
+          <div class="glass-card">
+            <div class="card-header"><span class="card-icon">🏆</span><h3>All Achievements</h3></div>
+            <div class="ach-filter-bar" id="ach-filter-bar">
+              <button class="ach-filter-btn active" data-filter="all">All</button>
+              <button class="ach-filter-btn" data-filter="unlocked">✅</button>
+              <button class="ach-filter-btn" data-filter="locked">🔒</button>
+            </div>
+            <div id="ach-all-list" class="ach-all-list"></div>
           </div>
         </div>
       </div>
@@ -472,6 +673,28 @@
               <button class="action-btn primary" id="btn-connect">連線</button>
             </div>
           </div>
+          <!-- Appearance & Language -->
+          <div class="glass-card">
+            <div class="card-header"><span class="card-icon">🎨</span><h3 id="config-ui-title">外觀與語言</h3></div>
+            <div class="config-form">
+              <div class="form-row">
+                <div class="form-group">
+                  <label for="config-theme" id="config-theme-label">Theme</label>
+                  <select id="config-theme" class="form-select">
+                    <option value="dark">深色</option>
+                    <option value="light">明亮</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label for="config-language" id="config-language-label">語言</label>
+                  <select id="config-language" class="form-select">
+                    <option value="zh-TW">繁體中文</option>
+                    <option value="en">English</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          </div>
           <!-- Model Selection -->
           <div class="glass-card">
             <div class="card-header"><span class="card-icon">🧠</span><h3>Model 選擇</h3></div>
@@ -482,6 +705,26 @@
                 <option value="gpt-4o">gpt-4o</option>
                 <option value="gpt-4o-mini">gpt-4o-mini</option>
               </select>
+            </div>
+          </div>
+          <!-- Azure Foundry (optional) -->
+          <div class="glass-card">
+            <div class="card-header"><span class="card-icon">☁️</span><h3>Azure Foundry</h3><span class="agent-badge" id="foundry-status-badge" style="margin-left:auto">未設定</span></div>
+            <p style="font-size:11px;color:var(--text-muted);margin-bottom:8px;">選填 — 也可透過 .env 設定。API Key 僅存於記憶體，瀏覽器關閉即清除。</p>
+            <div class="config-form">
+              <div class="form-group">
+                <label for="config-foundry-endpoint">Endpoint</label>
+                <input type="text" id="config-foundry-endpoint" class="form-input" placeholder="https://your-resource.openai.azure.com/">
+              </div>
+              <div class="form-group">
+                <label for="config-foundry-key">API Key</label>
+                <input type="password" id="config-foundry-key" class="form-input" placeholder="••••••••">
+              </div>
+              <div class="action-row">
+                <button class="action-btn primary" id="btn-save-foundry">儲存</button>
+                <button class="action-btn" id="btn-test-foundry">測試連線</button>
+                <button class="action-btn" id="btn-clear-foundry">清除 Key</button>
+              </div>
             </div>
           </div>
           <!-- System Message -->
@@ -542,13 +785,18 @@
   <!-- Toast container -->
   <div id="toast-container"></div>
 
-  <!-- Tool Call Card Template -->
+  <!-- Tool Call Card Template (Enhanced) -->
   <div id="tool-call-template" style="display:none">
     <div class="tool-call-card">
       <div class="tool-call-header" onclick="this.parentElement.classList.toggle('expanded')">
+        <span class="tool-call-icon">🔧</span>
         <span class="tool-call-name"></span>
+        <span class="tool-call-timer">0.0s</span>
         <span class="tool-call-status"></span>
         <svg class="tool-call-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+      </div>
+      <div class="tool-call-progress">
+        <div class="tool-call-progress-bar"></div>
       </div>
       <div class="tool-call-body">
         <div class="tool-call-section">
@@ -557,12 +805,46 @@
         </div>
         <div class="tool-call-section">
           <label>Result</label>
+          <div class="tool-call-result-preview"></div>
           <pre class="tool-call-result"></pre>
         </div>
       </div>
     </div>
   </div>
 
+  <!-- Thinking Card Template -->
+  <div id="thinking-card-template" style="display:none">
+    <div class="thinking-card">
+      <div class="thinking-header" onclick="this.parentElement.classList.toggle('collapsed')">
+        <span class="thinking-icon">🧠</span>
+        <span class="thinking-label">Agent 正在思考...</span>
+        <span class="thinking-timer">0.0s</span>
+        <svg class="thinking-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+      </div>
+      <div class="thinking-body">
+        <div class="thinking-content"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Sub-Agent Card Template -->
+  <div id="subagent-card-template" style="display:none">
+    <div class="subagent-card">
+      <div class="subagent-header">
+        <span class="subagent-icon">🤖</span>
+        <span class="subagent-name"></span>
+        <span class="subagent-timer">0.0s</span>
+        <span class="subagent-status running">
+          <span class="task-spinner"></span>
+        </span>
+      </div>
+      <div class="subagent-body">
+        <div class="subagent-tools"></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="achievement-engine.js"></script>
   <script src="sidebar.js"></script>
 </body>
 </html>
