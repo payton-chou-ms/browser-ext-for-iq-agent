@@ -226,6 +226,9 @@ const STATIC_ZH_EN = {
   "掃描完成 · 無資料": "Scan complete · no data",
   "掃描失敗: ": "Scan failed: ",
   "Top thing 已更新": "Top action updated",
+  "全部已讀": "Mark all read",
+  "已全部標記為已讀": "All notifications marked as read",
+  "已讀": "Mark read",
   "Proactive Prompt 已儲存": "Proactive prompt saved",
   "Proactive Prompt 已清除": "Proactive prompt cleared",
   "✅ 已完成": "✅ Completed",
@@ -399,6 +402,47 @@ function sendToBackground(msg) {
   });
 }
 
+// ── Phase 1.4: Cache + TTL ──
+const _dataCache = Object.create(null);
+const CACHE_TTL = Object.freeze({
+  models:   5 * 60_000, // 5 min — rarely changes
+  tools:    5 * 60_000, // 5 min — rarely changes
+  quota:    2 * 60_000, // 2 min — may update with usage
+  sessions: 30_000,     // 30 sec — user may create new sessions
+  context:  2 * 60_000, // 2 min — aggregated endpoint
+});
+
+function getCached(key) {
+  const entry = _dataCache[key];
+  if (!entry) return undefined;
+  if (Date.now() - entry.ts > (CACHE_TTL[key] || 60_000)) {
+    delete _dataCache[key];
+    return undefined;
+  }
+  return entry.data;
+}
+
+function setCache(key, data) {
+  _dataCache[key] = { data, ts: Date.now() };
+}
+
+function invalidateCache(key) {
+  if (key) { delete _dataCache[key]; } else { Object.keys(_dataCache).forEach(k => delete _dataCache[k]); }
+}
+
+/** Fetch with cache layer — returns cached data if within TTL, else fetches fresh. */
+async function cachedSendToBackground(cacheKey, msg) {
+  const cached = getCached(cacheKey);
+  if (cached !== undefined) {
+    debugLog("CACHE", `HIT [${cacheKey}]`);
+    return cached;
+  }
+  debugLog("CACHE", `MISS [${cacheKey}], fetching...`);
+  const data = await sendToBackground(msg);
+  setCache(cacheKey, data);
+  return data;
+}
+
 function escapeHtml(str) {
   const div = document.createElement("div");
   div.textContent = str;
@@ -476,61 +520,132 @@ async function checkConnection() {
 
 // Listen for connection state changes from background
 let _onConnectedRunning = false;
+let _hasInitialized = false; // Phase 0.1: only run full init once
+let _lastConnectionBroadcast = 0; // Phase 0.3: debounce timestamp
+const CONNECTION_DEBOUNCE_MS = 15_000; // Phase 0.3: 15s debounce window
 
 async function onConnected() {
-  if (_onConnectedRunning) return; // prevent duplicate calls
+  if (_onConnectedRunning) return; // prevent concurrent calls
+
+  // Phase 0.1: skip full init if already done — only update UI
+  if (_hasInitialized) {
+    debugLog("CONN", "onConnected() skipped — already initialized");
+    return;
+  }
+
   _onConnectedRunning = true;
-  debugLog("CONN", "onConnected() — fetching models...");
+  debugLog("CONN", "onConnected() — first-time init via aggregated API...");
+
+  // Phase 1.3: Single aggregated GET_CONTEXT call replaces 5 individual API calls
+  // (LIST_MODELS, LIST_SESSIONS, LIST_TOOLS, GET_QUOTA, GET_CONTEXT)
+  // Phase 1.2: Remaining UI-only tasks run in parallel via Promise.allSettled
   try {
-    const modelsRes = await sendToBackground({ type: "LIST_MODELS" });
-    debugLog("RPC", "LIST_MODELS response:", modelsRes);
-    if (Array.isArray(modelsRes)) {
-      availableModels = modelsRes;
-      populateModelSelect(modelsRes);
+    const ctxRes = await cachedSendToBackground("context", { type: "GET_CONTEXT" });
+    debugLog("CTX", "Aggregated GET_CONTEXT response:", ctxRes);
+
+    if (ctxRes && !ctxRes.error) {
+      // ── Distribute aggregated data to all subsystems in parallel ──
+      const results = await Promise.allSettled([
+        // 1) Models
+        (async () => {
+          const models = ctxRes.models;
+          if (Array.isArray(models) && models.length > 0) {
+            availableModels = models;
+            setCache("models", models);
+            populateModelSelect(models);
+            renderModelsCard();
+          }
+        })(),
+        // 2) Sessions → render history panel
+        (async () => {
+          const sessions = ctxRes.sessions;
+          if (Array.isArray(sessions)) {
+            setCache("sessions", sessions);
+            renderHistoryFromData(sessions);
+          }
+        })(),
+        // 3) Tools → render skills panel
+        (async () => {
+          const tools = ctxRes.tools;
+          if (Array.isArray(tools)) {
+            setCache("tools", tools);
+            renderSkillsFromData(tools);
+          }
+        })(),
+        // 4) Quota → render quota card
+        (async () => {
+          const quota = ctxRes.quota;
+          if (quota && typeof quota === "object" && Object.keys(quota).length > 0) {
+            setCache("quota", quota);
+            quotaData = quota;
+            renderQuotaCard();
+          }
+        })(),
+        // 5) Full context → render context panel
+        (async () => {
+          cliContext = ctxRes;
+          renderCliContext(ctxRes);
+          if (typeof AchievementEngine !== "undefined") {
+            AchievementEngine.track("context_viewed");
+          }
+        })(),
+      ]);
+
+      // Log any rejected promises
+      results.forEach((r, i) => {
+        if (r.status === "rejected") {
+          const labels = ["models", "sessions", "tools", "quota", "context"];
+          debugLog("ERR", `onConnected ${labels[i]} render failed:`, r.reason?.message || r.reason);
+        }
+      });
+    } else {
+      debugLog("ERR", "GET_CONTEXT returned error, falling back to individual calls");
+      await _onConnectedFallback();
     }
   } catch (err) {
-    debugLog("ERR", "LIST_MODELS error:", err.message);
+    debugLog("ERR", "Aggregated GET_CONTEXT failed:", err.message, "— falling back");
+    await _onConnectedFallback();
   }
 
-  try {
-    await loadHistorySessions();
-  } catch (err) {
-    debugLog("ERR", "loadHistorySessions error:", err.message);
-  }
+  // Phase 0.2: Do NOT auto-run proactive scan on connect.
+  // Proactive scans are only triggered by:
+  //   1. User clicking the Notifications panel / refresh button
+  //   2. Chrome Alarms scheduled in background.js
+  // This eliminates the ~60s infinite loop that was consuming ~7 API calls + 4 LLM calls per minute.
 
-  // Load skills from CLI
-  try {
-    await loadSkillsFromCli();
-  } catch (err) {
-    debugLog("ERR", "loadSkillsFromCli error:", err.message);
-  }
-
-  // Load quota from CLI
-  try {
-    await loadQuotaFromCli();
-  } catch (err) {
-    debugLog("ERR", "loadQuotaFromCli error:", err.message);
-  }
-
-  // Load CLI context for Context panel
-  try {
-    await fetchCliContext();
-  } catch (err) {
-    debugLog("ERR", "fetchCliContext error:", err.message);
-  }
-
-  // Run initial proactive scan (non-blocking)
-  runFullProactiveScan().catch((err) => {
-    debugLog("ERR", "Initial proactive scan error:", err.message);
-  });
-
+  _hasInitialized = true;
   _onConnectedRunning = false;
+  debugLog("CONN", "onConnected() — init complete, _hasInitialized = true");
+}
+
+/** Phase 1.2 fallback: if aggregated API fails, fall back to parallel individual calls */
+async function _onConnectedFallback() {
+  const results = await Promise.allSettled([
+    (async () => {
+      const modelsRes = await cachedSendToBackground("models", { type: "LIST_MODELS" });
+      if (Array.isArray(modelsRes)) { availableModels = modelsRes; populateModelSelect(modelsRes); }
+    })(),
+    loadHistorySessions(),
+    loadSkillsFromCli(),
+    loadQuotaFromCli(),
+    fetchCliContext(),
+  ]);
+  const labels = ["models", "sessions", "skills", "quota", "context"];
+  results.forEach((r, i) => {
+    if (r.status === "rejected") debugLog("ERR", `_onConnectedFallback ${labels[i]} error:`, r.reason?.message || r.reason);
+  });
 }
 
 chrome.runtime.onMessage.addListener((msg) => {
   if (msg.type === "CONNECTION_STATE_CHANGED") {
     updateConnectionUI(msg.state);
-    if (msg.state === "connected") onConnected();
+
+    // Phase 0.3: debounce — ignore rapid-fire broadcasts within 15s window
+    const now = Date.now();
+    if (msg.state === "connected" && now - _lastConnectionBroadcast >= CONNECTION_DEBOUNCE_MS) {
+      _lastConnectionBroadcast = now;
+      onConnected();
+    }
   }
 });
 
@@ -992,6 +1107,7 @@ async function resetSessionForAgentChange() {
   if (!isConnected() || !currentSessionId) return;
   try {
     await sendToBackground({ type: "DELETE_SESSION", sessionId: currentSessionId });
+    invalidateCache("sessions");
   } catch {
   }
   currentSessionId = null;
@@ -1100,6 +1216,7 @@ async function ensureSession() {
     if (res && res.sessionId) {
       currentSessionId = res.sessionId;
       sessionData = res;
+      invalidateCache("sessions");
       stats.sessions++;
       // Track new session for achievements
       if (typeof AchievementEngine !== "undefined") {
@@ -1678,7 +1795,7 @@ async function fetchCliContext() {
     return;
   }
   try {
-    const ctx = await sendToBackground({ type: "GET_CONTEXT" });
+    const ctx = await cachedSendToBackground("context", { type: "GET_CONTEXT" });
     debugLog("CTX", "GET_CONTEXT response:", ctx);
     if (ctx && !ctx.error) {
       cliContext = ctx;
@@ -1818,7 +1935,7 @@ function renderSessionContext() {
   ];
 
   card.innerHTML = `
-    <div class="card-header"><span class="card-icon">🖥️</span><h3>Session Context</h3></div>
+    <div class="card-header"><span class="card-icon">🖥️</span><h3>Copilot CLI</h3></div>
     ${rows.map(([k, v]) => `<div class="info-group"><label>${escapeHtml(k)}</label><p class="info-value">${escapeHtml(v)}</p></div>`).join("")}
   `;
 
@@ -1834,6 +1951,7 @@ function renderSessionContext() {
 
 // Context refresh button
 document.getElementById("ctx-refresh")?.addEventListener("click", () => {
+  invalidateCache("context");
   fetchCliContext();
   showToast("Context 重新載入中...");
 });
@@ -1867,71 +1985,79 @@ async function loadHistorySessions() {
     listEl.innerHTML = '<div class="empty-state"><span class="empty-icon">🔌</span><p>連接 CLI 以查看歷史</p></div>';
     return;
   }
-
   try {
-    const sessions = await sendToBackground({ type: "LIST_SESSIONS" });
-    if (!Array.isArray(sessions) || sessions.length === 0) {
-      listEl.innerHTML = '<div class="empty-state"><span class="empty-icon">🕐</span><p>尚無對話紀錄</p></div>';
-      return;
-    }
-
-    listEl.innerHTML = "";
-    sessions.forEach((s) => {
-      const item = document.createElement("div");
-      item.className = "history-item";
-      const sid = s.sessionId || s.id || "—";
-      const truncId = sid.length > 12 ? sid.slice(0, 12) + "…" : sid;
-      const time = s.startTime ? new Date(s.startTime).toLocaleString() : "";
-      const summary = s.summary || s.title || "";
-
-      item.innerHTML = `
-        <div style="display:flex;justify-content:space-between;align-items:center">
-          <span class="history-item-title">${escapeHtml(truncId)}</span>
-          <button class="icon-btn history-delete-btn" title="刪除" data-sid="${escapeHtml(sid)}" style="color:var(--error);flex-shrink:0">✕</button>
-        </div>
-        ${time ? `<span class="history-item-date">${escapeHtml(time)}</span>` : ""}
-        ${summary ? `<span class="history-item-date">${escapeHtml(summary)}</span>` : ""}
-      `;
-
-      item.addEventListener("click", async (e) => {
-        if (e.target.closest(".history-delete-btn")) return;
-        try {
-          const res = await sendToBackground({ type: "RESUME_SESSION", sessionId: sid });
-          if (res) {
-            currentSessionId = sid;
-            sessionData = res;
-            showToast(`已恢復 Session ${truncId}`);
-            switchPanel("chat");
-          }
-        } catch (err) {
-          showToast("恢復失敗: " + err.message);
-        }
-      });
-
-      listEl.appendChild(item);
-    });
-
-    // Delete buttons
-    listEl.querySelectorAll(".history-delete-btn").forEach((btn) => {
-      btn.addEventListener("click", async (e) => {
-        e.stopPropagation();
-        const sid = btn.dataset.sid;
-        try {
-          await sendToBackground({ type: "DELETE_SESSION", sessionId: sid });
-          if (currentSessionId === sid) {
-            currentSessionId = null;
-            sessionData = null;
-          }
-          await loadHistorySessions();
-          showToast("已刪除");
-        } catch (err) {
-          showToast("刪除失敗: " + err.message);
-        }
-      });
-    });
+    const sessions = await cachedSendToBackground("sessions", { type: "LIST_SESSIONS" });
+    renderHistoryFromData(sessions);
   } catch {
     listEl.innerHTML = '<div class="empty-state"><span class="empty-icon">⚠</span><p>載入失敗</p></div>';
   }
+}
+
+/** Render history list from pre-fetched sessions data (Phase 1.3) */
+function renderHistoryFromData(sessions) {
+  const listEl = document.getElementById("history-list");
+  if (!listEl) return;
+
+  if (!Array.isArray(sessions) || sessions.length === 0) {
+    listEl.innerHTML = '<div class="empty-state"><span class="empty-icon">🕐</span><p>尚無對話紀錄</p></div>';
+    return;
+  }
+
+  listEl.innerHTML = "";
+  sessions.forEach((s) => {
+    const item = document.createElement("div");
+    item.className = "history-item";
+    const sid = s.sessionId || s.id || "—";
+    const rawTitle = s.summary || s.title || "";
+    const displayTitle = rawTitle.length > 60 ? rawTitle.slice(0, 57) + "…" : rawTitle;
+    const titleText = displayTitle || "未命名對話";
+    const time = s.startTime ? new Date(s.startTime).toLocaleString() : "";
+
+    item.innerHTML = `
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+        <span class="history-item-title">${escapeHtml(titleText)}</span>
+        <button class="icon-btn history-delete-btn" title="刪除" data-sid="${escapeHtml(sid)}" style="color:var(--error);flex-shrink:0">✕</button>
+      </div>
+      ${time ? `<span class="history-item-date">${escapeHtml(time)}</span>` : ""}
+    `;
+
+    item.addEventListener("click", async (e) => {
+      if (e.target.closest(".history-delete-btn")) return;
+      try {
+        const res = await sendToBackground({ type: "RESUME_SESSION", sessionId: sid });
+        if (res) {
+          currentSessionId = sid;
+          sessionData = res;
+          showToast(`已恢復對話`);
+          switchPanel("chat");
+        }
+      } catch (err) {
+        showToast("恢復失敗: " + err.message);
+      }
+    });
+
+    listEl.appendChild(item);
+  });
+
+  // Delete buttons
+  listEl.querySelectorAll(".history-delete-btn").forEach((btn) => {
+    btn.addEventListener("click", async (e) => {
+      e.stopPropagation();
+      const sid = btn.dataset.sid;
+      try {
+        await sendToBackground({ type: "DELETE_SESSION", sessionId: sid });
+        if (currentSessionId === sid) {
+          currentSessionId = null;
+          sessionData = null;
+        }
+        invalidateCache("sessions");
+        await loadHistorySessions();
+        showToast("已刪除");
+      } catch (err) {
+        showToast("刪除失敗: " + err.message);
+      }
+    });
+  });
 }
 
 // Search filter
@@ -2725,30 +2851,37 @@ async function loadSkillsFromCli() {
   if (label) label.textContent = localizeRuntimeMessage("正在載入...");
 
   try {
-    const tools = await sendToBackground({ type: "LIST_TOOLS", model: currentModel });
+    const tools = await cachedSendToBackground("tools", { type: "LIST_TOOLS", model: currentModel });
     debugLog("SKILL", `Loaded ${Array.isArray(tools) ? tools.length : 0} tools from CLI`);
-
-    if (!Array.isArray(tools) || tools.length === 0) {
-      cachedSkills = [];
-      const merged = getAllSkillsForRender([]);
-      if (merged.length > 0) {
-        renderSkillsGrid(merged);
-      } else if (grid) {
-        grid.innerHTML = `<div class="empty-state"><span class="empty-icon">🔧</span><p>${localizeRuntimeMessage("CLI 未回傳任何 Skills")}</p></div>`;
-      }
-      if (label) label.textContent = `CLI 0 + 自訂 ${customSkills.length} items`;
-      return;
-    }
-
-    cachedSkills = tools;
-    const merged = getAllSkillsForRender(tools);
-    renderSkillsGrid(merged);
-    if (label) label.textContent = `CLI ${tools.length} + 自訂 ${customSkills.length} items`;
+    renderSkillsFromData(tools);
   } catch (err) {
     debugLog("ERR", "loadSkillsFromCli error:", err.message);
     if (grid) grid.innerHTML = `<div class="empty-state"><span class="empty-icon">⚠️</span><p>${localizeRuntimeMessage("載入失敗")}: ${escapeHtml(err.message)}</p></div>`;
     if (label) label.textContent = localizeRuntimeMessage("載入失敗");
   }
+}
+
+/** Render skills grid from pre-fetched tools data (Phase 1.3) */
+function renderSkillsFromData(tools) {
+  const grid = document.getElementById("skills-grid");
+  const label = document.getElementById("skills-source-label");
+
+  if (!Array.isArray(tools) || tools.length === 0) {
+    cachedSkills = [];
+    const merged = getAllSkillsForRender([]);
+    if (merged.length > 0) {
+      renderSkillsGrid(merged);
+    } else if (grid) {
+      grid.innerHTML = `<div class="empty-state"><span class="empty-icon">🔧</span><p>${localizeRuntimeMessage("CLI 未回傳任何 Skills")}</p></div>`;
+    }
+    if (label) label.textContent = `CLI 0 + 自訂 ${customSkills.length} items`;
+    return;
+  }
+
+  cachedSkills = tools;
+  const merged = getAllSkillsForRender(tools);
+  renderSkillsGrid(merged);
+  if (label) label.textContent = `CLI ${tools.length} + 自訂 ${customSkills.length} items`;
 }
 
 function renderSkillsGrid(tools) {
@@ -2861,6 +2994,7 @@ const proactiveState = {
   workiqPrompt: "",
   lastScan: null,
   unreadCount: 0,
+  readKeys: [],
 };
 
 // Section toggle (collapse/expand)
@@ -2879,6 +3013,10 @@ document.querySelectorAll(".insight-section-header").forEach((header) => {
 document.getElementById("btn-refresh-proactive")?.addEventListener("click", async () => {
   showToast("正在掃描所有代理...");
   await runFullProactiveScan();
+});
+
+document.getElementById("btn-mark-all-read")?.addEventListener("click", () => {
+  markAllProactiveAsRead();
 });
 
 document.getElementById("btn-save-proactive-config")?.addEventListener("click", async () => {
@@ -2963,6 +3101,7 @@ function processProactiveResults(results, scannedAt) {
   }
 
   proactiveState.lastScan = scannedAt;
+  normalizeProactiveReadState();
   updateNotificationBadge();
   renderTopPriority();
 
@@ -3003,6 +3142,7 @@ chrome.runtime.onMessage.addListener((msg) => {
     }
 
     proactiveState.lastScan = ts;
+  normalizeProactiveReadState();
     updateNotificationBadge();
     renderTopPriority();
     chrome.storage.local.set({ proactiveState: { ...proactiveState } });
@@ -3096,22 +3236,77 @@ function renderTopPriority() {
   });
 }
 
-function updateNotificationBadge() {
-  let count = 0;
-  if (proactiveState.briefing) {
-    count += (proactiveState.briefing.emails?.length || 0);
-    count += (proactiveState.briefing.mentions?.length || 0);
-  }
-  if (proactiveState.deadlines) {
-    count += (proactiveState.deadlines.deadlines?.filter((d) => d.urgency === "critical" || d.daysLeft <= 1).length || 0);
-  }
-  if (proactiveState.ghosts) {
-    count += (proactiveState.ghosts.ghosts?.filter((g) => g.priority === "critical" || g.priority === "high").length || 0);
-  }
+function toNotificationKey(type, item) {
+  const parts = [
+    type,
+    item?.id,
+    item?.messageId,
+    item?.subject,
+    item?.title,
+    item?.from,
+    item?.date,
+    item?.receivedAt,
+    item?.time,
+  ].filter((value) => value !== undefined && value !== null && String(value).trim() !== "");
+  return parts.join("|");
+}
+
+function getAllNotificationKeys() {
+  const keys = [];
+
+  const briefingEmails = proactiveState.briefing?.emails || [];
+  briefingEmails.forEach((item) => keys.push(toNotificationKey("briefing-email", item)));
+
+  const briefingMentions = proactiveState.briefing?.mentions || [];
+  briefingMentions.forEach((item) => keys.push(toNotificationKey("briefing-mention", item)));
+
+  const urgentDeadlines = (proactiveState.deadlines?.deadlines || [])
+    .filter((d) => d.urgency === "critical" || Number(d.daysLeft) <= 1);
+  urgentDeadlines.forEach((item) => keys.push(toNotificationKey("deadline", item)));
+
+  const highGhosts = (proactiveState.ghosts?.ghosts || [])
+    .filter((g) => g.priority === "critical" || g.priority === "high");
+  highGhosts.forEach((item) => keys.push(toNotificationKey("ghost", item)));
+
   if (proactiveState.meetingPrep?.meeting) {
-    count += 1;
+    keys.push(toNotificationKey("meeting-prep", proactiveState.meetingPrep.meeting));
   }
 
+  return keys;
+}
+
+function normalizeProactiveReadState() {
+  const currentKeySet = new Set(getAllNotificationKeys());
+  const normalizedReadKeys = (proactiveState.readKeys || []).filter((key) => currentKeySet.has(key));
+  proactiveState.readKeys = [...new Set(normalizedReadKeys)];
+}
+
+function markAllProactiveAsRead() {
+  proactiveState.readKeys = [...new Set(getAllNotificationKeys())];
+  updateNotificationBadge();
+  chrome.storage.local.set({ proactiveState: { ...proactiveState } });
+  showToast("已全部標記為已讀");
+}
+
+function isNotificationRead(readKey) {
+  if (!readKey) return false;
+  return (proactiveState.readKeys || []).includes(readKey);
+}
+
+function markNotificationAsRead(readKey) {
+  if (!readKey) return;
+  const current = proactiveState.readKeys || [];
+  if (current.includes(readKey)) return;
+  proactiveState.readKeys = [...current, readKey];
+  normalizeProactiveReadState();
+  updateNotificationBadge();
+  chrome.storage.local.set({ proactiveState: { ...proactiveState } });
+}
+
+function updateNotificationBadge() {
+  const allKeys = getAllNotificationKeys();
+  const readSet = new Set(proactiveState.readKeys || []);
+  const count = allKeys.filter((key) => !readSet.has(key)).length;
   proactiveState.unreadCount = count;
 
   const badge = document.getElementById("notification-badge");
@@ -3132,8 +3327,10 @@ function renderBriefing(data) {
 
   // Emails
   renderInsightItems("briefing-emails", data.emails || [], (item) => {
+    const readKey = toNotificationKey("briefing-email", item);
+    const isRead = isNotificationRead(readKey);
     const priorityClass = item.priority === "high" ? "priority-high" : item.priority === "medium" ? "priority-medium" : "priority-low";
-    return `<div class="insight-item ${priorityClass}">
+    return `<div class="insight-item ${priorityClass} ${isRead ? "completed" : ""}">
       <div class="insight-item-header">
         <span class="insight-item-from">${escapeHtml(item.from)}</span>
         <span class="insight-item-age">${escapeHtml(item.age)}</span>
@@ -3143,6 +3340,7 @@ function renderBriefing(data) {
       <div class="insight-item-actions">
         <button class="insight-action-btn" data-action="reply" data-from="${escapeHtml(item.from)}" data-subject="${escapeHtml(item.subject)}">💬 回覆</button>
         <button class="insight-action-btn secondary" data-action="draft" data-from="${escapeHtml(item.from)}" data-subject="${escapeHtml(item.subject)}">🤖 草擬回覆</button>
+        <button class="insight-action-btn secondary" data-action="mark-read" data-read-key="${escapeHtml(readKey)}" ${isRead ? "disabled" : ""}>${isRead ? "✅ 已完成" : "已讀"}</button>
       </div>
     </div>`;
   });
@@ -3183,13 +3381,18 @@ function renderBriefing(data) {
 
   // Mentions
   renderInsightItems("briefing-mentions", data.mentions || [], (item) => {
-    return `<div class="insight-item priority-medium">
+    const readKey = toNotificationKey("briefing-mention", item);
+    const isRead = isNotificationRead(readKey);
+    return `<div class="insight-item priority-medium ${isRead ? "completed" : ""}">
       <div class="insight-item-header">
         <span class="insight-item-from">${escapeHtml(item.from)}</span>
         <span class="insight-item-age">${escapeHtml(item.time || "")}</span>
       </div>
       <div class="insight-item-subject">${escapeHtml(item.channel || "")}</div>
       <div class="insight-item-snippet">${escapeHtml(item.message || "")}</div>
+      <div class="insight-item-actions">
+        <button class="insight-action-btn secondary" data-action="mark-read" data-read-key="${escapeHtml(readKey)}" ${isRead ? "disabled" : ""}>${isRead ? "✅ 已完成" : "已讀"}</button>
+      </div>
     </div>`;
   });
   updateSubCount("briefing-mentions-count", data.mentions);
@@ -3204,9 +3407,11 @@ function renderDeadlines(data) {
   if (empty) empty.style.display = items.length > 0 ? "none" : "block";
 
   renderInsightItems("deadline-list", items, (item) => {
+    const readKey = toNotificationKey("deadline", item);
+    const isRead = isNotificationRead(readKey);
     const urgencyClass = item.urgency === "critical" ? "priority-high" : item.urgency === "warning" ? "priority-medium" : "priority-low";
     const daysText = item.daysLeft === 0 ? "今天" : item.daysLeft === 1 ? "明天" : `${item.daysLeft} 天`;
-    return `<div class="insight-item ${urgencyClass}">
+    return `<div class="insight-item ${urgencyClass} ${isRead ? "completed" : ""}">
       <div class="insight-item-header">
         <span class="insight-item-from">${escapeHtml(item.source || "Email")}</span>
         <span class="deadline-countdown ${urgencyClass}">${escapeHtml(daysText)}</span>
@@ -3214,6 +3419,9 @@ function renderDeadlines(data) {
       <div class="insight-item-subject">${escapeHtml(item.title)}</div>
       <div class="insight-item-snippet">${escapeHtml(item.snippet || item.sourceDetail || "")}</div>
       <div class="insight-item-meta">📅 ${escapeHtml(item.date || "")}</div>
+      <div class="insight-item-actions">
+        <button class="insight-action-btn secondary" data-action="mark-read" data-read-key="${escapeHtml(readKey)}" ${isRead ? "disabled" : ""}>${isRead ? "✅ 已完成" : "已讀"}</button>
+      </div>
     </div>`;
   });
 
@@ -3227,8 +3435,10 @@ function renderGhosts(data) {
   if (empty) empty.style.display = items.length > 0 ? "none" : "block";
 
   renderInsightItems("ghost-list", items, (item) => {
+    const readKey = toNotificationKey("ghost", item);
+    const isRead = isNotificationRead(readKey);
     const priorityClass = item.priority === "critical" ? "priority-high" : item.priority === "high" ? "priority-high" : item.priority === "medium" ? "priority-medium" : "priority-low";
-    return `<div class="insight-item ${priorityClass}">
+    return `<div class="insight-item ${priorityClass} ${isRead ? "completed" : ""}">
       <div class="insight-item-header">
         <span class="insight-item-from">${escapeHtml(item.from)}</span>
         <span class="insight-item-age">${escapeHtml(item.receivedAt)}</span>
@@ -3239,6 +3449,7 @@ function renderGhosts(data) {
       <div class="insight-item-actions">
         <button class="insight-action-btn" data-action="draft-reply" data-from="${escapeHtml(item.from)}" data-subject="${escapeHtml(item.subject)}" data-snippet="${escapeHtml(item.snippet || "")}">🤖 草擬回覆</button>
         <button class="insight-action-btn secondary" data-action="dismiss">✕ 忽略</button>
+        <button class="insight-action-btn secondary" data-action="mark-read" data-read-key="${escapeHtml(readKey)}" ${isRead ? "disabled" : ""}>${isRead ? "✅ 已完成" : "已讀"}</button>
       </div>
     </div>`;
   });
@@ -3261,6 +3472,8 @@ function renderMeetingPrep(data) {
   let html = "";
 
   // Meeting info header
+  const meetingReadKey = toNotificationKey("meeting-prep", data.meeting || {});
+  const isMeetingRead = isNotificationRead(meetingReadKey);
   html += `<div class="insight-item meeting-header-item">
     <div class="insight-item-header">
       <span class="insight-item-time">${escapeHtml(data.meeting.time || "")}</span>
@@ -3268,6 +3481,9 @@ function renderMeetingPrep(data) {
     </div>
     <div class="insight-item-subject">${escapeHtml(data.meeting.title)}</div>
     <div class="insight-item-meta">📍 ${escapeHtml(data.meeting.location || "TBD")}</div>
+    <div class="insight-item-actions">
+      <button class="insight-action-btn secondary" data-action="mark-read" data-read-key="${escapeHtml(meetingReadKey)}" ${isMeetingRead ? "disabled" : ""}>${isMeetingRead ? "✅ 已完成" : "已讀"}</button>
+    </div>
   </div>`;
 
   // Attendees
@@ -3322,6 +3538,12 @@ function renderMeetingPrep(data) {
   }
 
   container.innerHTML = html;
+  container.querySelectorAll(".insight-action-btn").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      handleInsightAction(btn);
+    });
+  });
   updateSectionCount("meeting-prep-count", 1);
 }
 
@@ -3362,6 +3584,7 @@ async function handleInsightAction(btn) {
   const snippet = btn.dataset.snippet || "";
   const title = btn.dataset.title || "";
   const url = btn.dataset.url || "";
+  const readKey = btn.dataset.readKey || "";
 
   switch (action) {
     case "draft":
@@ -3411,6 +3634,13 @@ async function handleInsightAction(btn) {
       }
       break;
     }
+    case "mark-read": {
+      markNotificationAsRead(readKey);
+      btn.textContent = localizeRuntimeMessage("✅ 已完成");
+      btn.disabled = true;
+      btn.closest(".insight-item")?.classList.add("completed");
+      break;
+    }
     default:
       debugLog("PROACTIVE", `Unknown action: ${action}`);
   }
@@ -3433,6 +3663,10 @@ function restoreProactiveState() {
           label.textContent = `上次掃描: ${time}`;
         }
       }
+      if (Array.isArray(s.readKeys)) {
+        proactiveState.readKeys = [...new Set(s.readKeys.filter((key) => typeof key === "string" && key.trim().length > 0))];
+      }
+      normalizeProactiveReadState();
       updateNotificationBadge();
       renderTopPriority();
     }

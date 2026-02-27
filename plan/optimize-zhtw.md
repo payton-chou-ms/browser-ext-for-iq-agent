@@ -1,7 +1,7 @@
 # IQ Copilot 專案完整分析 & Commit 計畫
 
 > 產生日期：2026-02-27  
-> 最後更新：2026-02-27（Commit Plan 已全部完成）
+> 最後更新：2026-02-27（Phase 0 完成、Phase 1.1 完成、Phase 4 完成）
 
 ---
 
@@ -9,15 +9,15 @@
 
 | 檔案 | 行數 | Git 狀態 | 職責 |
 |------|------|----------|------|
-| sidebar.js | 3,767 | modified | 主 UI 邏輯（巨型單體） |
+| sidebar.js | 3,785 | modified | 主 UI 邏輯（巨型單體） |
 | sidebar.css | 3,284 | modified | 所有樣式 |
 | sidebar.html | 850 | modified | DOM 結構 |
-| proxy.js | 921 | modified | HTTP 代理伺服器 |
+| proxy.js | 1,005 | modified | HTTP 代理伺服器 |
 | achievement-engine.js | 695 | **new** | 成就系統引擎 |
-| background.js | 351 | modified | Service Worker |
-| copilot-rpc.js | 306 | modified | REST 客戶端 |
+| background.js | 368 | modified | Service Worker |
+| copilot-rpc.js | 305 | modified | REST 客戶端 |
 | start.sh | 195 | modified | 啟動腳本 |
-| content_script.js | 35 | unchanged | 內容腳本 |
+| content_script.js | 33 | unchanged | 內容腳本 |
 | tests/extension.spec.js | 145 | **new** | E2E 測試 |
 | .github/workflows/ci.yml | 166 | **new** | CI Pipeline |
 | .env.example | 15 | **new** | 環境變數範本 |
@@ -28,10 +28,10 @@
 ## 二、提交狀態
 
 ```
-✅ 全部已提交（10 個 atomic commits：fd8e6d8 → 4f6ade4）
+✅ 全部已提交（11 個 commits：fd8e6d8 → d8f3d2c）
 基底 commit：2c00ae6
-最新 commit：4f6ade4 (HEAD → main)
-Working tree：clean
+最新 commit：d8f3d2c (HEAD → main)
+Working tree：modified（sidebar.js, proxy.js — Phase 0 + Phase 1.1 + Phase 4 修改）
 ```
 
 ---
@@ -40,14 +40,14 @@ Working tree：clean
 
 | 嚴重度 | 問題 | 說明 |
 |--------|------|------|
-| **CRITICAL** | sidebar.js 3,767 行巨型單體 | 違反 800 行上限，包含 state / i18n / UI / chat / streaming / file-upload / agent / MCP / skills / proactive / achievements 等 15+ 個功能區塊 |
+| **CRITICAL** | sidebar.js 3,785 行巨型單體 | 違反 800 行上限，包含 state / i18n / UI / chat / streaming / file-upload / agent / MCP / skills / proactive / achievements 等 15+ 個功能區塊 |
+| **MEDIUM-FIXED** | 無 input validation | ~~proxy.js 未使用 Zod 或 schema 驗證請求~~ → Phase 4.3 已加入基礎驗證 |
 | **HIGH** | 缺少 TypeScript | 全專案純 JS，無型別安全 |
 | **HIGH** | 缺少 Linter / Formatter | 無 ESLint、Prettier 設定 |
 | **HIGH** | 測試覆蓋率不足 | 僅 5 個 E2E 測試，無 unit test，低於 80% 門檻 |
 | **MEDIUM** | 大量 inline style | sidebar.js 的 template literal 中嵌入大量 `style="..."` 應用 CSS class |
 | **MEDIUM** | 全域變數汙染 | sidebar.js 定義 50+ 全域函數 / 變數，無模組化 |
 | **MEDIUM** | 部分 mutation 模式 | `toolCalls.length = 0`、`subAgents.length = 0` 直接修改陣列 |
-| **MEDIUM** | 無 input validation | proxy.js 未使用 Zod 或 schema 驗證請求 |
 | **LOW** | i18n 不完整 | 有 i18n 系統但許多 runtime 字串仍是硬編碼中文 |
 | **LOW** | README 僅 12 行 | 缺乏安裝說明、架構圖、開發指南 |
 
@@ -111,6 +111,8 @@ Working tree：clean
 ### Git Log
 
 ```
+cff97d0 fix: add state-change gate to broadcastState (Phase 0.4)  ← HEAD
+d8f3d2c docs: update optimize-zhtw.md with completed commit plan status
 4f6ade4 docs: add project README and update plan documents
 80dadc4 test: add Playwright E2E tests with CI pipeline
 1544b74 feat: add Achievement Engine with gamification system
@@ -149,7 +151,7 @@ fd8e6d8 chore: harden .gitignore and add .env.example
 
 ---
 
-## Phase 0 — P0 Critical：修復無限迴圈 ⏱️ ~30 min
+## Phase 0 — P0 Critical：修復無限迴圈 ✅ DONE
 
 ### 問題根因
 
@@ -176,7 +178,7 @@ background.js setInterval(15s)
 | 0.3 | `sidebar.js` | `CONNECTION_STATE_CHANGED` listener 加入 debounce | 15 秒內只處理第一次 broadcast |
 | 0.4 | `background.js` | `broadcastState()` 加入 state-change gate | 只有 `prev !== current` 時才廣播（目前 **已有** 此邏輯，需驗證是否正常運作） |
 
-### 預期效果
+### 預期效果 ✅ 已驗證
 
 | 指標 | Before | After |
 |------|--------|-------|
@@ -186,7 +188,7 @@ background.js setInterval(15s)
 
 ---
 
-## Phase 1 — P1 High：網路效率優化 ⏱️ ~2 hrs
+## Phase 1 — P1 High：網路效率優化 ⏱️ ~2 hrs（1.1 ✅ done）
 
 ### 1.1 `proxy.js` — scan-all 移除 self-loopback
 
@@ -268,7 +270,7 @@ function cachedFetch(key, fetchFn, ttlMs) {
 ### 目標架構
 
 ```
-sidebar.js (3,767 → ~200 行 bootstrap)
+sidebar.js (3,785 → ~200 行 bootstrap)
 ├── lib/
 │   ├── state.js          — 全域狀態管理（connectionState, currentSession, etc.）
 │   ├── i18n.js           — I18N 物件 + t() + translateStaticUi()
@@ -359,7 +361,7 @@ function addDebugLog(entry) {
 
 ---
 
-## Phase 4 — P4 Low：proxy.js 強化 ⏱️ ~1 hr
+## Phase 4 — P4 Low：proxy.js 強化 ✅ DONE
 
 ### 4.1 Proactive Session 硬編碼 model
 
@@ -427,7 +429,7 @@ const CONFIG = Object.freeze({
 
 ```
 ┌────────────────────────────────────────────────────────┐
-│  Phase 0 (P0) — 修復無限迴圈                ~30 min   │  ← 最先做
+│  Phase 0 (P0) — 修復無限迴圈                ✅ DONE    │  ← 最先做
 │  ┌─────────────────────────────────────────────────┐   │
 │  │ 0.1 _hasInitialized flag                        │   │
 │  │ 0.2 移除 auto scan-all                          │   │
@@ -435,23 +437,23 @@ const CONFIG = Object.freeze({
 │  │ 0.4 驗證 broadcastState gate                    │   │
 │  └─────────────────────────────────────────────────┘   │
 ├────────────────────────────────────────────────────────┤
-│  Phase 1 (P1) — 網路效率                     ~2 hrs    │
+│  Phase 1 (P1) — 網路效率                ✅ DONE       │
 │  ┌─────────────────────────────────────────────────┐   │
-│  │ 1.1 scan-all 移除 self-loopback                 │   │
-│  │ 1.2 onConnected 並行化 Promise.allSettled        │   │
-│  │ 1.3 使用 /api/context 聚合 API                  │   │
-│  │ 1.4 Cache + TTL                                 │   │
+│  │ 1.1 scan-all 移除 self-loopback          ✅     │   │
+│  │ 1.2 onConnected 並行化 Promise.allSettled ✅     │   │
+│  │ 1.3 使用 /api/context 聚合 API           ✅     │   │
+│  │ 1.4 Cache + TTL                          ✅     │   │
 │  └─────────────────────────────────────────────────┘   │
 ├────────────────────────────────────────────────────────┤
 │  Phase 2 (P2) — sidebar.js 拆分              ~4 hrs    │
 ├────────────────────────────────────────────────────────┤
 │  Phase 3 (P3) — Memory & DOM                 ~1 hr     │
 ├────────────────────────────────────────────────────────┤
-│  Phase 4 (P4) — proxy.js 強化                ~1 hr     │
+│  Phase 4 (P4) — proxy.js 強化                ✅ DONE    │
 ├────────────────────────────────────────────────────────┤
 │  Phase 5 (P5) — Code Quality                 ~2 hrs    │  ← 最後做
 └────────────────────────────────────────────────────────┘
-                                        總計 ~10.5 hrs
+                                        剩餘 ~7 hrs（Phase 0+1+4 done）
 ```
 
 ---
@@ -466,9 +468,9 @@ const CONFIG = Object.freeze({
 
 ### Phase 1 — 網路效率
 - [x] 1.1 proxy.js scan-all 改為直接呼叫 handler function
-- [ ] 1.2 sidebar.js onConnected 呼叫並行化（Promise.allSettled）
-- [ ] 1.3 sidebar.js 改用 /api/context 聚合端點
-- [ ] 1.4 新增 cachedFetch + TTL（models 5min, tools 5min, quota 2min）
+- [x] 1.2 sidebar.js onConnected 呼叫並行化（Promise.allSettled）
+- [x] 1.3 sidebar.js 改用 /api/context 聚合端點
+- [x] 1.4 新增 cachedFetch + TTL（models 5min, tools 5min, quota 2min, sessions 30s, context 2min）
 
 ### Phase 2 — sidebar.js 拆分
 - [ ] 2.1 建立 lib/ 目錄結構
