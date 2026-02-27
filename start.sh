@@ -9,6 +9,11 @@
 
 set -euo pipefail
 
+# ── Load .env (if present) ──
+if [[ -f .env ]]; then
+  export $(grep -v '^#' .env | grep -v '^\s*$' | xargs)
+fi
+
 CLI_PORT="${CLI_PORT:-4321}"
 HTTP_PORT="${HTTP_PORT:-8321}"
 DEBUG=false
@@ -76,6 +81,11 @@ echo -e "  ─────────────────────"
 echo -e "  CLI port  : ${CYAN}$CLI_PORT${NC}"
 echo -e "  Proxy port: ${YELLOW}$HTTP_PORT${NC}"
 echo -e "  Debug     : $DEBUG"
+if [[ -n "${FOUNDRY_ENDPOINT:-}" ]]; then
+  echo -e "  Foundry   : ${GREEN}configured${NC}"
+else
+  echo -e "  Foundry   : ${DIM}not configured${NC}"
+fi
 echo ""
 
 # 1) Free ports if occupied
