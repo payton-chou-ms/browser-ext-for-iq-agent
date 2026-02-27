@@ -15,7 +15,7 @@
   "side_panel": {
     "default_path": "sidebar.html"
   },
-  "permissions": ["activeTab", "sidePanel", "tabs", "storage"],
+  "permissions": ["activeTab", "sidePanel", "tabs", "storage", "alarms"],
   "host_permissions": ["http://localhost/*", "http://127.0.0.1/*"],
   "background": {
     "service_worker": "background.js"

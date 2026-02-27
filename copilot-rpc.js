@@ -186,6 +186,28 @@ const COPILOT_RPC = (() => {
     }
   }
 
+  async function setMcpConfig(config) {
+    return await apiCall("/api/mcp/config", { config });
+  }
+
+  async function setFoundryConfig(endpoint, apiKey) {
+    return await apiCall("/api/foundry/config", { endpoint, apiKey });
+  }
+
+  async function clearFoundryKey() {
+    return await apiCall("/api/foundry/config", { clearApiKey: true });
+  }
+
+  async function getFoundryStatus() {
+    try {
+      const res = await fetch(`${_baseUrl}/api/foundry/status`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return await res.json();
+    } catch (err) {
+      return { ok: false, configured: false, endpoint: null, error: err.message };
+    }
+  }
+
   // ── Connection check (uses /health, falls back to /api/ping) ──
   async function checkConnection() {
     try {
@@ -205,6 +227,41 @@ const COPILOT_RPC = (() => {
         return { connected: false, error: err.message };
       }
     }
+  }
+
+  // ── Proactive Agent APIs ──
+  async function proactiveBriefing() {
+    return await apiCall("/api/proactive/briefing");
+  }
+
+  async function proactiveDeadlines() {
+    return await apiCall("/api/proactive/deadlines");
+  }
+
+  async function proactiveGhosts() {
+    return await apiCall("/api/proactive/ghosts");
+  }
+
+  async function proactiveMeetingPrep() {
+    return await apiCall("/api/proactive/meeting-prep");
+  }
+
+  async function proactiveScanAll() {
+    return await apiCall("/api/proactive/scan-all");
+  }
+
+  async function getProactiveConfig() {
+    try {
+      const res = await fetch(`${_baseUrl}/api/proactive/config`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return await res.json();
+    } catch (err) {
+      return { ok: false, config: { workiqPrompt: "" }, error: err.message };
+    }
+  }
+
+  async function setProactiveConfig(workiqPrompt) {
+    return await apiCall("/api/proactive/config", { workiqPrompt: workiqPrompt || "" });
   }
 
   return {
@@ -227,7 +284,18 @@ const COPILOT_RPC = (() => {
     getAuthStatus,
     getContext,
     getMcpConfig,
+    setMcpConfig,
+    setFoundryConfig,
+    clearFoundryKey,
+    getFoundryStatus,
     checkConnection,
+    proactiveBriefing,
+    proactiveDeadlines,
+    proactiveGhosts,
+    proactiveMeetingPrep,
+    proactiveScanAll,
+    getProactiveConfig,
+    setProactiveConfig,
   };
 })();
 
