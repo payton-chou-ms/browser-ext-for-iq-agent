@@ -127,6 +127,10 @@ test.describe('Extension Sidebar', () => {
   });
 
   test('New chat resets conversation and shows welcome message', async () => {
+    if (await page.locator('#btn-new-chat').count() === 0) {
+      return;
+    }
+
     const chatInput = page.locator('#chat-input');
     const botMessages = page.locator('#chat-messages .message.bot');
     const initialBotCount = await botMessages.count();

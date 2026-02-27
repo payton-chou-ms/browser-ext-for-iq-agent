@@ -12,11 +12,19 @@
 #### P0-2：Idle 請求風暴（每 60 秒 `models/session/tools/quota/context/scan-all`）— **待驗收封板**
 
 - **症狀**：proxy log 顯示每 ~60 秒出現一批 6 個請求
-- **根本原因（2026-02-27 診斷）**：
-  - Service Worker 在 MV3 中會被週期性 kill/restart
-  - 重啟後 `_lastBroadcastState` 重置為 `"disconnected"`
-  - Alarm 觸發連線檢查成功 → `connectionState = "connected"`
-  - `broadcastState()` 誤判為狀態改變 → 觸發 sidebar 完整 init storm
+- **根本原因（2026-02-27 深入診斷）**：
+  1. Service Worker 在 MV3 中會被週期性 kill/restart
+  2. 重啟後 `_lastBroadcastState` 從 session storage 異步恢復
+  3. 但 alarm handler 可能在異步恢復完成 **之前** 就觸發
+  4. 此時 `_lastBroadcastState` 仍為初始值 `"disconnected"`
+  5. 連線檢查成功 → `connectionState = "connected"`
+  6. `broadcastState()` 比較 `"connected" !== "disconnected"` → **誤判為狀態改變**
+  7. 發送 `CONNECTION_STATE_CHANGED` → sidebar 執行完整 init storm
+- **修復方案（2026-02-27 實作）**：
+  - 新增 `_stateRestoreComplete` flag 追蹤異步恢復是否完成
+  - `broadcastState()` 增加 guard：恢復未完成時直接 return，防止誤判
+  - `chrome.alarms.onAlarm` handler 同樣檢查 `_stateRestoreComplete`
+  - 使用 async IIFE + try/finally 確保 flag 一定會被設為 true
 - **目前待做**：
   - 10 分鐘 idle 觀測（只允許健康檢查，禁止每分鐘 init 批次）
   - sidepanel 開關/重連情境回歸測試

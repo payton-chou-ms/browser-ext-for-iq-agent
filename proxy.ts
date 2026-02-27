@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 // ===== IQ Copilot SDK Proxy =====
 // HTTP server that bridges the browser extension to Copilot CLI via the official SDK.
 

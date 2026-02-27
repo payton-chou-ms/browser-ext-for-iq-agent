@@ -378,7 +378,7 @@
           return (_state.counters.dailyAgentCalls[today] ?? 0) >= 50;
         }
         case "ghostDetectorZero":
-          return false;
+          return Boolean(_state.counters.ghostsCleared);
         case "consecutiveBriefing7": {
           const days = _state.counters.briefingDays;
           if (days.length < 7) return false;
@@ -391,7 +391,7 @@
           return true;
         }
         case "allProactiveAgentsActive":
-          return false;
+          return Boolean(_state.counters.allProactiveUsed);
         case "allPanelsVisited": {
           const required = ["chat", "context", "agent", "history", "usage", "tasks", "skills", "mcp", "config"];
           const visited = _state.counters.panelsVisited;
@@ -548,10 +548,20 @@
       _saveToStorage();
       _emit({ type: "reset" });
     }
+    function setCustomFlag(flag, value) {
+      if (!_state) return;
+      _state.counters[flag] = value;
+      const newUnlocks = _checkAchievements();
+      if (newUnlocks.length > 0) {
+        _emit({ type: "track", event: `flag:${flag}`, xp: 0, newUnlocks });
+      }
+      _saveToStorage();
+    }
     return {
       init,
       track,
       forceUnlock,
+      setCustomFlag,
       onEvent,
       getProfile,
       getAchievements,

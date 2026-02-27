@@ -9,6 +9,7 @@ let cliHost = "127.0.0.1";
 let connectionState = "disconnected"; // disconnected | connecting | connected | error
 let _lastBroadcastState = "disconnected"; // Track last broadcast to prevent spurious notifications
 let _currentSessionId = null;
+let _stateRestoreComplete = false; // Guard against race condition with async restore
 const CONNECTION_ALARM_NAME = "connection-health-check";
 const CONNECTION_CHECK_PERIOD_CONNECTED_MIN = 5;
 const CONNECTION_CHECK_PERIOD_DISCONNECTED_MIN = 1;
@@ -41,14 +42,23 @@ chrome.storage.local.get(["cliHost", "cliPort"], (data) => {
 });
 
 // Restore last broadcast state from session storage (survives service worker restart)
-chrome.storage.session.get([LAST_BROADCAST_STATE_KEY], (data) => {
-  const restored = data?.[LAST_BROADCAST_STATE_KEY];
-  if (restored && typeof restored === "string") {
-    _lastBroadcastState = restored;
-    connectionState = restored; // Keep in sync to prevent false transitions
-    console.log(`[BG] Restored last broadcast state: ${restored}`);
+// CRITICAL: This must complete BEFORE any alarm/message handlers compare state
+(async () => {
+  try {
+    const data = await chrome.storage.session.get([LAST_BROADCAST_STATE_KEY]);
+    const restored = data?.[LAST_BROADCAST_STATE_KEY];
+    if (restored && typeof restored === "string") {
+      _lastBroadcastState = restored;
+      connectionState = restored; // Keep in sync to prevent false transitions
+      console.log(`[BG] Restored last broadcast state: ${restored}`);
+    }
+  } catch (err) {
+    console.error(`[BG] Failed to restore state:`, err);
+  } finally {
+    _stateRestoreComplete = true;
+    console.log(`[BG] State restore complete. _lastBroadcastState=${_lastBroadcastState}`);
   }
-});
+})();
 
 // ── Message Router ──
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
@@ -309,8 +319,16 @@ async function checkAndUpdateConnection(source = "manual") {
  * actually differs from the last broadcast value.
  * This eliminates redundant broadcasts that were re-triggering
  * sidebar's onConnected() + full API call storm every ~60s.
+ * 
+ * CRITICAL: If state restore hasn't completed yet, we skip broadcasting
+ * to prevent false positives from the default "disconnected" value.
  */
 function broadcastState(source = "manual") {
+  // Guard against race condition: don't broadcast until restore completes
+  if (!_stateRestoreComplete) {
+    console.log(`[BG] broadcastState deferred — state restore pending`);
+    return;
+  }
   if (connectionState === _lastBroadcastState) {
     console.log(`[BG] broadcastState skipped — state unchanged (${connectionState})`);
     return;
@@ -389,6 +407,11 @@ function minutesUntilHour(targetHour) {
 
 chrome.alarms.onAlarm.addListener(async (alarm) => {
   if (alarm.name === CONNECTION_ALARM_NAME) {
+    // Wait for state restore to complete before processing
+    if (!_stateRestoreComplete) {
+      console.log(`[BG] Connection alarm deferred — state restore pending`);
+      return;
+    }
     if (connectionState === "connecting") return;
     try {
       const result = await COPILOT_RPC.checkConnection();
