@@ -26,8 +26,229 @@
   const chatMessages = document.getElementById("chat-messages");
   const chatInput    = document.getElementById("chat-input");
   const btnSend      = document.getElementById("btn-send");
+  const btnCommandMenu = document.getElementById("btn-command-menu");
+  const commandMenu  = document.getElementById("command-menu");
   const btnNewChat   = document.getElementById("btn-new-chat");
   const suggestions  = document.getElementById("chat-suggestions");
+
+  const escapeHtml = UTILS.escapeHtml || ((s) => s);
+  const commandState = {
+    open: false,
+    activeIndex: -1,
+    items: [],
+  };
+
+  const COMMAND_GROUP_LABEL = {
+    general: "General",
+    agent: "Agent",
+    skills: "Skills",
+    mcp: "MCP",
+  };
+
+  function getCommandItems() {
+    const baseItems = [
+      {
+        id: "help",
+        group: "general",
+        title: "顯示命令說明",
+        description: "列出可用命令與用法",
+        command: "/help",
+        run: async () => [
+          "**可用命令**",
+          "- `/help` 顯示命令說明",
+          "- `/agent list` 列出代理",
+          "- `/agent use <id>` 切換代理",
+          "- `/skills list` 讀取技能",
+          "- `/skills refresh` 刷新技能",
+          "- `/mcp status` 檢視 MCP 狀態",
+          "- `/mcp reload` 重新載入 MCP 設定",
+        ].join("\n"),
+      },
+      {
+        id: "agent-list",
+        group: "agent",
+        title: "列出代理",
+        description: "顯示目前可選代理與狀態",
+        command: "/agent list",
+        run: async () => {
+          const allAgents = AGENTS.getAllAgents?.() || [];
+          const selectedId = AGENTS.getSelectedAgentId?.();
+          if (allAgents.length === 0) return "目前沒有可用代理";
+          return [
+            "**Agents**",
+            ...allAgents.map((agent) => `- ${agent.id === selectedId ? "✅" : "▫️"} ${agent.id} · ${agent.name}`),
+          ].join("\n");
+        },
+      },
+      {
+        id: "skills-list",
+        group: "skills",
+        title: "列出技能",
+        description: "從 CLI 讀取目前技能清單",
+        command: "/skills list",
+        run: async () => {
+          if (!CONN.isConnected?.()) return "目前未連線 Copilot CLI，請先連線後再查詢 skills。";
+          const currentModel = CHAT.getState?.().currentModel;
+          const tools = await UTILS.cachedSendToBackground?.("tools", { type: "LIST_TOOLS", model: currentModel });
+          if (!Array.isArray(tools) || tools.length === 0) return "CLI 未回傳任何技能。";
+          return [
+            `**Skills (${tools.length})**`,
+            ...tools.slice(0, 20).map((tool) => `- ${tool.name || "unknown"}`),
+            ...(tools.length > 20 ? [`- ... 還有 ${tools.length - 20} 個`] : []),
+          ].join("\n");
+        },
+      },
+      {
+        id: "skills-refresh",
+        group: "skills",
+        title: "刷新技能",
+        description: "重新載入 skills 面板資料",
+        command: "/skills refresh",
+        run: async () => {
+          switchPanel("skills");
+          await PANELS.skills?.loadSkillsFromCli?.();
+          return "已刷新 Skills。";
+        },
+      },
+      {
+        id: "mcp-status",
+        group: "mcp",
+        title: "MCP 狀態",
+        description: "顯示 MCP server 設定數量與來源",
+        command: "/mcp status",
+        run: async () => {
+          const res = await UTILS.sendToBackground?.({ type: "GET_MCP_CONFIG" });
+          if (!res?.ok || !res.config) return `讀取 MCP 設定失敗：${res?.error || "unknown"}`;
+          const servers = Object.keys(res.config.mcpServers || {});
+          return [
+            "**MCP Status**",
+            `- Source: ${res.source || "~/.copilot/mcp-config.json"}`,
+            `- Servers: ${servers.length}`,
+            ...servers.slice(0, 10).map((name) => `- ${name}`),
+          ].join("\n");
+        },
+      },
+      {
+        id: "mcp-reload",
+        group: "mcp",
+        title: "重載 MCP",
+        description: "重新載入 MCP 設定並切到 MCP 面板",
+        command: "/mcp reload",
+        run: async () => {
+          switchPanel("mcp");
+          await PANELS.mcp?.loadMcpConfig?.();
+          return "已重新載入 MCP 設定。";
+        },
+      },
+    ];
+
+    const agentItems = (AGENTS.getAllAgents?.() || []).map((agent) => ({
+      id: `agent-use-${agent.id}`,
+      group: "agent",
+      title: `切換 Agent: ${agent.name}`,
+      description: `使用 ${agent.id}`,
+      command: `/agent use ${agent.id}`,
+      run: async () => {
+        await AGENTS.selectAgent?.(agent.id, { showToast: false });
+        return `已切換 Agent 為 **${agent.name}** (${agent.id})。`;
+      },
+    }));
+
+    return [...baseItems, ...agentItems];
+  }
+
+  function closeCommandMenu() {
+    if (!commandMenu) return;
+    commandState.open = false;
+    commandState.activeIndex = -1;
+    commandState.items = [];
+    commandMenu.style.display = "none";
+    commandMenu.innerHTML = "";
+  }
+
+  function setActiveCommandItem(index) {
+    if (!commandMenu || commandState.items.length === 0) return;
+    commandState.activeIndex = Math.max(0, Math.min(index, commandState.items.length - 1));
+    commandMenu.querySelectorAll(".command-menu-item").forEach((itemEl, idx) => {
+      itemEl.classList.toggle("active", idx === commandState.activeIndex);
+    });
+  }
+
+  function renderCommandMenu(filterText = "") {
+    if (!commandMenu) return;
+    const query = String(filterText || "").trim().toLowerCase();
+    const allItems = getCommandItems();
+    const filtered = allItems.filter((item) => {
+      if (!query) return true;
+      return [item.command, item.title, item.description, item.group].join(" ").toLowerCase().includes(query);
+    });
+
+    commandState.items = filtered;
+    commandState.activeIndex = filtered.length > 0 ? 0 : -1;
+
+    if (filtered.length === 0) {
+      commandMenu.innerHTML = `<div class="command-menu-empty">${escapeHtml(localizeRuntimeMessage("沒有符合的命令"))}</div>`;
+      return;
+    }
+
+    let html = "";
+    let currentGroup = "";
+    filtered.forEach((item, index) => {
+      if (item.group !== currentGroup) {
+        currentGroup = item.group;
+        html += `<div class="command-menu-group">${escapeHtml(COMMAND_GROUP_LABEL[currentGroup] || currentGroup)}</div>`;
+      }
+      html += `
+        <button class="command-menu-item${index === 0 ? " active" : ""}" data-index="${index}" role="option" aria-selected="${index === 0 ? "true" : "false"}">
+          <span class="command-menu-main">
+            <span class="command-menu-title">${escapeHtml(item.title)}</span>
+            <span class="command-menu-desc">${escapeHtml(item.description || "")}</span>
+          </span>
+          <span class="command-menu-cmd">${escapeHtml(item.command)}</span>
+        </button>
+      `;
+    });
+    commandMenu.innerHTML = html;
+  }
+
+  function openCommandMenu(filterText = "") {
+    if (!commandMenu) return;
+    renderCommandMenu(filterText);
+    commandState.open = true;
+    commandMenu.style.display = "block";
+  }
+
+  async function executeCommandItem(item, options = {}) {
+    const { addEcho = true } = options;
+    if (!item) return false;
+    if (addEcho) CHAT.addUserMessage?.(item.command);
+    try {
+      const result = await item.run?.();
+      CHAT.addBotMessage?.(result || localizeRuntimeMessage("命令已執行"));
+    } catch (err) {
+      CHAT.addBotMessage?.(`⚠ ${localizeRuntimeMessage("命令執行失敗")}: ${err.message}`);
+    }
+    PANELS.usage?.updateStats?.();
+    return true;
+  }
+
+  async function handleSlashCommand(text) {
+    const commandText = String(text || "").trim();
+    if (!commandText.startsWith("/")) return false;
+    const item = getCommandItems().find((entry) => entry.command === commandText);
+    if (!item) return false;
+    await executeCommandItem(item, { addEcho: true });
+    return true;
+  }
+
+  async function runActiveCommand() {
+    const item = commandState.items[commandState.activeIndex];
+    closeCommandMenu();
+    if (!item) return;
+    chatInput.value = "";
+    chatInput.style.height = "auto";
+    await executeCommandItem(item, { addEcho: true });
+  }
 
   // ── Panel Navigation ──
   function switchPanel(id) {
@@ -312,8 +533,17 @@
     const pending = FILE_UP.getPendingFiles?.() || [];
     if (!text && pending.length === 0) return;
 
+    if (text.startsWith("/") && pending.length === 0) {
+      chatInput.value = "";
+      chatInput.style.height = "auto";
+      closeCommandMenu();
+      const handled = await handleSlashCommand(text);
+      if (handled) return;
+    }
+
     chatInput.value = "";
     chatInput.style.height = "auto";
+    closeCommandMenu();
 
     // Easter egg achievement check
     if (typeof AchievementEngine !== "undefined" && text.toLowerCase() === "iq easter egg") {
@@ -358,6 +588,29 @@
   chatInput?.addEventListener("compositionstart", () => { isChatInputComposing = true; });
   chatInput?.addEventListener("compositionend",   () => { isChatInputComposing = false; });
   chatInput?.addEventListener("keydown", (e) => {
+    if (commandState.open) {
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setActiveCommandItem(commandState.activeIndex + 1);
+        return;
+      }
+      if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setActiveCommandItem(commandState.activeIndex - 1);
+        return;
+      }
+      if (e.key === "Escape") {
+        e.preventDefault();
+        closeCommandMenu();
+        return;
+      }
+      if (e.key === "Enter" && !e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        e.preventDefault();
+        runActiveCommand();
+        return;
+      }
+    }
+
     const isComposing = isChatInputComposing || e.isComposing || e.keyCode === 229;
     if (isComposing) return;
     const isEnter = e.key === "Enter";
@@ -371,6 +624,39 @@
   chatInput?.addEventListener("input", () => {
     chatInput.style.height = "auto";
     chatInput.style.height = Math.min(chatInput.scrollHeight, 120) + "px";
+    const value = String(chatInput.value || "");
+    if (value.startsWith("/")) {
+      openCommandMenu(value.slice(1));
+    } else {
+      closeCommandMenu();
+    }
+  });
+
+  btnCommandMenu?.addEventListener("click", (e) => {
+    e.preventDefault();
+    if (commandState.open) {
+      closeCommandMenu();
+      return;
+    }
+    openCommandMenu("");
+    chatInput?.focus();
+  });
+
+  commandMenu?.addEventListener("click", (event) => {
+    const target = event.target instanceof HTMLElement ? event.target.closest(".command-menu-item") : null;
+    if (!target) return;
+    const index = Number(target.getAttribute("data-index"));
+    if (!Number.isFinite(index)) return;
+    commandState.activeIndex = index;
+    runActiveCommand();
+  });
+
+  document.addEventListener("click", (event) => {
+    if (!commandState.open) return;
+    const target = event.target;
+    if (!(target instanceof Node)) return;
+    if (commandMenu?.contains(target) || btnCommandMenu?.contains(target) || chatInput?.contains(target)) return;
+    closeCommandMenu();
   });
 
   function startNewChat() {
@@ -440,7 +726,6 @@
     loadFoundryConfig();
     CHAT.showWelcome?.();
     PANELS.usage?.updateStats?.();
-    await PANELS.skills?.loadCustomSkillsFromStorage?.();
     AGENTS.loadAgentConfig?.();
     loadCliConfig();
     CONN.checkConnection?.("cold-start");

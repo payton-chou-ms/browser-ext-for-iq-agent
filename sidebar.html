@@ -125,11 +125,15 @@
             <button class="input-action-btn" id="btn-attach" title="附加檔案">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>
             </button>
+            <button class="input-action-btn" id="btn-command-menu" title="命令選單">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 12h16M4 18h10"/></svg>
+            </button>
             <textarea id="chat-input" placeholder="輸入訊息... (Ctrl+Enter 送出)" rows="1"></textarea>
             <button class="send-btn" id="btn-send" title="送出">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
             </button>
           </div>
+          <div class="command-menu" id="command-menu" role="listbox" aria-label="命令選單" style="display:none"></div>
           <input type="file" id="file-input" multiple hidden accept=".txt,.md,.json,.js,.ts,.jsx,.tsx,.py,.html,.css,.csv,.xml,.yaml,.yml,.toml,.sh,.bash,.log,.pdf,.png,.jpg,.jpeg,.gif,.webp,.svg">
           <div class="chat-input-hint">
             <span>IQ Copilot · 按 <kbd>Enter</kbd> 送出（<kbd>Shift+Enter</kbd> 換行）· 📎 拖放或點擊附加檔案</span>
@@ -216,10 +220,6 @@
         <div class="panel-scroll">
           <div class="glass-card">
             <div class="card-header"><span class="card-icon">🤖</span><h3>Agent 模式</h3></div>
-            <div class="action-row agent-action-row">
-              <button class="action-btn" id="btn-agent-add">＋ 新增 Agent</button>
-              <button class="action-btn" id="btn-agent-delete">－ 刪除 Agent</button>
-            </div>
             <div class="agent-list" id="agent-list">
             </div>
           </div>
@@ -367,24 +367,9 @@
             <div class="card-header">
               <span class="card-icon">⚡</span>
               <h3>Skills</h3>
-              <button class="action-btn" id="btn-add-skill" style="flex:0 0 auto; padding:4px 8px; font-size:11px">＋ 新增 Skill</button>
               <button class="icon-btn" id="btn-refresh-skills" title="重新載入" style="margin-left:auto">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
               </button>
-            </div>
-            <div class="skill-create-list" id="skill-create-list" style="display:none">
-              <div class="skill-create-row">
-                <label for="skill-name-input">Skill 名稱</label>
-                <input id="skill-name-input" type="text" class="skill-create-input" placeholder="例如: my_skill" />
-              </div>
-              <div class="skill-create-row">
-                <label for="skill-description-input">Skill 描述</label>
-                <textarea id="skill-description-input" class="skill-create-input" rows="2" placeholder="描述這個 skill 的用途"></textarea>
-              </div>
-              <div class="action-row" style="margin-top:8px">
-                <button class="action-btn" id="btn-skill-create-save">儲存 Skill</button>
-                <button class="action-btn" id="btn-skill-create-cancel">取消</button>
-              </div>
             </div>
             <p class="text-muted" id="skills-source-label" style="font-size:11px;margin:4px 0 0">從 Copilot CLI 載入</p>
           </div>
@@ -808,38 +793,6 @@
           <div class="tool-call-result-preview"></div>
           <pre class="tool-call-result"></pre>
         </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Thinking Card Template -->
-  <div id="thinking-card-template" style="display:none">
-    <div class="thinking-card">
-      <div class="thinking-header" onclick="this.parentElement.classList.toggle('collapsed')">
-        <span class="thinking-icon">🧠</span>
-        <span class="thinking-label">Agent 正在思考...</span>
-        <span class="thinking-timer">0.0s</span>
-        <svg class="thinking-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
-      </div>
-      <div class="thinking-body">
-        <div class="thinking-content"></div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Sub-Agent Card Template -->
-  <div id="subagent-card-template" style="display:none">
-    <div class="subagent-card">
-      <div class="subagent-header">
-        <span class="subagent-icon">🤖</span>
-        <span class="subagent-name"></span>
-        <span class="subagent-timer">0.0s</span>
-        <span class="subagent-status running">
-          <span class="task-spinner"></span>
-        </span>
-      </div>
-      <div class="subagent-body">
-        <div class="subagent-tools"></div>
       </div>
     </div>
   </div>

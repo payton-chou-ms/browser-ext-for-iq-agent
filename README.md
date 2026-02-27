@@ -33,6 +33,52 @@ npm install
 - 啟用「開發人員模式」
 - `Load unpacked` 選擇本專案目錄
 
+## Production 認證流程（重要）
+
+本專案目前是 **本機架構**（Extension → Local Proxy → Copilot CLI），
+因此每位使用者都需要完成「雙重登入」後才能正常使用：
+
+1. **WorkIQ 帳號登入（先做）**
+	- 先在 WorkIQ 流程中完成使用者登入（你的企業/產品身份驗證）。
+2. **Copilot CLI GitHub 登入（再做）**
+	- 在本機完成 Copilot CLI 的 GitHub 認證，確保 CLI 已授權可用。
+3. **啟動本機服務**
+	- 啟動 Copilot CLI server mode + `proxy.js`（可用 `./start.sh`）。
+
+> 不建議使用共用單一 CLI/token 給多人使用；production 應採每位使用者自己的登入與授權邊界。
+
+### 建議啟動順序
+
+```bash
+# 1) 先完成 WorkIQ 登入（依你的 WorkIQ 登入流程）
+
+# 2) 完成 Copilot CLI GitHub 登入（依你安裝版本的 login 指令）
+
+# 3) 啟動本機 CLI + Proxy
+./start.sh
+```
+
+## Foundry Agent 整合與 Browser UI 呈現
+
+若你要把 Foundry Agent 功能加進 Copilot CLI skills（例如 skills 內呼叫 Python script 來執行 Foundry Agent），
+建議在 UI 上採用「技能 + 工具執行」可視化，與現有聊天體驗一致：
+
+1. **Skills 面板**
+	- 顯示 Foundry 相關 skills（名稱、描述、可用狀態）。
+	- 可提供 `Refresh` 重新載入 skills 清單。
+2. **Chat 串流區**
+	- 當模型呼叫該 skill 時，顯示 tool 卡片（running/success/error、耗時、摘要）。
+	- Python script 的執行結果可彙整為可讀摘要顯示在 assistant 回覆中。
+3. **Context / History 面板**
+	- 在 session 歷史中保留該次 Foundry Agent 執行紀錄（哪個 skill、何時執行、結果）。
+4. **設定面板（可選）**
+	- 若需要切換 endpoint 或 auth method，可沿用既有 Foundry 設定區塊（`/api/foundry/*`）。
+
+這樣可以讓使用者同時看到：
+- 「我有哪些 Foundry skills 可用」
+- 「這次對話是否真的觸發了 Foundry Agent」
+- 「執行成功/失敗與輸出摘要」
+
 ## 開發指南
 
 ### 常用指令

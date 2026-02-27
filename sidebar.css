@@ -437,6 +437,71 @@ body {
   margin-top: 6px;
 }
 
+.command-menu {
+  margin-top: 6px;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  max-height: 220px;
+  overflow-y: auto;
+  padding: 4px;
+}
+
+.command-menu-group {
+  font-size: 11px;
+  color: var(--text-muted);
+  padding: 6px 8px 4px;
+}
+
+.command-menu-item {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-primary);
+  text-align: left;
+  padding: 8px;
+  cursor: pointer;
+}
+
+.command-menu-item:hover,
+.command-menu-item.active {
+  background: var(--bg-secondary);
+  border-color: var(--border);
+}
+
+.command-menu-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.command-menu-title {
+  font-size: 12px;
+  color: var(--text-primary);
+}
+
+.command-menu-desc {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.command-menu-cmd {
+  color: var(--text-secondary);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.command-menu-empty {
+  color: var(--text-muted);
+  font-size: 12px;
+  padding: 10px 8px;
+}
+
 kbd {
   background: var(--bg-secondary);
   border: 1px solid var(--border);
@@ -2376,138 +2441,6 @@ kbd {
   50% { box-shadow: 0 0 12px rgba(124, 58, 237, 0.7); opacity: 0.6; }
 }
 
-/* ── Thinking Card ── */
-.thinking-card {
-  background: var(--bg-secondary);
-  border: 1px solid transparent;
-  border-radius: 10px;
-  margin: 8px 0;
-  overflow: hidden;
-  position: relative;
-  animation: thinkingAppear 0.3s ease;
-}
-
-.thinking-card::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: 10px;
-  padding: 1px;
-  background: linear-gradient(135deg, var(--accent-start), var(--accent-end), var(--accent-start));
-  background-size: 200% 200%;
-  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-  -webkit-mask-composite: xor;
-  mask-composite: exclude;
-  pointer-events: none;
-  animation: thinkingBorderPulse 3s ease infinite;
-}
-
-.thinking-card.done::before {
-  animation: none;
-  background: var(--border);
-}
-
-.thinking-header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
-  cursor: pointer;
-  user-select: none;
-  transition: background 0.15s;
-}
-
-.thinking-header:hover {
-  background: rgba(124, 58, 237, 0.06);
-}
-
-.thinking-icon {
-  font-size: 14px;
-  flex-shrink: 0;
-  animation: thinkingIconPulse 2s ease-in-out infinite;
-}
-
-.thinking-card.done .thinking-icon {
-  animation: none;
-}
-
-.thinking-label {
-  flex: 1;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text-primary);
-}
-
-.thinking-timer {
-  font-size: 11px;
-  font-family: var(--font-mono);
-  color: var(--text-muted);
-  flex-shrink: 0;
-}
-
-.thinking-chevron {
-  color: var(--text-muted);
-  transition: transform 0.2s;
-  flex-shrink: 0;
-}
-
-.thinking-card.collapsed .thinking-chevron {
-  transform: rotate(-90deg);
-}
-
-.thinking-body {
-  padding: 0 12px 10px;
-  max-height: 200px;
-  overflow-y: auto;
-  transition: max-height 0.3s ease, padding 0.3s ease, opacity 0.3s ease;
-}
-
-.thinking-card.collapsed .thinking-body {
-  max-height: 0;
-  padding: 0 12px;
-  opacity: 0;
-  overflow: hidden;
-}
-
-.thinking-content {
-  font-size: 11px;
-  font-family: var(--font-mono);
-  color: var(--text-muted);
-  line-height: 1.6;
-  white-space: pre-wrap;
-  word-break: break-word;
-}
-
-.thinking-content .thinking-cursor {
-  display: inline-block;
-  width: 6px;
-  height: 13px;
-  background: var(--accent-start);
-  margin-left: 2px;
-  animation: thinkingCursorBlink 0.8s step-end infinite;
-  vertical-align: text-bottom;
-}
-
-@keyframes thinkingAppear {
-  from { opacity: 0; transform: translateY(8px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-@keyframes thinkingBorderPulse {
-  0%, 100% { background-position: 0% 50%; opacity: 0.6; }
-  50% { background-position: 100% 50%; opacity: 1; }
-}
-
-@keyframes thinkingIconPulse {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.15); }
-}
-
-@keyframes thinkingCursorBlink {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0; }
-}
-
 /* ── Enhanced Tool Call Card ── */
 .tool-call-card {
   background: var(--bg-secondary);
@@ -2699,254 +2632,6 @@ kbd {
   40% { transform: translateX(3px); }
   60% { transform: translateX(-2px); }
   80% { transform: translateX(2px); }
-}
-
-/* ── Sub-Agent Card (inline in chat) ── */
-.subagent-card {
-  background: var(--bg-secondary);
-  border: 1px solid var(--border);
-  border-left: 3px solid var(--accent-start);
-  border-radius: 0 10px 10px 0;
-  margin: 6px 0 6px 16px;
-  overflow: hidden;
-  animation: subagentSlideIn 0.3s ease;
-}
-
-.subagent-card.done {
-  border-left-color: var(--success);
-}
-
-.subagent-card.error {
-  border-left-color: var(--error);
-}
-
-.subagent-header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
-  font-size: 12px;
-}
-
-.subagent-icon {
-  font-size: 14px;
-  flex-shrink: 0;
-}
-
-.subagent-name {
-  flex: 1;
-  font-weight: 600;
-  color: var(--text-primary);
-  font-family: var(--font-mono);
-  font-size: 12px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.subagent-timer {
-  font-size: 10px;
-  font-family: var(--font-mono);
-  color: var(--text-muted);
-  flex-shrink: 0;
-}
-
-.subagent-status {
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-}
-
-.subagent-status.done {
-  color: var(--success);
-  font-weight: 700;
-}
-
-.subagent-status.error {
-  color: var(--error);
-  font-weight: 700;
-}
-
-.subagent-body {
-  padding: 0 12px 8px 12px;
-}
-
-.subagent-tools {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.subagent-tool-item {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 11px;
-  color: var(--text-muted);
-  font-family: var(--font-mono);
-  padding: 2px 0;
-}
-
-.subagent-tool-item .tool-mini-icon {
-  font-size: 10px;
-}
-
-.subagent-tool-item .tool-mini-status {
-  margin-left: auto;
-  font-size: 10px;
-}
-
-@keyframes subagentSlideIn {
-  from { opacity: 0; transform: translateX(-12px); }
-  to { opacity: 1; transform: translateX(0); }
-}
-
-/* ── Fleet Dashboard (enhanced) ── */
-.fleet-dashboard {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin: 8px 0;
-  padding: 12px;
-  background: var(--bg-secondary);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-}
-
-.fleet-header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text-primary);
-}
-
-.fleet-header .fleet-count {
-  margin-left: auto;
-  font-size: 11px;
-  font-family: var(--font-mono);
-  color: var(--text-muted);
-}
-
-.fleet-total-progress {
-  height: 4px;
-  background: var(--bg-primary);
-  border-radius: 2px;
-  overflow: hidden;
-}
-
-.fleet-total-progress-bar {
-  height: 100%;
-  background: var(--accent-gradient);
-  border-radius: 2px;
-  transition: width 0.4s ease;
-}
-
-.fleet-agent-list {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.fleet-agent-row {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 6px 8px;
-  background: var(--bg-primary);
-  border-radius: 6px;
-  cursor: pointer;
-  transition: background 0.15s;
-}
-
-.fleet-agent-row:hover {
-  background: rgba(124, 58, 237, 0.06);
-}
-
-.fleet-agent-info {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 11px;
-}
-
-.fleet-agent-name {
-  flex: 1;
-  color: var(--text-primary);
-  font-family: var(--font-mono);
-  font-size: 11px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.fleet-agent-pct {
-  font-size: 10px;
-  font-family: var(--font-mono);
-  color: var(--text-muted);
-}
-
-.fleet-agent-status-icon {
-  font-size: 12px;
-  flex-shrink: 0;
-}
-
-.fleet-agent-bar {
-  height: 3px;
-  background: rgba(255, 255, 255, 0.08);
-  border-radius: 2px;
-  overflow: hidden;
-}
-
-.fleet-agent-bar-fill {
-  height: 100%;
-  border-radius: 2px;
-  transition: width 0.4s ease;
-}
-
-.fleet-agent-bar-fill.running {
-  background: linear-gradient(90deg, var(--accent-start), var(--accent-end));
-}
-
-.fleet-agent-bar-fill.success {
-  background: var(--success);
-}
-
-.fleet-agent-bar-fill.error {
-  background: var(--error);
-}
-
-.fleet-agent-bar-fill.waiting {
-  background: var(--border);
-}
-
-.fleet-eta {
-  font-size: 10px;
-  color: var(--text-muted);
-  text-align: right;
-  margin-top: 4px;
-}
-
-/* ── Enhanced Timeline ── */
-.timeline-event.thinking {
-  border-left: 2px solid var(--accent-start);
-  margin-left: 4px;
-}
-
-.timeline-event.subagent {
-  margin-left: 16px;
-  padding-left: 8px;
-  border-left: 2px dashed rgba(124, 58, 237, 0.3);
-}
-
-.timeline-event-new {
-  animation: timelineEventAppear 0.3s ease;
-}
-
-@keyframes timelineEventAppear {
-  from { opacity: 0; transform: translateY(8px); }
-  to { opacity: 1; transform: translateY(0); }
 }
 
 /* ===== Proactive Agent / Notification Panel ===== */

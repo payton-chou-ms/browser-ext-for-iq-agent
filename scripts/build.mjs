@@ -18,6 +18,7 @@ const proxyBuild = {
   outfile: "dist/proxy.js",
   minify: false,
   banner: { js: "#!/usr/bin/env node" },
+  packages: "external",
 };
 
 const achievementBuild = {

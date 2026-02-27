@@ -7,12 +7,25 @@
 
 ## 📋 Table of Contents
 
-- [Summary](#summary)
-- [What You'll See](#what-youll-see)
-- [Key Features](#key-features)
-- [Implementation Status](#implementation-status)
-- [Future Work](#future-work)
-- [Appendix: Technical Details](#appendix-technical-details)
+- [Agent 工作視覺化 — IQ Copilot Browser Extension](#agent-工作視覺化--iq-copilot-browser-extension)
+  - [📋 Table of Contents](#-table-of-contents)
+  - [Summary](#summary)
+  - [What You'll See](#what-youll-see)
+    - [思考狀態卡片](#思考狀態卡片)
+    - [工具執行追蹤](#工具執行追蹤)
+    - [子 Agent 視圖](#子-agent-視圖)
+    - [Fleet 模式儀表板](#fleet-模式儀表板)
+    - [時間軸視圖](#時間軸視圖)
+  - [Key Features](#key-features)
+  - [Implementation Status](#implementation-status)
+  - [Future Work](#future-work)
+    - [技術風險](#技術風險)
+  - [Appendix: Technical Details](#appendix-technical-details)
+    - [A1. 現有架構基礎](#a1-現有架構基礎)
+    - [A2. SSE 事件類型](#a2-sse-事件類型)
+    - [A3. 實作依賴順序](#a3-實作依賴順序)
+    - [A4. UI Mockups](#a4-ui-mockups)
+    - [A5. 動畫設計原則](#a5-動畫設計原則)
 
 ---
 
