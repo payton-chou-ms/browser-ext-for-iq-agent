@@ -82,6 +82,9 @@ export interface Counters {
   agentTypesUsed: string[];
   dailyAgentCalls: Record<string, number>;
   briefingDays: string[];
+  // Custom achievement flags
+  ghostsCleared?: boolean;
+  allProactiveUsed?: boolean;
 }
 
 export interface Streaks {

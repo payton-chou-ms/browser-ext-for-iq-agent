@@ -217,12 +217,16 @@ const COPILOT_RPC = (() => {
     return await apiCall("/api/mcp/config", { config });
   }
 
-  async function setFoundryConfig(endpoint, apiKey) {
-    return await apiCall("/api/foundry/config", { endpoint, apiKey });
+  async function setFoundryConfig(endpoint, authMethod, apiKey) {
+    return await apiCall("/api/foundry/config", { endpoint, authMethod, apiKey });
   }
 
   async function clearFoundryKey() {
     return await apiCall("/api/foundry/config", { clearApiKey: true });
+  }
+
+  async function testFoundryConnection() {
+    return await apiCall("/api/foundry/test");
   }
 
   async function getFoundryStatus() {
@@ -273,8 +277,8 @@ const COPILOT_RPC = (() => {
     return await apiCall("/api/proactive/meeting-prep");
   }
 
-  async function proactiveScanAll() {
-    return await apiCall("/api/proactive/scan-all");
+  async function proactiveScanAll(source = "manual") {
+    return await apiCall("/api/proactive/scan-all", { source });
   }
 
   async function getProactiveConfig() {
@@ -314,6 +318,7 @@ const COPILOT_RPC = (() => {
     setMcpConfig,
     setFoundryConfig,
     clearFoundryKey,
+    testFoundryConnection,
     getFoundryStatus,
     checkConnection,
     proactiveBriefing,

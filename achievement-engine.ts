@@ -515,7 +515,9 @@ const AchievementEngine = (() => {
       }
 
       case "ghostDetectorZero":
-        return false;
+        // Check if ghost detector has no unread ghosts
+        // This is set externally via setCustomFlag("ghostsCleared", true)
+        return Boolean(_state.counters.ghostsCleared);
 
       case "consecutiveBriefing7": {
         const days = _state.counters.briefingDays;
@@ -530,7 +532,9 @@ const AchievementEngine = (() => {
       }
 
       case "allProactiveAgentsActive":
-        return false;
+        // Check if all 4 proactive agents have been used (briefing, deadlines, ghosts, meetingPrep)
+        // This is set externally via setCustomFlag("allProactiveUsed", true)
+        return Boolean(_state.counters.allProactiveUsed);
 
       case "allPanelsVisited": {
         const required = ["chat", "context", "agent", "history", "usage", "tasks", "skills", "mcp", "config"];
@@ -720,11 +724,25 @@ const AchievementEngine = (() => {
     _emit({ type: "reset" });
   }
 
+  // ── Custom Flag Setter (for external checks like ghostDetectorZero, allProactiveAgentsActive) ──
+  function setCustomFlag(flag: string, value: boolean): void {
+    if (!_state) return;
+    (_state.counters as unknown as Record<string, unknown>)[flag] = value;
+
+    // After setting flag, check achievements in case this unlocks something
+    const newUnlocks = _checkAchievements();
+    if (newUnlocks.length > 0) {
+      _emit({ type: "track", event: `flag:${flag}`, xp: 0, newUnlocks });
+    }
+    _saveToStorage();
+  }
+
   // ── Public API ──
   return {
     init,
     track,
     forceUnlock,
+    setCustomFlag,
     onEvent,
     getProfile,
     getAchievements,

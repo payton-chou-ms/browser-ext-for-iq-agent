@@ -33,7 +33,7 @@ describe("routes", () => {
 
     registerProactiveRoutes(routes, {
       jsonRes: createJsonResponder(captured),
-      readJsonBody: vi.fn(),
+      readJsonBody: vi.fn(async () => ({ source: "manual" })),
       log: vi.fn(),
       proactive,
     });
@@ -49,9 +49,10 @@ describe("routes", () => {
     expect(proactive.runMeetingPrep).toHaveBeenCalledTimes(1);
     expect(captured.status).toBe(200);
 
-    const firstBody = captured.body as { ok: boolean; throttled?: boolean };
+    const firstBody = captured.body as { ok: boolean; throttled?: boolean; source?: string };
     expect(firstBody.ok).toBe(true);
     expect(firstBody.throttled).not.toBe(true);
+    expect(firstBody.source).toBe("manual");
 
     await handler!({} as never, {} as never);
 

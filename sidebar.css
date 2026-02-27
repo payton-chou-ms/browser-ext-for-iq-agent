@@ -3328,14 +3328,39 @@ kbd {
 /* ── Inline-style elimination (P1) ── */
 
 /* Debug log */
+#debug-log {
+  max-height: 300px;
+  overflow-y: auto;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1.6;
+  color: #c4cad4;
+  background: rgba(0, 0, 0, 0.6);
+  border-radius: 6px;
+  padding: 8px;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+:root[data-theme="light"] #debug-log {
+  color: #1e293b;
+  background: rgba(15, 23, 42, 0.08);
+}
 .debug-log-entry { border-bottom: 1px solid rgba(255,255,255,0.05); padding: 2px 0; }
+:root[data-theme="light"] .debug-log-entry { border-bottom: 1px solid rgba(0,0,0,0.08); }
 .debug-ts { color: #718096; }
+:root[data-theme="light"] .debug-ts { color: #64748b; }
 .debug-tag { color: #a0aec0; }
+:root[data-theme="light"] .debug-tag { color: #475569; }
 .debug-tag[data-tag="CONN"] { color: #48bb78; }
+:root[data-theme="light"] .debug-tag[data-tag="CONN"] { color: #16a34a; }
 .debug-tag[data-tag="RPC"] { color: #63b3ed; }
+:root[data-theme="light"] .debug-tag[data-tag="RPC"] { color: #2563eb; }
 .debug-tag[data-tag="ERR"] { color: #fc8181; }
+:root[data-theme="light"] .debug-tag[data-tag="ERR"] { color: #dc2626; }
 .debug-tag[data-tag="INFO"] { color: #d6bcfa; }
+:root[data-theme="light"] .debug-tag[data-tag="INFO"] { color: #7c3aed; }
 .debug-tag[data-tag="CFG"] { color: #fbd38d; }
+:root[data-theme="light"] .debug-tag[data-tag="CFG"] { color: #d97706; }
 
 /* Stream error bubble */
 .stream-error { color: var(--error); }

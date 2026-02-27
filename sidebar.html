@@ -14,6 +14,18 @@
             <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>
           </svg>
         </button>
+        <button class="nav-btn" id="btn-new-chat" title="New Topic">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>
+            <line x1="12" y1="8" x2="12" y2="14"/>
+            <line x1="9" y1="11" x2="15" y2="11"/>
+          </svg>
+        </button>
+        <button class="nav-btn" data-panel="history" title="History">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+          </svg>
+        </button>
         <button class="nav-btn" data-panel="context" title="Context">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/>
@@ -22,11 +34,6 @@
         <button class="nav-btn" data-panel="agent" title="Agent">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
-          </svg>
-        </button>
-        <button class="nav-btn" data-panel="history" title="History">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
           </svg>
         </button>
         <button class="nav-btn" data-panel="usage" title="Usage">
@@ -113,10 +120,9 @@
           <!-- Welcome message -->
         </div>
         <div class="chat-suggestions" id="chat-suggestions">
-          <button class="suggestion-chip">📝 摘要此頁</button>
           <button class="suggestion-chip">🌐 翻譯此頁</button>
           <button class="suggestion-chip">💡 解釋此頁</button>
-          <button class="suggestion-chip">❓ 問個問題</button>
+          <button class="suggestion-chip">📰 最近微軟新聞</button>
         </div>
         <div class="chat-input-area">
           <!-- File preview bar -->
@@ -672,6 +678,7 @@
                 </div>
               </div>
               <button class="action-btn primary" id="btn-connect">連線</button>
+              <button class="action-btn" id="btn-disconnect" style="display: none;">斷開連線</button>
             </div>
           </div>
           <!-- Appearance & Language -->
@@ -708,23 +715,38 @@
               </select>
             </div>
           </div>
-          <!-- Azure Foundry (optional) -->
+          <!-- Microsoft Foundry (optional) -->
           <div class="glass-card">
-            <div class="card-header"><span class="card-icon">☁️</span><h3>Azure Foundry</h3><span class="agent-badge" id="foundry-status-badge" style="margin-left:auto">未設定</span></div>
-            <p style="font-size:11px;color:var(--text-muted);margin-bottom:8px;">選填 — 也可透過 .env 設定。API Key 僅存於記憶體，瀏覽器關閉即清除。</p>
+            <div class="card-header"><span class="card-icon">☁️</span><h3>Microsoft Foundry</h3><span class="agent-badge" id="foundry-status-badge" style="margin-left:auto">未設定</span></div>
+            <p style="font-size:11px;color:var(--text-muted);margin-bottom:8px;">選填 — 使用 Azure 身分識別 (Entra ID) 進行驗證，無需手動輸入 API Key。</p>
             <div class="config-form">
               <div class="form-group">
                 <label for="config-foundry-endpoint">Endpoint</label>
-                <input type="text" id="config-foundry-endpoint" class="form-input" placeholder="https://your-resource.openai.azure.com/">
+                <input type="text" id="config-foundry-endpoint" class="form-input" placeholder="https://your-resource.services.ai.azure.com/">
               </div>
               <div class="form-group">
+                <label>驗證方式</label>
+                <div style="display:flex;gap:12px;align-items:center;margin-top:4px;">
+                  <label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:12px;">
+                    <input type="radio" name="foundry-auth-method" value="identity" checked style="margin:0;">
+                    <span>🔐 Azure 身分識別</span>
+                  </label>
+                  <label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:12px;color:var(--text-muted);">
+                    <input type="radio" name="foundry-auth-method" value="apikey" style="margin:0;">
+                    <span>🔑 API Key (舊版)</span>
+                  </label>
+                </div>
+              </div>
+              <div class="form-group" id="foundry-apikey-group" style="display:none;">
                 <label for="config-foundry-key">API Key</label>
                 <input type="password" id="config-foundry-key" class="form-input" placeholder="••••••••">
+              </div>
+              <div id="foundry-identity-info" style="background:rgba(99,179,237,0.1);border-radius:6px;padding:8px 10px;margin-bottom:8px;font-size:11px;color:var(--text-muted);">
+                <span style="color:var(--info);">ℹ️</span> 將使用目前登入的 Azure 帳戶進行驗證。請確保已透過 <code style="background:rgba(255,255,255,0.1);padding:1px 4px;border-radius:3px;">az login</code> 或 Copilot CLI 登入。
               </div>
               <div class="action-row">
                 <button class="action-btn primary" id="btn-save-foundry">儲存</button>
                 <button class="action-btn" id="btn-test-foundry">測試連線</button>
-                <button class="action-btn" id="btn-clear-foundry">清除 Key</button>
               </div>
             </div>
           </div>
@@ -735,37 +757,21 @@
               <textarea id="config-system-message" class="form-textarea" rows="4" placeholder="輸入自訂 System Message..."></textarea>
             </div>
           </div>
-          <!-- Agent Config Upload -->
-          <div class="glass-card">
-            <div class="card-header"><span class="card-icon">🤖</span><h3>Agent Config</h3></div>
-            <div class="upload-area" id="upload-agent-config">
-              <input type="file" id="file-agent-config" accept=".json" hidden>
-              <div class="upload-dropzone" data-target="file-agent-config">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-                <span>上傳 Agent Config JSON</span>
-              </div>
-            </div>
-          </div>
           <!-- MCP Config Upload -->
           <div class="glass-card">
             <div class="card-header"><span class="card-icon">🔌</span><h3>MCP Config</h3></div>
+            <p style="font-size:12px;color:var(--text-muted);margin-bottom:12px;">
+              上傳 MCP 伺服器設定檔，格式為 <code style="background:rgba(255,255,255,0.1);padding:1px 4px;border-radius:3px;">{"mcpServers": {...}}</code>
+            </p>
             <div class="upload-area" id="upload-mcp-config">
               <input type="file" id="file-mcp-config" accept=".json" hidden>
-              <div class="upload-dropzone" data-target="file-mcp-config">
+              <div class="upload-dropzone" id="mcp-dropzone" data-target="file-mcp-config">
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
                 <span>上傳 MCP Config JSON</span>
               </div>
             </div>
-          </div>
-          <!-- Skills Config Upload -->
-          <div class="glass-card">
-            <div class="card-header"><span class="card-icon">⚡</span><h3>Skills Config</h3></div>
-            <div class="upload-area" id="upload-skills-config">
-              <input type="file" id="file-skills-config" accept=".json" hidden>
-              <div class="upload-dropzone" data-target="file-skills-config">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-                <span>上傳 Skills Config JSON</span>
-              </div>
+            <div class="action-row" style="margin-top:12px;">
+              <button class="action-btn" id="btn-download-mcp-sample">📥 下載範本</button>
             </div>
           </div>
           <!-- Debug Log -->
@@ -775,7 +781,7 @@
               <h3>Debug Log</h3>
               <button class="action-btn" id="btn-clear-debug" style="margin-left:auto;font-size:11px;padding:2px 8px;">清除</button>
             </div>
-            <div id="debug-log" style="max-height:300px;overflow-y:auto;font-family:monospace;font-size:11px;line-height:1.6;color:#a0aec0;background:rgba(0,0,0,0.3);border-radius:6px;padding:8px;white-space:pre-wrap;word-break:break-all;"></div>
+            <div id="debug-log"></div>
           </div>
         </div>
       </div>

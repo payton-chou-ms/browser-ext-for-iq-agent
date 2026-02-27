@@ -106,16 +106,41 @@
       const badge = document.getElementById("foundry-status-badge");
       const t = I18N_MOD.t || ((k, d) => d);
       if (endpointEl && res?.endpoint) endpointEl.value = res.endpoint;
+      
+      // Set auth method radio based on stored config
+      const authMethod = res?.authMethod || "identity";
+      const identityRadio = document.querySelector('input[name="foundry-auth-method"][value="identity"]');
+      const apikeyRadio = document.querySelector('input[name="foundry-auth-method"][value="apikey"]');
+      if (identityRadio) identityRadio.checked = authMethod === "identity";
+      if (apikeyRadio) apikeyRadio.checked = authMethod === "apikey";
+      toggleFoundryAuthUI(authMethod);
+      
       if (badge) {
-        badge.textContent = res?.hasApiKey
+        const isConfigured = res?.endpoint && (authMethod === "identity" || res?.hasApiKey);
+        badge.textContent = isConfigured
           ? t("messages.foundryConfigured", "已設定")
           : t("messages.foundryNotConfigured", "未設定");
-        badge.style.color = res?.hasApiKey ? "var(--success)" : "";
+        badge.style.color = isConfigured ? "var(--success)" : "";
       }
     } catch (err) {
       UTILS.debugLog?.("ERR", "loadFoundryConfig error:", err.message);
     }
   }
+
+  // Toggle Foundry auth UI based on selected method
+  function toggleFoundryAuthUI(method) {
+    const apikeyGroup = document.getElementById("foundry-apikey-group");
+    const identityInfo = document.getElementById("foundry-identity-info");
+    if (apikeyGroup) apikeyGroup.style.display = method === "apikey" ? "block" : "none";
+    if (identityInfo) identityInfo.style.display = method === "identity" ? "block" : "none";
+  }
+
+  // Auth method radio change handler
+  document.querySelectorAll('input[name="foundry-auth-method"]').forEach((radio) => {
+    radio.addEventListener("change", (e) => {
+      toggleFoundryAuthUI(e.target.value);
+    });
+  });
 
   // Connect button
   document.getElementById("btn-connect")?.addEventListener("click", async () => {
@@ -130,7 +155,7 @@
         CONN.updateConnectionUI?.("connected");
         UTILS.showToast?.(I18N_MOD.t?.("connection.connected", "已連接 Copilot CLI"));
         UTILS.debugLog?.("CONN", "Connected successfully!");
-        await CONN.onConnected?.();
+        await CONN.onConnected?.({ source: "manual" });
       } else {
         CONN.updateConnectionUI?.("disconnected");
         UTILS.debugLog?.("ERR", "Connection failed, response:", res);
@@ -140,6 +165,20 @@
       UTILS.debugLog?.("ERR", "Connect error:", err.message, err.stack);
       CONN.updateConnectionUI?.("disconnected");
       UTILS.showToast?.(localizeRuntimeMessage("連線失敗: ") + err.message);
+    }
+  });
+
+  // Disconnect button
+  document.getElementById("btn-disconnect")?.addEventListener("click", async () => {
+    UTILS.debugLog?.("CFG", "Disconnect clicked");
+    try {
+      const res = await UTILS.sendToBackground?.({ type: "DISCONNECT" });
+      UTILS.debugLog?.("CONN", "DISCONNECT response:", res);
+      CONN.updateConnectionUI?.("disconnected");
+      UTILS.showToast?.(I18N_MOD.t?.("connection.disconnected", "已斷開 Copilot CLI 連線"));
+    } catch (err) {
+      UTILS.debugLog?.("ERR", "Disconnect error:", err.message, err.stack);
+      UTILS.showToast?.(localizeRuntimeMessage("斷開連線失敗: ") + err.message);
     }
   });
 
@@ -164,12 +203,14 @@
   // Foundry config buttons
   document.getElementById("btn-save-foundry")?.addEventListener("click", async () => {
     const endpoint = document.getElementById("config-foundry-endpoint")?.value?.trim();
-    const apiKey   = document.getElementById("config-foundry-key")?.value?.trim();
+    const authMethod = document.querySelector('input[name="foundry-auth-method"]:checked')?.value || "identity";
+    const apiKey = authMethod === "apikey" ? document.getElementById("config-foundry-key")?.value?.trim() : undefined;
+    
     if (!endpoint) { UTILS.showToast?.(localizeRuntimeMessage("請輸入 Endpoint")); return; }
     try {
-      await UTILS.sendToBackground?.({ type: "SET_FOUNDRY_CONFIG", endpoint, apiKey: apiKey || undefined });
-      document.getElementById("config-foundry-key").value = "";
-      UTILS.showToast?.(localizeRuntimeMessage("Foundry 設定已儲存"));
+      await UTILS.sendToBackground?.({ type: "SET_FOUNDRY_CONFIG", endpoint, authMethod, apiKey });
+      if (authMethod === "apikey") document.getElementById("config-foundry-key").value = "";
+      UTILS.showToast?.(localizeRuntimeMessage("Microsoft Foundry 設定已儲存"));
       loadFoundryConfig();
     } catch (err) {
       UTILS.showToast?.(localizeRuntimeMessage("儲存失敗: ") + err.message);
@@ -179,20 +220,14 @@
   document.getElementById("btn-test-foundry")?.addEventListener("click", async () => {
     UTILS.showToast?.(localizeRuntimeMessage("測試連線中..."));
     try {
-      const res = await UTILS.sendToBackground?.({ type: "CHECK_CONNECTION" });
-      UTILS.showToast?.(localizeRuntimeMessage(res?.connected ? "✅ Proxy 連線正常" : "⚠ Proxy 未連線"));
+      const res = await UTILS.sendToBackground?.({ type: "TEST_FOUNDRY_CONNECTION" });
+      if (res?.ok) {
+        UTILS.showToast?.(localizeRuntimeMessage("✅ Foundry 連線成功"));
+      } else {
+        UTILS.showToast?.(localizeRuntimeMessage("⚠ 連線失敗: ") + (res?.error || "Unknown"));
+      }
     } catch (err) {
       UTILS.showToast?.(localizeRuntimeMessage("連線失敗: ") + err.message);
-    }
-  });
-
-  document.getElementById("btn-clear-foundry")?.addEventListener("click", async () => {
-    try {
-      await UTILS.sendToBackground?.({ type: "CLEAR_FOUNDRY_KEY" });
-      UTILS.showToast?.(localizeRuntimeMessage("API Key 已清除"));
-      loadFoundryConfig();
-    } catch (err) {
-      UTILS.showToast?.(localizeRuntimeMessage("清除失敗: ") + err.message);
     }
   });
 
@@ -207,22 +242,63 @@
     });
   }
 
-  // Config upload dropzones
-  document.querySelectorAll(".upload-dropzone").forEach((zone) => {
-    zone.addEventListener("click", () => {
-      const input = document.createElement("input");
-      input.type = "file";
-      input.accept = ".json";
-      input.addEventListener("change", () => {
-        if (input.files.length > 0) {
-          const fileName = input.files[0].name;
-          zone.querySelector("span").textContent = `✅ ${fileName}`;
-          UTILS.showToast?.(localizeRuntimeMessage("設定已上傳（模擬）"));
-          if (typeof AchievementEngine !== "undefined") AchievementEngine.track("config_updated");
+  // MCP Config upload handler
+  const mcpDropzone = document.getElementById("mcp-dropzone");
+  mcpDropzone?.addEventListener("click", () => {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = ".json";
+    input.addEventListener("change", async () => {
+      if (input.files.length === 0) return;
+      const file = input.files[0];
+      try {
+        const text = await file.text();
+        const parsed = JSON.parse(text);
+        if (!parsed.mcpServers || typeof parsed.mcpServers !== "object") {
+          UTILS.showToast?.(localizeRuntimeMessage("必須包含 mcpServers 物件"));
+          return;
         }
-      });
-      input.click();
+        const res = await UTILS.sendToBackground?.({ type: "SET_MCP_CONFIG", config: parsed });
+        if (res?.ok) {
+          mcpDropzone.querySelector("span").textContent = `✅ ${file.name}`;
+          UTILS.showToast?.(localizeRuntimeMessage("MCP 設定已儲存"));
+          if (typeof AchievementEngine !== "undefined") AchievementEngine.track("config_updated");
+        } else {
+          UTILS.showToast?.(localizeRuntimeMessage("儲存失敗: ") + (res?.error || "Unknown"));
+        }
+      } catch (err) {
+        UTILS.showToast?.(localizeRuntimeMessage("JSON 格式錯誤: ") + err.message);
+      }
     });
+    input.click();
+  });
+
+  // MCP Config sample download
+  document.getElementById("btn-download-mcp-sample")?.addEventListener("click", () => {
+    const sample = {
+      mcpServers: {
+        "playwright": {
+          "command": "npx",
+          "args": ["@anthropic/mcp-playwright"]
+        },
+        "context7": {
+          "command": "npx",
+          "args": ["-y", "@upstash/context7-mcp"]
+        },
+        "github": {
+          "command": "docker",
+          "args": ["run", "-i", "--rm", "-e", "GITHUB_PERSONAL_ACCESS_TOKEN", "ghcr.io/github/github-mcp-server"]
+        }
+      }
+    };
+    const blob = new Blob([JSON.stringify(sample, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "mcp-config-sample.json";
+    a.click();
+    URL.revokeObjectURL(url);
+    UTILS.showToast?.(localizeRuntimeMessage("已下載範本檔案"));
   });
 
   // Connection settings button
@@ -297,16 +373,21 @@
     chatInput.style.height = Math.min(chatInput.scrollHeight, 120) + "px";
   });
 
-  // ── New Chat ──
-  btnNewChat?.addEventListener("click", async () => {
+  function startNewChat() {
+    switchPanel("chat");
     if (chatMessages) chatMessages.innerHTML = "";
+    CHAT.setCurrentSessionId?.(null);
+    CHAT.setSessionData?.(null);
     CHAT.resetChatState?.();
     if (suggestions) suggestions.style.display = "flex";
     const chatState = CHAT.getState?.();
     if (chatState) chatState.stats.sessions++;
     PANELS.usage?.updateStats?.();
     CHAT.showWelcome?.();
-  });
+  }
+
+  // ── New Chat ──
+  btnNewChat?.addEventListener("click", startNewChat);
 
   // ── Suggestion Chips ──
   document.querySelectorAll(".suggestion-chip").forEach((chip) => {
@@ -362,7 +443,7 @@
     await PANELS.skills?.loadCustomSkillsFromStorage?.();
     AGENTS.loadAgentConfig?.();
     loadCliConfig();
-    CONN.checkConnection?.();
+    CONN.checkConnection?.("cold-start");
     PANELS.mcp?.initMcpPanel?.();
     AGENTS.renderAgentPanel?.();
     PANELS.proactive?.restoreProactiveState?.();

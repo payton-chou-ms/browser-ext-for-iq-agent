@@ -72,9 +72,9 @@
 | Thinking Card CSS | ✅ 完成 | 動畫樣式已實作 |
 | Sub-Agent 事件處理 | ✅ 完成 | SSE 事件解析已支援 |
 | SSE 事件解析增強 | ✅ 完成 | spawn/complete 事件 |
-| Tool Call 增強 | ⬜ 待開發 | 計時器、圖示系統 |
-| Intent 即時顯示 | ⬜ 待開發 | 浮動狀態列 |
-| Fleet 儀表板 UI | ⬜ 待開發 | 進度條視圖 |
+| Tool Call 增強 | ✅ 完成 | 計時器、圖示、結果預覽 |
+| Intent 即時顯示 | ✅ 完成 | 浮動狀態列與淡出 |
+| Fleet 儀表板 UI | ✅ 完成 | 進度條與 task 列表 |
 | Timeline 視圖 | ⬜ 待開發 | 時間軸元件 |
 
 ---
@@ -83,10 +83,10 @@
 
 | 優先級 | 功能 | 說明 |
 |--------|------|------|
-| 🔴 **P0** | Tool Call 增強 | 計時器與圖示是使用者最常見的需求 |
-| 🔴 **P0** | Intent Bar | 即時狀態讓使用者安心等待 |
-| 🟡 P1 | Sub-Agent UI | 巢狀卡片視覺呈現 |
-| 🟡 P1 | Fleet Dashboard | 需要足夠的 Fleet 使用場景 |
+| ✅ 已完成 | Tool Call 增強 | 計時器與圖示已上線 |
+| ✅ 已完成 | Intent Bar | 即時狀態列已上線 |
+| ✅ 已完成 | Sub-Agent UI | 巢狀卡片視覺已上線 |
+| ✅ 已完成 | Fleet Dashboard | 進度儀表板已上線 |
 | 🟢 P2 | Timeline View | 對 Debug 使用者有價值 |
 | 🟢 P2 | 動畫系統統一 | 提升整體視覺一致性 |
 

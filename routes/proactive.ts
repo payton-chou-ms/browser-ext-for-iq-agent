@@ -6,6 +6,13 @@ import { Schemas, type ProactiveConfigInput } from "./schemas.js";
 const SCAN_ALL_THROTTLE_MS = 5 * 60 * 1000;
 let lastScanAllTimestamp = 0;
 
+function normalizeScanSource(value: unknown): "cold-start" | "reconnect" | "alarm" | "manual" {
+  if (value === "cold-start" || value === "reconnect" || value === "alarm") {
+    return value;
+  }
+  return "manual";
+}
+
 export function registerProactiveRoutes(routes: RouteTable, deps: ProactiveRouteDeps): void {
   const { jsonRes, readJsonBody, log, proactive } = deps;
 
@@ -76,7 +83,11 @@ export function registerProactiveRoutes(routes: RouteTable, deps: ProactiveRoute
     }
   };
 
-  routes["POST /api/proactive/scan-all"] = async (_req, res) => {
+  routes["POST /api/proactive/scan-all"] = async (req, res) => {
+    const body = await readJsonBody(req, res, { allowEmpty: true }) as { source?: unknown } | null;
+    if (!body) return;
+
+    const source = normalizeScanSource(body.source);
     const now = Date.now();
     const elapsed = now - lastScanAllTimestamp;
 
@@ -84,10 +95,11 @@ export function registerProactiveRoutes(routes: RouteTable, deps: ProactiveRoute
     if (elapsed < SCAN_ALL_THROTTLE_MS) {
       const retryAfterMs = SCAN_ALL_THROTTLE_MS - elapsed;
       const remainingSec = Math.ceil(retryAfterMs / 1000);
-      log("PROACTIVE", `scan-all throttled — skip (${remainingSec}s remaining)`);
+      log("PROACTIVE", `scan-all throttled — skip (${remainingSec}s remaining, source=${source})`);
       jsonRes(res, 200, {
         ok: true,
         throttled: true,
+        source,
         retryAfterMs,
         scannedAt: new Date(lastScanAllTimestamp).toISOString(),
         results: {},
@@ -96,7 +108,7 @@ export function registerProactiveRoutes(routes: RouteTable, deps: ProactiveRoute
     }
 
     lastScanAllTimestamp = now;
-    log("PROACTIVE", "Running full proactive scan (parallel)...");
+    log("PROACTIVE", `Running full proactive scan (parallel, source=${source})...`);
 
     // Run all scans in parallel for ~4x speedup
     const [briefing, deadlines, ghosts, meetingPrep] = await Promise.allSettled([
@@ -120,6 +132,6 @@ export function registerProactiveRoutes(routes: RouteTable, deps: ProactiveRoute
       meetingPrep: unwrap(meetingPrep),
     };
 
-    jsonRes(res, 200, { ok: true, results, scannedAt: new Date().toISOString() });
+    jsonRes(res, 200, { ok: true, source, results, scannedAt: new Date().toISOString() });
   };
 }

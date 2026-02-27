@@ -51,7 +51,7 @@ async function handleMessage(msg) {
   switch (msg.type) {
     // Connection
     case "CHECK_CONNECTION":
-      return await checkAndUpdateConnection();
+      return await checkAndUpdateConnection(msg.source || "manual");
 
     case "SET_CLI_CONFIG": {
       cliHost = msg.host || "127.0.0.1";
@@ -59,11 +59,18 @@ async function handleMessage(msg) {
       console.log(`[BG] SET_CLI_CONFIG → baseUrl=http://${cliHost}:${cliPort}`);
       COPILOT_RPC.setBaseUrl(`http://${cliHost}:${cliPort}`);
       chrome.storage.local.set({ cliHost, cliPort });
-      return await checkAndUpdateConnection();
+      return await checkAndUpdateConnection("manual");
     }
 
     case "GET_CLI_CONFIG":
       return { host: cliHost, port: cliPort, state: connectionState };
+
+    case "DISCONNECT":
+      console.log("[BG] DISCONNECT — clearing connection state");
+      connectionState = "disconnected";
+      _lastBroadcastState = "disconnected";
+      broadcastState("manual");
+      return { disconnected: true, state: connectionState };
 
     // Auth
     case "GET_AUTH_STATUS":
@@ -136,7 +143,7 @@ async function handleMessage(msg) {
       return await COPILOT_RPC.proactiveMeetingPrep();
 
     case "PROACTIVE_SCAN_ALL":
-      return await COPILOT_RPC.proactiveScanAll();
+      return await COPILOT_RPC.proactiveScanAll(msg.source || "manual");
 
     case "GET_PROACTIVE_CONFIG": {
       const local = await new Promise((resolve) => chrome.storage.local.get(["proactiveWorkiqPrompt"], resolve));
@@ -169,18 +176,22 @@ async function handleMessage(msg) {
     case "GET_TAB_INFO":
       return { url: msg.url, tabId: msg.tabId };
 
-    // ── Foundry Config (sensitive key via session storage) ──
+    // ── Microsoft Foundry Config (identity-based auth) ──
     case "SET_FOUNDRY_CONFIG": {
-      // Endpoint is non-sensitive → chrome.storage.local
-      if (msg.endpoint) {
-        chrome.storage.local.set({ foundryEndpoint: msg.endpoint });
-      }
-      // API key is sensitive → chrome.storage.session (memory-only)
-      if (msg.apiKey) {
+      // Endpoint and auth method → chrome.storage.local
+      const authMethod = msg.authMethod || "identity";
+      chrome.storage.local.set({ 
+        foundryEndpoint: msg.endpoint || "",
+        foundryAuthMethod: authMethod
+      });
+      // API key (only for legacy apikey mode) → chrome.storage.session (memory-only)
+      if (authMethod === "apikey" && msg.apiKey) {
         chrome.storage.session.set({ foundryApiKey: msg.apiKey });
+      } else {
+        chrome.storage.session.remove("foundryApiKey");
       }
       try {
-        await COPILOT_RPC.setFoundryConfig(msg.endpoint || "", msg.apiKey || undefined);
+        await COPILOT_RPC.setFoundryConfig(msg.endpoint || "", authMethod, msg.apiKey || undefined);
       } catch {
         // Proxy may be disconnected; local/session storage is still updated.
       }
@@ -188,7 +199,7 @@ async function handleMessage(msg) {
     }
 
     case "GET_FOUNDRY_CONFIG": {
-      const local = await new Promise((r) => chrome.storage.local.get("foundryEndpoint", r));
+      const local = await new Promise((r) => chrome.storage.local.get(["foundryEndpoint", "foundryAuthMethod"], r));
       const session = await new Promise((r) => chrome.storage.session.get("foundryApiKey", r));
       let proxyStatus = { configured: false, endpoint: local.foundryEndpoint || "" };
       try {
@@ -197,10 +208,21 @@ async function handleMessage(msg) {
       } catch {
         // keep local fallback
       }
+      const authMethod = local.foundryAuthMethod || "identity";
       return {
         endpoint: local.foundryEndpoint || proxyStatus.endpoint || "",
-        hasApiKey: !!(session.foundryApiKey) || !!proxyStatus.configured,
+        authMethod,
+        hasApiKey: authMethod === "apikey" && (!!(session.foundryApiKey) || !!proxyStatus.configured),
       };
+    }
+
+    case "TEST_FOUNDRY_CONNECTION": {
+      try {
+        const result = await COPILOT_RPC.testFoundryConnection();
+        return result;
+      } catch (err) {
+        return { ok: false, error: err.message };
+      }
     }
 
     case "CLEAR_FOUNDRY_KEY": {
@@ -253,7 +275,7 @@ chrome.runtime.onConnect.addListener((port) => {
 // Phase 0.4: track last broadcast state so we only notify on actual changes
 let _lastBroadcastState = "disconnected";
 
-async function checkAndUpdateConnection() {
+async function checkAndUpdateConnection(source = "manual") {
   console.log(`[BG] checkAndUpdateConnection — baseUrl=${COPILOT_RPC.getBaseUrl()}`);
   // Set connecting internally but do NOT broadcast the transitional state.
   // Broadcasting "connecting" caused sidebar to receive a spurious state change
@@ -264,9 +286,9 @@ async function checkAndUpdateConnection() {
   console.log(`[BG] checkConnection result:`, result);
   connectionState = result.connected ? "connected" : "disconnected";
   scheduleConnectionHealthAlarm(connectionState);
-  broadcastState(); // gated — only fires if state actually changed
+  broadcastState(source); // gated — only fires if state actually changed
 
-  return { ...result, state: connectionState };
+  return { ...result, state: connectionState, source };
 }
 
 /**
@@ -276,17 +298,18 @@ async function checkAndUpdateConnection() {
  * This eliminates redundant broadcasts that were re-triggering
  * sidebar's onConnected() + full API call storm every ~60s.
  */
-function broadcastState() {
+function broadcastState(source = "manual") {
   if (connectionState === _lastBroadcastState) {
     console.log(`[BG] broadcastState skipped — state unchanged (${connectionState})`);
     return;
   }
   const prev = _lastBroadcastState;
   _lastBroadcastState = connectionState;
-  console.log(`[BG] broadcastState: ${prev} → ${connectionState}`);
+  console.log(`[BG] broadcastState: ${prev} → ${connectionState} (source=${source})`);
   chrome.runtime.sendMessage({
     type: "CONNECTION_STATE_CHANGED",
     state: connectionState,
+    source,
   }).catch(() => {
     // No listeners — sidebar may not be open
   });
@@ -357,12 +380,12 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
       const result = await COPILOT_RPC.checkConnection();
       connectionState = result.connected ? "connected" : "disconnected";
       scheduleConnectionHealthAlarm(connectionState);
-      broadcastState();
+      broadcastState("alarm");
     } catch (err) {
       console.error("[BG] Connection alarm check failed:", err?.message || err);
       connectionState = "disconnected";
       scheduleConnectionHealthAlarm(connectionState);
-      broadcastState();
+      broadcastState("alarm");
     }
     return;
   }
