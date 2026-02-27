@@ -1,199 +1,360 @@
 # IQ Copilot — Runtime 優化計畫
 
 > 建立：2026-02-27
-> 最後更新：2026-02-27（P1 TypeScript 漸進遷移完成：proxy → achievement-engine）
+> 最後更新：2026-02-27 v2（全專案掃描後更新，新增 P0/P1/P2/P3 待辦項）
 > 已完成項目請參考 → [changelog.md](changelog.md)
 
 ---
 
-## 專案概覽
+## 目前狀態（Snapshot）
 
-| 檔案 | 行數 | 職責 |
-|------|------|------|
-| `sidebar.js` | ~4,140 | 主 UI 邏輯（巨型單體，待 P2 拆分） |
-| `sidebar.css` | 3,375 | 所有樣式 |
-| `sidebar.html` | 856 | DOM 結構 |
-| `proxy.ts` | 526 | HTTP 代理伺服器來源（esbuild → `dist/proxy.js`） |
-| `proxy.js` | 14 | 啟動器（啟動前自動 build，再載入 `dist/proxy.js`） |
-| `achievement-engine.ts` | 694 | 成就系統引擎來源（build 輸出 `achievement-engine.js`） |
-| `background.js` | 368 | Service Worker |
-| `copilot-rpc.js` | 305 | REST 客戶端 |
-| `start.sh` | 194 | 啟動腳本 |
-| `content_script.js` | 33 | 內容腳本 |
-| `lib/state.js` | 38 | CONFIG 常數、全域狀態 |
-| `lib/utils.js` | 168 | showToast, debugLog, switchPanel |
-| `lib/i18n.js` | 332 | I18N 物件 + `t()` + `translateStaticUi()` |
-| `lib/theme.js` | 42 | `applyTheme()` + `applyLanguage()` |
-| `lib/connection.js` | 225 | `checkConnection()` + runtime message router |
-| `lib/chat.js` | 552 | sendMessage, ensureSession, streaming |
-| `lib/agents.js` | 204 | agent 系統, fleet mode |
-| `lib/file-upload.js` | 246 | drag-drop, paste, processAttachment |
-| `lib/panels/helpers.js` | 114 | renderProgressBar, renderQuotaBar, renderModelItem |
-| `lib/panels/usage.js` | 236 | updateStats, renderModelsCard, switchModel |
-| `lib/panels/context.js` | 169 | fetchCliContext, renderContext |
-| `lib/panels/history.js` | 108 | session history search |
-| `lib/panels/mcp.js` | 223 | MCP config panel |
+| 項目 | 狀態 |
+|------|------|
+| Phase 0 — 修復無限迴圈 | ✅ DONE |
+| Phase 1 — 網路效率優化 | ✅ DONE |
+| Phase 2 — sidebar.js 拆分 | ✅ DONE（`62244dd`） |
+| Phase 3 — Memory/DOM 優化 | ✅ DONE |
+| Phase 4 — proxy 強化 | ✅ DONE（已落地到 TS/route 拆分工作流） |
+| Phase 5 — Code Quality | ✅ DONE（基礎完成，持續收斂） |
+| P1 TypeScript 遷移 | ✅ 漸進式完成（proxy.ts + achievement-engine.ts） |
 
 ---
 
-## Code Quality 待解決問題
+## 全專案掃描結果（2026-02-27）
 
-| 嚴重度 | 問題 | 說明 | 對應 Phase |
-|--------|------|------|-----------|
-| **CRITICAL** | sidebar.js 巨型單體 | ~4,140 行，違反 800 行上限（已抽出 12 個 lib/ 模組，含 4 個 panel） | Phase 2 |
-| **HIGH** | 缺少 TypeScript | 全專案純 JS，無型別安全 | Future |
-| **HIGH** | 缺少 Linter / Formatter | ESLint v10 ✅ 已安裝；Prettier 待定 | Future |
-| **HIGH** | 測試覆蓋率不足 | 僅 5 個 E2E，無 unit test | Future |
-| **MEDIUM** | ~~大量 inline style~~ | ✅ 已消除：33 → 7 個（剩餘皆為動態 width/CSS var） | ~~Phase 5~~ DONE |
-| **MEDIUM** | 全域變數汙染 | lib/ 已 namespace 化；sidebar.js 內仍有全域函數 | Phase 2/5 |
-| **MEDIUM** | 部分 mutation 模式 | `arr.length = 0` 直接修改陣列 | Future |
-| **LOW** | i18n 不完整 | ✅ Proactive 區塊已改走 `t()`；其餘 runtime 字串持續收斂中 | Future |
-| **LOW** | README 已擴充 | 80 行，含架構圖、安裝步驟（Future Work ✅） | — |
+> 掃描範圍：所有 `.js/.ts` 源碼、`start.sh`、`background.js`、`routes/`、`lib/`、`tests/`
 
 ---
 
-## 進度總覽
+### 🔴 P0 — 必須先修（穩定性回歸）
+
+#### P0-1：`start.sh` 語法錯誤導致 proxy 被 kill
+
+- **症狀**：`syntax error near unexpected token '('`（line 190），proxy process 收到 kill signal 137（OOM/kill）
+- **根因**：shell 腳本中有不正確的行接續（`\` 斷行），加上 `set -euo pipefail` 下 pipe 失敗直接 abort
+- **修法**：
+  1. 修正 line 190 附近的括號換行問題
+  2. 對 `node proxy.js ... | while ...` 的 pipe 加 `|| true` 保護，避免 proxy crash 後整個 shell exit
+  3. 加入 `wait $PROXY_PID` + 重啟邏輯，讓 proxy 意外死亡時能被偵測並告警
+- **驗收**：連續啟停 5 次均成功，不出現 syntax error 或孤兒程序
+
+#### P0-2：Idle 請求風暴（每 60 秒 `models/session/tools/quota/context/scan-all`）
+
+- **症狀**：proxy log 顯示每 ~60 秒出現一批 6 個請求：`POST /api/models`、`POST /api/session/list`、`POST /api/tools`、`POST /api/quota`、`POST /api/context`、`POST /api/proactive/scan-all`
+- **根因分析**：
+  - `background.js:292` 有一個 `setInterval(15000)` 定期 `broadcastState()`
+  - `lib/connection.js` 的 `setupRuntimeListener` 在收到 `CONNECTION_STATE_CHANGED` 且 state=connected 時，若距上次超過 `CONNECTION_DEBOUNCE_MS`(15s)，就呼叫 `onConnected()`
+  - `onConnected()` 有 `_hasInitialized` 守衛，但**若 sidebar 重新開啟（panel 被銷毀再重建）**，`_hasInitialized` 是 in-memory 狀態，重置為 `false`，導致每次 reconnect 都跑一次完整 init
+  - `/api/context` route 本身不呼叫 scan-all；而 `POST /api/proactive/scan-all` 是由 `lib/panels/proactive.js:642` 在 `init()` 後的某個 handler 觸發的（需進一步確認是否為 `restoreProactiveState` 後呼叫）
+- **修法**：
+  1. 確認 `runFullProactiveScan()` 的觸發點：是否在 sidebar init 時無條件被呼叫
+  2. 加入 `lastScan` 時間檢查：若距上次掃描 < 5 分鐘，跳過自動掃描
+  3. `broadcastState()` 在 state 沒變化時不廣播（已有 `_lastBroadcastState` 判斷，確認已生效）
+  4. `onConnected()` 的 `_hasInitialized` 守衛在 sidebar reload 後需能從 `chrome.storage.session` 恢復
+- **驗收**：Idle 10 分鐘不出現 scan-all 或 init 批次請求
+
+---
+
+### 🟠 P1 — 高優先度改善
+
+#### P1-1：`routes/` 遷移至 TypeScript
+
+- **現況**：`proxy.ts` 已完成，但 `routes/*.js`（core、foundry、proactive、session、schemas）仍是 JS
+- **影響**：routes 中的 `req`/`res`/body parse 無型別保護，潛在 runtime 錯誤
+- **修法**：逐一遷移為 `.ts`，補充 route handler 型別定義
+- **優先順序**：`schemas.ts` → `core.ts` → `session.ts` → `foundry.ts` → `proactive.ts`
+
+#### P1-2：單元測試覆蓋率不足
+
+- **現況**：只有 E2E Playwright 測試（5 個 UI 測試），無 unit/integration 測試
+- **缺口**：
+  - `achievement-engine.ts`：成就邏輯完全無測試
+  - `routes/`：HTTP handler 無測試
+  - `lib/utils.js`：cache/debounce 無測試
+  - `proxy.ts`：readJsonBody、readBody 無測試
+- **修法**：加入 `vitest`（或 Node test runner），補充各模組 unit tests
+- **目標**：核心邏輯達 60%+ 覆蓋率
+
+#### P1-3：ESLint 31 個 warnings 未清理
+
+- **現況**：`npm run lint` 顯示 0 error / 31 warnings
+- **主要問題**：
+  - `no-unused-vars`：`lib/panels/skills.js:getToolIcon`、`lib/panels/usage.js:CONFIG,escapeHtml`、`sidebar.js:debugLog,quota`
+  - `prefer-const`：`lib/panels/usage.js:198`
+  - `no-useless-escape`：`proxy.ts:543,553`
+- **修法**：`npm run lint:fix` 修自動可修的，手動清其餘
+- **驗收**：0 warnings
+
+#### P1-4：Working Tree 未整理（原子 commit）
+
+- **現況**：大量未提交修改
+- **建議分批**：
+  1. `chore: tooling/build`（tsconfig、eslint、build.mjs、package.json）
+  2. `feat: proxy TS migration`（proxy.ts、routes/、proxy.js launcher）
+  3. `feat: achievement TS migration`（achievement-engine.ts、build output）
+  4. `docs: update plan and README`
+
+---
+
+### 🟡 P2 — 中優先度改善
+
+#### P2-1：`background.js` 缺少 alarm 重複建立保護
+
+- **現況**：`chrome.alarms.create(...)` 在每次 service worker 啟動時都會執行，若 alarm 已存在會靜默覆蓋（Chrome 行為），但未明確處理
+- **修法**：改用 `chrome.alarms.get(name, cb)` 先查再建，避免不必要的覆蓋
+
+#### P2-2：`copilot-rpc.js` 缺少 request timeout
+
+- **現況**：`apiCall()` 沒有設定 fetch timeout，若 proxy 無回應會無限 hang
+- **修法**：加入 `AbortController` + timeout（如 30s），並統一錯誤格式
+
+#### P2-3：`lib/utils.js` cache 無記憶體上限
+
+- **現況**：`_dataCache` 是 plain object，無 LRU/size limit，若 key 很多會無限增長（擴充後風險增高）
+- **修法**：加入最大 entry 數上限（如 50），超過時清除最舊的
+
+#### P2-4：`start.sh` 缺少 proxy 自動重啟
+
+- **現況**：proxy 被 kill 後整個 start.sh 就結束（靠 `wait` 阻塞）
+- **修法**：加入 proxy 存活監控 loop，若 proxy 退出但 CLI 仍在則嘗試重啟 proxy（最多 3 次）
+
+#### P2-5：`routes/proactive.js` scan-all 是串行執行
+
+- **現況**：`scan-all` 依序呼叫 briefing → deadlines → ghosts → meetingPrep（4 個 LLM 請求串行）
+- **修法**：改為 `Promise.allSettled()` 並行執行，可將延遲從 ~4x 降到 ~1x
+
+#### P2-6：`manifest.json` 版本號未與 package.json 同步
+
+- **現況**：兩個地方各自維護版本號，容易漂移
+- **修法**：在 `scripts/build.mjs` 中讀取 package.json 版本並寫入 manifest，或加入 lint check
+
+---
+
+### 🔵 P3 — 低優先度 / 長期改善
+
+#### P3-1：i18n 尚未全收斂
+
+- `[ ]` chat runtime 文案
+- `[ ]` tasks runtime 文案
+- `[x]` 其餘已完成
+
+#### P3-2：`lib/panels/proactive.js` 過大（682 行）
+
+- 建議拆分為：`proactive-state.js`、`proactive-render.js`、`proactive-scan.js`
+
+#### P3-3：`lib/chat.js` 過大（552 行）
+
+- 建議拆分出：`chat-streaming.js`、`chat-session.js`
+
+#### P3-4：`achievement-engine.ts` 無法與 proxy 端共享型別
+
+- 因 browser/node 編譯目標不同，型別定義有冗餘
+- 建議提取 `shared/types.ts`，由兩端分別 import
+
+#### P3-5：Playwright E2E 測試執行環境限制
+
+- 目前 `headless: false`，CI 上無法跑
+- 修法：改用 `--headless=new` 模式，並加入 CI workflow（GitHub Actions）
+
+#### P3-6：`proxy.js` launcher 每次啟動都重新 build
+
+- **現況**：`proxy.js` 呼叫 `spawnSync('node', ['scripts/build.mjs'])` 每次都重新編譯
+- **修法**：加入 `--no-build` flag，或檢查 `dist/proxy.js` 是否比 `proxy.ts` 新才跳過 build
+
+---
+
+## 行動優先序（建議執行順序）
 
 ```
-Phase 0 (P0) — 修復無限迴圈          ✅ DONE
-Phase 1 (P1) — 網路效率優化          ✅ DONE
-Phase 4 (P4) — proxy.js 強化         ✅ DONE
-─────────────────────────────────────────────
-Phase 2 (P2) — sidebar.js 拆分       🔶 ~2 hrs remaining（核心模組已抽出）
-Phase 3 (P3) — Memory & DOM 優化     ✅ DONE
-Phase 5 (P5) — Code Quality          ✅ DONE (5.4 awaits P2)
-─────────────────────────────────────────────
-                              剩餘合計 ~2 hrs
+P0-1 → P0-2 → P1-3（lint fix）→ P1-4（commit）→ P1-1（routes TS）→ P1-2（unit tests）
+→ P2-5（scan-all 並行）→ P2-1 → P2-2 → P2-4 → P3 系列
 ```
 
 ---
 
-## Phase 2 — sidebar.js 拆分 🔶 ~2 hrs remaining
+## 專案概覽（更新後）
 
-### 目標架構
-
-```
-sidebar.js (~4,140 → ~200 行 bootstrap)
-└── lib/
-    ├── state.js            全域狀態管理
-    ├── utils.js            escapeHtml, showToast, debugLog, switchPanel
-    ├── i18n.js             I18N 物件 + t() + translateStaticUi()
-    ├── theme.js            applyTheme() + applyLanguage()
-    ├── connection.js       checkConnection() + onConnected()
-    ├── chat.js             sendMessage, ensureSession, streaming, history
-    ├── agents.js           agent 系統, fleet mode
-    ├── file-upload.js      drag-drop, paste, processAttachment
-    └── panels/
-        ├── helpers.js      ✅ renderProgressBar, renderQuotaBar, renderModelItem
-        ├── usage.js        ✅ updateStats, renderModelsCard, switchModel (236L)
-        ├── context.js      ✅ fetchCliContext, renderContext (169L)
-        ├── history.js      ✅ session history search (108L)
-        ├── mcp.js          ✅ MCP config panel (223L)
-        ├── skills.js       ⬜ loadSkills, custom skills CRUD
-        ├── tasks.js        ⬜ parallel task monitoring
-        ├── proactive.js    ⬜ proactive agent 全套
-        └── achievements.js ⬜ gamification UI
-```
-
-### 拆分策略
-
-1. **不使用 bundler**（MV3 限制）— `<script>` tag 順序載入
-2. 每個模組 export 到 `window.IQ.*` namespace
-3. sidebar.js 瘦身為 bootstrap：init → bindEvents
-4. 順序：先拆獨立模組（i18n, utils, theme）→ 再拆 panels
-
-### sidebar.html 載入順序
-
-```html
-<!-- 基礎 -->
-<script src="lib/state.js"></script>         ✅ 已載入
-<script src="lib/utils.js"></script>         ✅ 已載入
-<script src="lib/i18n.js"></script>          ⬜ 待載入（code 已就緒）
-<script src="lib/theme.js"></script>         ⬜ 待載入（code 已就緒）
-
-<!-- 核心 -->
-<script src="lib/connection.js"></script>    ✅ 已載入
-<script src="lib/chat.js"></script>          ✅ 已載入
-<script src="lib/agents.js"></script>        ⬜ 待載入（code 已就緒）
-<script src="lib/file-upload.js"></script>   ⬜ 待載入（code 已就緒）
-
-<!-- Helpers -->
-<script src="lib/panels/helpers.js"></script> ✅ 已載入
-
-<!-- Panels（4/8 已建立，尚未載入） -->
-<script src="lib/panels/usage.js"></script>        ✅ code 已就緒（236L）
-<script src="lib/panels/context.js"></script>      ✅ code 已就緒（169L）
-<script src="lib/panels/history.js"></script>      ✅ code 已就緒（108L）
-<script src="lib/panels/mcp.js"></script>          ✅ code 已就緒（223L）
-<script src="lib/panels/skills.js"></script>       ⬜ 尚未建立
-<script src="lib/panels/tasks.js"></script>        ⬜ 尚未建立
-<script src="lib/panels/proactive.js"></script>    ⬜ 尚未建立
-<script src="lib/panels/achievements.js"></script> ⬜ 尚未建立
-
-<!-- 成就引擎 + Bootstrap -->
-<script src="achievement-engine.js"></script> ✅ 已載入
-<script src="sidebar.js"></script>            ✅ 已載入
-```
-
-### Checklist
-
-- [x] 2.1 建立 `lib/` 目錄結構
-- [x] 2.2 抽取 `state.js`（38L）+ `utils.js`（168L）
-- [x] 2.3 抽取 `i18n.js`（332L）+ `theme.js`（42L）— code 就緒，sidebar.html 尚未載入
-- [x] 2.4 抽取 `connection.js`（225L）+ `chat.js`（552L）+ `agents.js`（204L）+ `file-upload.js`（246L）
-- [x] 2.4b 抽取 `panels/helpers.js`（114L）
-- [ ] 2.5 抽取 `panels/*.js`（4/8 完成：✅ usage, context, history, mcp；⬜ skills, tasks, proactive, achievements）
-- [ ] 2.6 sidebar.js 瘦身為 bootstrap（目前 ~4,140 行 → 目標 < 200 行）
-- [ ] 2.7 更新 sidebar.html script 載入順序（目前載入 7 個 lib/；待加 i18n, theme, agents, file-upload + 8 panels）
+| 檔案 | 行數（約） | 職責 |
+|------|-----------|------|
+| `sidebar.js` | 391 | Bootstrap（初始化/事件綁定/模組 wiring） |
+| `sidebar.html` | 856+ | Sidepanel DOM + script 載入順序 |
+| `sidebar.css` | 3,300+ | 所有 UI 樣式 |
+| `lib/state.js` | 38 | CONFIG 常數 |
+| `lib/i18n.js` | 333 | I18N 字典 + `t()` + static 翻譯 |
+| `lib/theme.js` | 42 | `applyTheme()` / `applyLanguage()` |
+| `lib/utils.js` | 168 | toast/cache/debug/common utils |
+| `lib/connection.js` | 226 | 連線狀態、runtime router、onConnected pipeline |
+| `lib/chat.js` | 552 | 對話狀態、streaming、session 處理 |
+| `lib/agents.js` | 204 | agent 管理與 UI |
+| `lib/file-upload.js` | 246 | 附件上傳/預覽/貼上 |
+| `lib/panels/*.js` | 8 個面板已拆分 | context/history/usage/mcp/tasks/skills/proactive/achievements |
+| `proxy.ts` | 500+ | Proxy TS source（build 輸出 `dist/proxy.js`） |
+| `achievement-engine.ts` | 690+ | 成就引擎 TS source |
 
 ---
 
-## Future Work（優化計畫之外）
+## 風險與待處理（依優先級）
 
-| 優先級 | 任務 | 說明 |
-|--------|------|------|
-| P0 | ESLint + Prettier | ✅ ESLint v10 已安裝（0 errors, 31 warnings）；Prettier 待定 |
-| P1 | 遷移至 TypeScript | ✅ 漸進式完成：`proxy.ts` → `achievement-engine.ts`，`proxy.js` 改為 build launcher |
-| P1 | Unit Tests | 達 80% 覆蓋率（achievement-engine, copilot-rpc） |
-| P1 | ~~消除 inline styles~~ | ✅ 33 → 7（剩餘為動態 width% / CSS custom property） |
-| P2 | Zod 驗證 | ✅ proxy.js route handler 完整 schema 驗證 |
-| P2 | 模組化 proxy.js | ✅ 已拆為 `routes/*.js` |
-| P2 | 完善 README | ✅ 已補架構圖、安裝步驟、開發指南、截圖章節 |
-| P3 | Bundler | ✅ 已加入 esbuild 打包（tree-shaking 啟用） |
-| P3 | 完善 i18n | ⏳ 進行中：Proactive 區塊 runtime 字串已收斂至 `t()`；其餘面板持續收斂至 `t()` / `localizeRuntimeMessage()` |
+| 優先級 | 問題 | 觀察 | 行動 |
+|--------|------|------|------|
+| **P0** | Idle 請求風暴回歸 | 日誌顯示約每 60 秒重複 `models/session/tools/quota/context/proactive/scan-all` | 先修復（見「Stabilization Sprint」） |
+| **P0** | 啟動流程不穩 | `start.sh` 出現 `syntax error near unexpected token '('`，且曾有 proxy process 被 kill (`137`) | 修復腳本 + 增加自檢 |
+| **P1** | Working tree 尚未整理提交 | `README.md`、`proxy.js`、`package*.json`、`achievement-engine.js` 等仍有變更 | 切成原子 commit |
+| **P1** | 測試覆蓋率不足 | 目前仍以 E2E 為主，缺 unit/integration coverage | 新增測試矩陣 |
+| **P2** | i18n 尚未全收斂 | 多數面板已收斂，仍有 runtime 字串 | 依面板逐步收斂 |
 
-### P3 完善 i18n — 可執行子項（面板拆解）
+### 最新觀測（2026-02-27）
 
-> 目標：將 runtime UI 文案從硬編碼改為 `t()` / `localizeRuntimeMessage()`，並確保中英文切換可即時反映。
+- 已確認仍存在約 60 秒週期的 API 呼叫鏈：`/api/models`、`/api/session/list`、`/api/tools`、`/api/quota`、`/api/context`、`/api/proactive/scan-all`。
+- `start.sh` 仍有穩定性問題：
+   - `line 190: syntax error near unexpected token '('`
+   - `node proxy.js` 曾出現 `Exit Code 137 / killed`。
+- P0 優先序維持不變：先完成連線/輪詢穩定化與啟動腳本修復，再繼續擴張性優化。
 
-#### 6 個面板子項
+---
 
-- [ ] **chat**
-    - 範圍：chat 輸入提示、送出/錯誤提示、streaming 狀態、快捷操作文案
-    - 完成定義：`sidebar.js` chat 區塊 runtime 字串改走 `t()`；語言切換後不需重整即可更新
+## 未提交內容盤點（以目前 `git status`）
 
-- [ ] **context**
-    - 範圍：Context 卡片標題、欄位標籤、空狀態與錯誤提示
-    - 完成定義：context panel runtime 文案 0 硬編碼（僅保留資料值）；fallback 文案皆可翻譯
+### Modified
+- `README.md`
+- `achievement-engine.js`
+- `package-lock.json`
+- `package.json`
+- `plan/changelog.md`
+- `proxy.js`
+- `sidebar.css`
 
-- [ ] **skills**
-    - 範圍：Skills 載入中/空狀態/錯誤、按鈕與提示訊息
-    - 完成定義：skills panel 文字統一走 `t()` 或 `localizeRuntimeMessage()`；載入/失敗訊息雙語一致
+### Untracked
+- `achievement-engine.js.map`
+- `achievement-engine.ts`
+- `eslint.config.js`
+- `proxy.ts`
+- `routes/`
+- `scripts/build.mjs`
+- `tsconfig.json`
 
-- [ ] **mcp**
-    - 範圍：MCP 設定讀寫提示、JSON 驗證訊息、按鈕與狀態文案
-    - 完成定義：mcp panel runtime 字串收斂，錯誤訊息前綴與成功 toast 可翻譯
+> 建議：以上拆為「infra/tooling」、「proxy ts migration」、「achievement ts migration」、「docs」四批提交。
 
-- [ ] **tasks**
-    - 範圍：Task timeline 標題、進度狀態、結果摘要與操作按鈕
-    - 完成定義：tasks panel 主要互動文案改走 i18n；執行中/完成/失敗狀態雙語一致
+---
 
-- [ ] **history**
-    - 範圍：搜尋 placeholder、空清單文案、刪除/恢復相關提示
-    - 完成定義：history panel runtime 字串收斂，搜尋與操作回饋可翻譯
+## 全專案掃描結果（新增）
 
-#### 驗收標準（P3 i18n）
+> 本節為本次「全專案掃描」新增的優化待辦，按效益/風險排序。
 
-- [ ] 六個面板 runtime 文案完成上述收斂
-- [ ] 語言切換（zh-TW/en）不需重整即可更新主要 UI 文案
-- [ ] `npm run lint -- sidebar.js` 結果維持 **0 errors**
+### P0（立即）
+
+| Area | 檔案 | 問題 | 優化建議 | 預期效益 |
+|------|------|------|---------|---------|
+| Connection loop | `background.js`, `lib/connection.js` | 目前仍可觀察到接近 60 秒週期的多路 API 呼叫鏈 | 增加「連線事件計數 + 原因標記」(why-trigger)；將 `onConnected()` 執行條件改為「state changed + cold start」雙閘；確保 reconnect 只做最小同步 | 直接降低無效 API 與 LLM 呼叫 |
+| Proactive scans | `background.js`, `routes/proactive.js`, `lib/panels/proactive.js` | `scan-all` 成本高，且含 4 個子掃描；若被錯誤觸發會放大成本 | 新增 `scan-all` 伺服器端節流（例如 3-5 分鐘內拒絕重入）；拆分 UI refresh 與 scan trigger；將 `scan-all` 預設改為僅手動 | 避免 token 與延遲暴增 |
+| Startup stability | `start.sh` | 出現 syntax error 與 process `137`，目前 lifecycle 脆弱 | 將 pipeline 啟動改為明確函式（避免複雜 `| while` 背景流程）；加上 pidfile、graceful kill、exit code 檢查 | 啟停穩定、降低殭屍/孤兒程序 |
+
+### P1（高價值）
+
+| Area | 檔案 | 問題 | 優化建議 | 預期效益 |
+|------|------|------|---------|---------|
+| Logging overhead | `copilot-rpc.js`, `routes/session.js`, `lib/utils.js`, `sidebar.js` | 目前大量 log 會序列化大 payload（含 prompt/attachments），且 debug log DOM 可能重複寫入 | 加入 log level 與 payload 截斷（例如 1-2KB）；附件與 prompt 只記 metadata；避免同一事件雙重寫入 debug DOM | 降低 UI 卡頓、記憶體與 I/O 壓力 |
+| Temp files lifecycle | `proxy.ts` | `buildPromptWithAttachments()` 會寫入 temp 檔，但缺少清理策略 | 加入 TTL cleanup（啟動清一次 + 每 N 分鐘清一次）；上限總量（檔數/容量）保護 | 降低磁碟膨脹與隱私風險 |
+| Body size guard | `proxy.ts`, `routes/foundry.js` | `readBody/readJsonBody` 無 request body 大小上限 | 為 JSON/body 增加最大大小（例如 2-5MB）；Foundry chat 另設上限與明確錯誤碼 | 防止記憶體尖峰與 DoS 風險 |
+| Background polling policy | `background.js` | 固定 15s check 在 idle 仍持續 | 以 `chrome.alarms` + adaptive backoff（connected 時低頻、disconnected 時高頻）替代固定 interval | 減少背景 CPU/網路占用 |
+
+### P2（中期）
+
+| Area | 檔案 | 問題 | 優化建議 | 預期效益 |
+|------|------|------|---------|---------|
+| UI render granularity | `lib/panels/proactive.js`, `lib/panels/tasks.js`, `lib/panels/history.js` | 多處採整段 `innerHTML` 全量重繪 | 改為最小更新策略（keyed update / 分段 render / requestAnimationFrame batching） | 降低重排與 repaint |
+| Cache invalidation model | `lib/utils.js`, `lib/connection.js`, 各 panels | 快取失效規則分散，可能造成 stale 或重抓 | 建立統一 cache policy（事件驅動失效：session create/delete/model switch） | 穩定一致、降低重複請求 |
+| State mutation consistency | `lib/panels/tasks.js` 等 | 仍有直接 mutation（如 `length = 0`） | 統一改為 immutable 更新 + 單一路徑 state setter | 降低隱性 side effect |
+| Config/storage batching | `background.js`, `sidebar.js`, panels | 多次細粒度 storage 讀寫 | 合併批次寫入、節流儲存（debounce） | 降低 storage I/O |
+
+### P3（架構優化）
+
+| Area | 檔案 | 問題 | 優化建議 | 預期效益 |
+|------|------|------|---------|---------|
+| RPC transport | `copilot-rpc.js`, `background.js` | 多個 endpoint 分散請求，重複 headers/序列化 | 增加 batched endpoint（models/sessions/tools/quota）與條件請求（etag/version） | 進一步減少 RTT |
+| Proactive orchestration | `routes/proactive.js`, `proxy.ts` | `scan-all` 目前串行四次 | 可改「並行 + timeout + partial result」並引入結果快取 | 縮短 scan latency |
+| Script startup split | `sidebar.js`, `sidebar.html` | 首屏時同步初始化項目較多 | 採「critical path vs lazy init」：非首屏 panel 延後載入/綁定 | 提升 sidepanel 首開速度 |
+
+---
+
+## Stabilization Sprint（下一步計畫）
+
+### Sprint A（P0，先做）— 連線/輪詢穩定化
+
+1. **重現與量測**
+   - 以單一 sidepanel session 連續觀察 10 分鐘
+   - 記錄 `CONNECTION_STATE_CHANGED` 與 `onConnected()` 觸發次數
+2. **根因修復**
+   - 檢查 `background.js` 狀態廣播 gate 是否正確
+   - 檢查 `lib/connection.js` 的 `_hasInitialized` / debounce / runtime listener
+   - 確保 `scan-all` 僅手動或 alarm 觸發，不由 connect flow 自動觸發
+   - 為 `CONNECTION_STATE_CHANGED` 與 `onConnected()` 加入觸發來源標記（cold start / reconnect / alarm / manual）
+   - 在 `routes/proactive.js` 為 `POST /api/proactive/scan-all` 增加重入節流與最短間隔保護
+3. **驗收條件**
+   - Idle 狀態 10 分鐘內不得出現週期性 `models/session/tools/quota/context/scan-all`
+   - 只允許 health check 與必要的低頻背景訊號
+
+### Sprint B（P0）— `start.sh` 穩定化
+
+1. 修復 shell 語法錯誤（`(` token）
+2. 強化 process lifecycle（trap、pid cleanup、pipe fail handling）
+3. 加入啟動前/關閉後檢查（port / pid / exit status）
+4. 改善 `.env` 載入安全性（避免 `export $(...)` 對空白與特殊字元的風險）
+5. 驗收：連續啟停 5 次均成功、無孤兒程序
+
+### Sprint C（P1）— Working Tree 清理 + 原子提交
+
+- Commit 1: tooling/build（`tsconfig.json`, `eslint.config.js`, `scripts/build.mjs`, `package*.json`）
+- Commit 2: proxy TS migration（`proxy.ts`, `routes/**`, `proxy.js` launcher）
+- Commit 3: achievement TS migration（`achievement-engine.ts`, build outputs）
+- Commit 4: docs（`README.md`, `plan/*`）
+
+### Sprint D（P1）— Logging / Cache / Temp Files
+
+1. Log 減量：payload 截斷、等級控管、敏感資訊遮罩一致化
+2. Cache 收斂：集中 invalidation 規則、避免 stale context
+3. Temp files：附件目錄加 TTL cleanup + 容量上限
+4. 驗收：
+   - debug 模式關閉時，log 量顯著下降
+   - 長時間運行（>1hr）臨時檔數量受控
+   - 無新增 lint error
+
+---
+
+## i18n 收斂（滾動目標）
+
+- [x] chat runtime 文案收斂
+- [x] context runtime 文案收斂
+- [x] skills runtime 文案收斂
+- [x] mcp runtime 文案收斂
+- [ ] tasks runtime 文案收斂
+- [x] history runtime 文案收斂
+
+> 目前唯一未完成面板項目：`tasks runtime`。
+
+### 本次更新（2026-02-27）
+
+- [x] `sidebar.js` 連線/Foundry 訊息收斂至 `localizeRuntimeMessage()`
+- [x] `lib/agents.js`、`lib/file-upload.js` runtime 訊息收斂
+- [x] `lib/panels/{context,history,mcp,skills,usage,helpers}.js` runtime 訊息收斂
+- [x] `lib/chat.js` runtime 與模擬回覆文案收斂
+- [x] `lib/i18n.js` 補齊缺漏 runtime 字典鍵值
+
+### 驗收
+- [ ] 語言切換（zh-TW/en）不需重整即可更新主要文案
+- [ ] lint 維持 `0 errors`
+
+### 下一個最小交付（MVP）
+
+1. 完成 `lib/panels/tasks.js` runtime 字串收斂（`t()` / `localizeRuntimeMessage()`）
+2. 補齊 `lib/i18n.js` 必要對應字典
+3. 驗證 zh-TW/en 即時切換（不重整）
+4. 針對 touched files 再跑一次 lint/diagnostics
+
+---
+
+## 里程碑結論
+
+- P2 已完成，不再列為主風險。
+- 目前主線任務轉為 **穩定性回歸修復（P0）** + **未提交工作整理（P1）**。
+- 後續優化（i18n/測試）在 P0 穩定後再推進。
