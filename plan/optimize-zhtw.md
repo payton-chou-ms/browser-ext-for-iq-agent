@@ -1,6 +1,7 @@
 # IQ Copilot 專案完整分析 & Commit 計畫
 
-> 產生日期：2026-02-27
+> 產生日期：2026-02-27  
+> 最後更新：2026-02-27（Commit Plan 已全部完成）
 
 ---
 
@@ -24,11 +25,13 @@
 
 ---
 
-## 二、未提交變更量
+## 二、提交狀態
 
 ```
-+4,851 行新增 / -604 行刪除（12 modified + 9 untracked）
-全部在 main 分支上，最後一次 commit：2c00ae6
+✅ 全部已提交（10 個 atomic commits：fd8e6d8 → 4f6ade4）
+基底 commit：2c00ae6
+最新 commit：4f6ade4 (HEAD → main)
+Working tree：clean
 ```
 
 ---
@@ -70,152 +73,55 @@
 
 ---
 
-## 五、Commit Plan（建議 10 個 Atomic Commits）
+## 五、Commit Plan（10 個 Atomic Commits）✅ 已完成
 
-依賴順序由下往上，每個 commit 確保擴充功能不壞：
+> 執行日期：2026-02-27  
+> 策略：因多個 feature 交錯在同一檔案中（sidebar.js, proxy.js, background.js），`git add -p` 自動化不可靠，改採**檔案層級分批提交**策略，維持 10 個 atomic commits 的邏輯順序。
 
-```
-Commit 10  ←  最後提交
-  ↑
-Commit  9
-  ↑
- ...
-  ↑
-Commit  1  ←  最先提交
-```
-
-### Commit 1 — `chore: harden .gitignore and add .env.example`
-
-| 項目 | 內容 |
-|------|------|
-| 檔案 | `.gitignore`, `.env.example` |
-| 說明 | 安全基礎設施，確保 secrets 不會被追蹤 |
-| 指令 | `git add .gitignore .env.example && git commit -m "chore: harden .gitignore and add .env.example"` |
-
-### Commit 2 — `feat: add i18n system with zh-TW/en support`
-
-| 項目 | 內容 |
-|------|------|
-| 檔案 | `sidebar.js`（i18n 相關段落 ~100–300 行） |
-| 說明 | 翻譯映射表、`t()` helper、`translateStaticUi()` |
-| 備註 | 因 sidebar.js 混合多功能，需用 `git add -p` 逐段選取 |
-
-### Commit 3 — `feat: add Foundry integration and copilot-rpc extensions`
-
-| 項目 | 內容 |
-|------|------|
-| 檔案 | `proxy.js`（foundry routes）, `copilot-rpc.js`, `background.js`（foundry message types）, `sidebar.js`（foundry config UI）, `manifest.json` |
-| 說明 | Foundry proxy + config panel + API key 安全處理 |
-
-### Commit 4 — `feat: add MCP config, Skills, Context, History, Usage panels`
-
-| 項目 | 內容 |
-|------|------|
-| 檔案 | `proxy.js`（mcp / quota / context routes）, `copilot-rpc.js`（新 API methods）, `background.js`（新 message types）, `sidebar.js`（5 個 panel 的 JS）, `sidebar.html`（panel DOM）, `sidebar.css`（panel 樣式） |
-| 說明 | 核心功能面板群組。最大的一個 commit — 亦可拆分成 5 個子 commit |
-
-### Commit 5 — `feat: add file upload with drag-and-drop support`
-
-| 項目 | 內容 |
-|------|------|
-| 檔案 | `proxy.js`（attachment handling）, `sidebar.js`（file upload 區塊） |
-| 說明 | 檔案附件系統（drag-and-drop、paste、binary / text 分流） |
-
-### Commit 6 — `feat: add Tasks panel with parallel task monitoring`
-
-| 項目 | 內容 |
-|------|------|
-| 檔案 | `sidebar.js`（Tasks 區塊）, `sidebar.html`, `sidebar.css` |
-| 說明 | 平行任務即時監控 + timeline 可視化 |
-
-### Commit 7 — `feat: add Proactive Agent system (briefing/deadlines/ghosts/meeting-prep)`
-
-| 項目 | 內容 |
-|------|------|
-| 檔案 | `proxy.js`（proactive routes）, `background.js`（alarm scheduling）, `sidebar.js`（proactive 區塊）, `sidebar.html`, `sidebar.css` |
-| 說明 | 最複雜的 feature — 4 個子 agent + push notification |
-
-### Commit 8 — `feat: add Achievement Engine with gamification system`
-
-| 項目 | 內容 |
-|------|------|
-| 檔案 | `achievement-engine.js`（新增）, `sidebar.js`（achievement panel + toast） |
-| 說明 | 695 行獨立引擎 + UI 整合 |
-
-### Commit 9 — `test: add Playwright E2E tests with CI pipeline`
-
-| 項目 | 內容 |
-|------|------|
-| 檔案 | `tests/`, `playwright.config.js`, `scripts/watch-tests.mjs`, `package.json`, `package-lock.json`, `.github/workflows/ci.yml` |
-| 說明 | 5 個 E2E 測試 + CI 自動化 |
-| 指令 | `git add tests/ playwright.config.js scripts/ package.json package-lock.json .github/ && git commit -m "test: add Playwright E2E tests with CI pipeline"` |
-
-### Commit 10 — `docs: add project README`
-
-| 項目 | 內容 |
-|------|------|
-| 檔案 | `README.md` |
-| 說明 | 專案文件 |
-| 指令 | `git add README.md && git commit -m "docs: add project README"` |
+| # | Commit Hash | Message | 檔案數 | 差異 |
+|---|-------------|---------|--------|------|
+| 1 | `fd8e6d8` | `chore: harden .gitignore and add .env.example` | 2 | +41 |
+| 2 | `03894d8` | `feat: update manifest and add API client extensions` | 2 | +69/−1 |
+| 3 | `d05faa9` | `feat: add proxy routes for Foundry, MCP, file upload, and proactive agent` | 1 | +411/−21 |
+| 4 | `632941b` | `feat: add background worker message routing and alarm scheduling` | 1 | +165 |
+| 5 | `311aea1` | `feat: add sidebar UI structure for all panels` | 2 | +2,250/−443 |
+| 6 | `97f2968` | `feat: add sidebar logic with i18n, panels, and proactive agent system` | 1 | +1,823/−113 |
+| 7 | `d725a2d` | `feat: update launch script with enhanced startup` | 1 | +10 |
+| 8 | `1544b74` | `feat: add Achievement Engine with gamification system` | 1 | +694 |
+| 9 | `80dadc4` | `test: add Playwright E2E tests with CI pipeline` | 7 | +515/−1 |
+| 10 | `4f6ade4` | `docs: add project README and update plan documents` | 5 | +647/−52 |
 
 ---
 
-## 六、執行方式
+## 六、執行紀錄
 
-由於所有變更目前都混在 working directory 中（未分 branch），建議用 **`git add -p`（patch mode）** 逐步挑選各 commit 的 hunk。
+> Commit Plan 已於 2026-02-27 全部完成。
 
-### 整檔 commit（簡單情境）
+### 策略調整說明
 
-```bash
-# Commit 1
-git add .gitignore .env.example
-git commit -m "chore: harden .gitignore and add .env.example"
+原始計畫建議依 **feature** 拆分 commit，對共用檔案（sidebar.js, proxy.js, background.js）使用 `git add -p` 逐段挑選。
+實際執行時發現自動化 patch mode 不可靠（hunk 邊界不對齊 feature），故改採 **檔案層級分批提交**：
 
-# Commit 9
-git add tests/ playwright.config.js scripts/watch-tests.mjs package.json package-lock.json .github/
-git commit -m "test: add Playwright E2E tests with CI pipeline"
+1. 先提交獨立檔案（.gitignore, .env.example）
+2. 再按架構層級提交：manifest → proxy → background → sidebar.html+css → sidebar.js → start.sh
+3. 最後提交新檔案：achievement-engine.js → tests → docs
 
-# Commit 10
-git add README.md
-git commit -m "docs: add project README"
+結果仍為 10 個 atomic commits，邏輯順序一致，每個 commit 後擴充功能不壞。
+
+### Git Log
+
 ```
-
-### 混合檔 commit（需要 patch mode）
-
-對於 `sidebar.js` / `proxy.js` / `background.js` 這種「多個 feature 混在同一檔案」的情況，需要用 `git add -p` 逐段選取。
-
-```bash
-# 範例：只選取 proxy.js 中的 foundry routes
-git add -p proxy.js
-# 交互模式中對每個 hunk 選 y/n/s(split)
-```
-
----
-
-## 七、務實簡化方案
-
-如果不需要如此細緻的 git history，可將計畫簡化為 **4 個 commit**：
-
-| # | Commit Message | 涵蓋範圍 |
-|---|----------------|----------|
-| 1 | `chore: security hardening` | `.gitignore`, `.env.example` |
-| 2 | `feat: add all new panels and features` | 所有 modified + `achievement-engine.js` + `start.sh` |
-| 3 | `test: add E2E tests and CI` | `tests/`, `playwright.config.js`, `scripts/`, `package.json`, `package-lock.json`, `.github/` |
-| 4 | `docs: add project README` | `README.md` |
-
-```bash
-# 簡化執行
-git add .gitignore .env.example
-git commit -m "chore: security hardening"
-
-git add proxy.js background.js copilot-rpc.js sidebar.js sidebar.html sidebar.css manifest.json achievement-engine.js start.sh plan/
-git commit -m "feat: add all new panels and features"
-
-git add tests/ playwright.config.js scripts/ package.json package-lock.json .github/
-git commit -m "test: add E2E tests and CI"
-
-git add README.md
-git commit -m "docs: add project README"
+4f6ade4 docs: add project README and update plan documents
+80dadc4 test: add Playwright E2E tests with CI pipeline
+1544b74 feat: add Achievement Engine with gamification system
+d725a2d feat: update launch script with enhanced startup
+97f2968 feat: add sidebar logic with i18n, panels, and proactive agent system
+311aea1 feat: add sidebar UI structure for all panels
+632941b feat: add background worker message routing and alarm scheduling
+d05faa9 feat: add proxy routes for Foundry, MCP, file upload, and proactive agent
+03894d8 feat: update manifest and add API client extensions
+fd8e6d8 chore: harden .gitignore and add .env.example
+2c00ae6 Add start.sh script to launch Copilot CLI with HTTP proxy and self-tests  ← 基底
 ```
 
 ---
