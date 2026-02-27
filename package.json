@@ -8,6 +8,7 @@
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "typecheck": "tsc --noEmit",
+    "prebuild": "node scripts/sync-version.mjs",
     "build": "node scripts/build.mjs",
     "build:watch": "node scripts/build.mjs --watch",
     "test": "playwright test",

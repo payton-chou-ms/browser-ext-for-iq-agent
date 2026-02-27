@@ -1,8 +1,29 @@
 import js from "@eslint/js";
 import globals from "globals";
+import tseslint from "typescript-eslint";
 
 export default [
   js.configs.recommended,
+
+  // ── TypeScript files ──
+  ...tseslint.configs.recommended.map((cfg) => ({
+    ...cfg,
+    files: ["**/*.ts"],
+  })),
+  {
+    files: ["**/*.ts"],
+    languageOptions: {
+      ecmaVersion: "latest",
+      sourceType: "module",
+      globals: {
+        ...globals.node,
+      },
+    },
+    rules: {
+      "@typescript-eslint/no-unused-vars": ["warn", { argsIgnorePattern: "^_", varsIgnorePattern: "^_" }],
+      "no-unused-vars": "off",
+    },
+  },
 
   // ── Node files (proxy, config, scripts) ──
   {
@@ -66,8 +87,9 @@ export default [
     },
   },
 
-  // ── Shared rules ──
+  // ── Shared rules (JS only — TS has its own) ──
   {
+    files: ["**/*.js", "**/*.mjs"],
     rules: {
       "no-unused-vars": ["warn", { argsIgnorePattern: "^_", varsIgnorePattern: "^_" }],
       "no-console": "off",
@@ -89,6 +111,7 @@ export default [
       "dist/",
       "playwright-report/",
       "test-results/",
+      "achievement-engine.js",
     ],
   },
 ];
