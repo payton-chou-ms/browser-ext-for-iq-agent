@@ -1,1 +1,28 @@
 node_modules/
+
+# Secrets & environment
+.env
+.env.local
+.env.*.local
+*.key
+*.pem
+*.p12
+*.pfx
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+*.swp
+*.swo
+*~
+
+# Build output
+dist/
+build/
+
+# Test artifacts
+playwright-report/
+test-results/
