@@ -247,35 +247,53 @@ chrome.runtime.onConnect.addListener((port) => {
 });
 
 // ── Connection management ──
+// Phase 0.4: track last broadcast state so we only notify on actual changes
+let _lastBroadcastState = "disconnected";
+
 async function checkAndUpdateConnection() {
   console.log(`[BG] checkAndUpdateConnection — baseUrl=${COPILOT_RPC.getBaseUrl()}`);
+  // Set connecting internally but do NOT broadcast the transitional state.
+  // Broadcasting "connecting" caused sidebar to receive a spurious state change
+  // that flickered the UI and could re-trigger listeners unnecessarily.
   connectionState = "connecting";
-  broadcastState();
 
   const result = await COPILOT_RPC.checkConnection();
   console.log(`[BG] checkConnection result:`, result);
   connectionState = result.connected ? "connected" : "disconnected";
-  broadcastState();
+  broadcastState(); // gated — only fires if state actually changed
 
   return { ...result, state: connectionState };
 }
 
+/**
+ * Phase 0.4: State-change gate.
+ * Only sends CONNECTION_STATE_CHANGED when the connection state
+ * actually differs from the last broadcast value.
+ * This eliminates redundant broadcasts that were re-triggering
+ * sidebar's onConnected() + full API call storm every ~60s.
+ */
 function broadcastState() {
+  if (connectionState === _lastBroadcastState) {
+    console.log(`[BG] broadcastState skipped — state unchanged (${connectionState})`);
+    return;
+  }
+  const prev = _lastBroadcastState;
+  _lastBroadcastState = connectionState;
+  console.log(`[BG] broadcastState: ${prev} → ${connectionState}`);
   chrome.runtime.sendMessage({
     type: "CONNECTION_STATE_CHANGED",
     state: connectionState,
   }).catch(() => {
-    // No listeners
+    // No listeners — sidebar may not be open
   });
 }
 
-// Periodic connection check
+// Periodic connection check — broadcastState() gate handles dedup
 setInterval(async () => {
   if (connectionState !== "connecting") {
-    const prev = connectionState;
     const result = await COPILOT_RPC.checkConnection();
     connectionState = result.connected ? "connected" : "disconnected";
-    if (connectionState !== prev) broadcastState();
+    broadcastState();
   }
 }, 15000);
 

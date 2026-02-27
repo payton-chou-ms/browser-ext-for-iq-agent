@@ -459,13 +459,13 @@ const CONFIG = Object.freeze({
 ## Checklist（追蹤用）
 
 ### Phase 0 — 修復無限迴圈
-- [ ] 0.1 sidebar.js 新增 `_hasInitialized` flag，onConnected 只執行一次
-- [ ] 0.2 從 onConnected() 移除 runFullProactiveScan()
-- [ ] 0.3 CONNECTION_STATE_CHANGED listener 加入 debounce
-- [ ] 0.4 驗證 background.js broadcastState 只在狀態變更時廣播
+- [x] 0.1 sidebar.js 新增 `_hasInitialized` flag，onConnected 只執行一次
+- [x] 0.2 從 onConnected() 移除 runFullProactiveScan()
+- [x] 0.3 CONNECTION_STATE_CHANGED listener 加入 debounce
+- [x] 0.4 驗證 background.js broadcastState 只在狀態變更時廣播
 
 ### Phase 1 — 網路效率
-- [ ] 1.1 proxy.js scan-all 改為直接呼叫 handler function
+- [x] 1.1 proxy.js scan-all 改為直接呼叫 handler function
 - [ ] 1.2 sidebar.js onConnected 呼叫並行化（Promise.allSettled）
 - [ ] 1.3 sidebar.js 改用 /api/context 聚合端點
 - [ ] 1.4 新增 cachedFetch + TTL（models 5min, tools 5min, quota 2min）
@@ -486,9 +486,9 @@ const CONFIG = Object.freeze({
 - [ ] 3.4 SSE Port cleanup（finally block）
 
 ### Phase 4 — proxy.js 強化
-- [ ] 4.1 proactive session model 改為可配置
-- [ ] 4.2 proactive session error recovery
-- [ ] 4.3 request body 基礎驗證
+- [x] 4.1 proactive session model 改為可配置
+- [x] 4.2 proactive session error recovery
+- [x] 4.3 request body 基礎驗證
 
 ### Phase 5 — Code Quality
 - [ ] 5.1 合併重複 onMessage listener
