@@ -38,6 +38,14 @@ describe("AchievementEngine", () => {
     expect(firstChat?.unlocked).toBe(true);
   });
 
+  test("returns xp bonus in achievement list items", () => {
+    engine.track("chat_send");
+    const achievements = engine.getAchievements();
+    const firstChat = achievements.find((achievement) => achievement.id === "chat-001");
+
+    expect(firstChat?.xpBonus).toBe(20);
+  });
+
   test("levels up after enough tracked events", () => {
     for (let index = 0; index < 20; index += 1) {
       engine.track("chat_send");

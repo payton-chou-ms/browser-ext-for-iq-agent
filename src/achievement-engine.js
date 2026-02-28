@@ -490,6 +490,7 @@
           id,
           ...catalog,
           ...achState,
+          xpBonus: rule?.xpBonus ?? 0,
           target: rule?.threshold ?? achState.target ?? 0,
           rarityInfo: RARITY[catalog.rarity]
         };

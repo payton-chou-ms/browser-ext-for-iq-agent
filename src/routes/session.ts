@@ -1,4 +1,6 @@
 import { approveAll } from "@github/copilot-sdk";
+import { spawnSync } from "node:child_process";
+import path from "node:path";
 import type { RouteTable, SessionRouteDeps } from "../shared/types.js";
 import {
   Schemas,
@@ -7,6 +9,61 @@ import {
   type SessionIdOnlyInput,
   type SessionSendInput,
 } from "./schemas.js";
+
+type SessionRuntimeContext = {
+  cwd: string;
+  gitRoot: string;
+  repository: string;
+  branch: string;
+};
+
+function runGit(args: string[], cwd: string): string {
+  try {
+    const result = spawnSync("git", args, {
+      cwd,
+      encoding: "utf-8",
+      stdio: ["ignore", "pipe", "ignore"],
+    });
+    if (result.status !== 0) return "";
+    return (result.stdout || "").trim();
+  } catch {
+    return "";
+  }
+}
+
+function parseRepository(remoteUrl: string, gitRoot: string): string {
+  if (remoteUrl) {
+    const cleaned = remoteUrl.trim().replace(/\.git$/i, "");
+    const sshMatch = cleaned.match(/^[^@]+@[^:]+:(.+)$/);
+    if (sshMatch?.[1]) return sshMatch[1];
+
+    try {
+      const url = new URL(cleaned);
+      return url.pathname.replace(/^\//, "");
+    } catch {
+      return cleaned;
+    }
+  }
+
+  if (!gitRoot) return "";
+  return path.basename(gitRoot);
+}
+
+function getSessionRuntimeContext(): SessionRuntimeContext {
+  const cwd = process.cwd();
+  const gitRoot = runGit(["rev-parse", "--show-toplevel"], cwd);
+  const gitCwd = gitRoot || cwd;
+  const branch = runGit(["rev-parse", "--abbrev-ref", "HEAD"], gitCwd);
+  const remoteUrl = runGit(["config", "--get", "remote.origin.url"], gitCwd);
+  const repository = parseRepository(remoteUrl, gitRoot);
+
+  return {
+    cwd,
+    gitRoot,
+    repository,
+    branch,
+  };
+}
 
 export function registerSessionRoutes(routes: RouteTable, deps: SessionRouteDeps): void {
   const {
@@ -61,7 +118,7 @@ export function registerSessionRoutes(routes: RouteTable, deps: SessionRouteDeps
     sessions.set(sid, session);
 
     log("SESSION", `Created session: ${sid}`);
-    jsonRes(res, 200, { ok: true, sessionId: sid });
+    jsonRes(res, 200, { ok: true, sessionId: sid, ...getSessionRuntimeContext() });
   };
 
   routes["POST /api/session/resume"] = async (req, res) => {
@@ -74,7 +131,7 @@ export function registerSessionRoutes(routes: RouteTable, deps: SessionRouteDeps
       onPermissionRequest: approveAll,
     });
     sessions.set(body.sessionId, session);
-    jsonRes(res, 200, { ok: true, sessionId: body.sessionId });
+    jsonRes(res, 200, { ok: true, sessionId: body.sessionId, ...getSessionRuntimeContext() });
   };
 
   routes["POST /api/session/list"] = async (_req, res) => {

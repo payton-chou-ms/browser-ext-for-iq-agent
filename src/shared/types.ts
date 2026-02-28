@@ -124,6 +124,7 @@ export type EngineEventCallback = (event: EngineEvent) => void;
 
 export type AchievementListItem = AchievementCatalogEntry & AchievementProgress & {
   readonly id: string;
+  readonly xpBonus: number;
   readonly target: number;
   readonly rarityInfo: RarityInfo;
 };

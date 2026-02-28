@@ -180,38 +180,11 @@
   }
 
   /**
-   * Create action bar for bot messages (feedback, copy, regenerate)
+   * Create action bar for bot messages (copy, regenerate)
    */
   function createMessageActions(contentEl, rawText) {
     const actions = document.createElement("div");
     actions.className = "msg-actions";
-
-    // Thumbs up
-    const thumbsUp = document.createElement("button");
-    thumbsUp.className = "msg-action-btn thumbsup";
-    thumbsUp.title = t("actions.goodResponse", "Good response");
-    thumbsUp.innerHTML = "👍";
-    thumbsUp.addEventListener("click", () => {
-      thumbsUp.classList.toggle("selected");
-      thumbsDown.classList.remove("selected");
-      trackFeedback("thumbsup", rawText);
-    });
-
-    // Thumbs down
-    const thumbsDown = document.createElement("button");
-    thumbsDown.className = "msg-action-btn thumbsdown";
-    thumbsDown.title = t("actions.badResponse", "Bad response");
-    thumbsDown.innerHTML = "👎";
-    thumbsDown.addEventListener("click", () => {
-      thumbsDown.classList.toggle("selected");
-      thumbsUp.classList.remove("selected");
-      trackFeedback("thumbsdown", rawText);
-    });
-
-    // Divider
-    const div1 = document.createElement("span");
-    div1.className = "msg-action-divider";
-    div1.textContent = "·";
 
     // Copy button
     const copyBtn = document.createElement("button");
@@ -254,25 +227,11 @@
       }
     });
 
-    actions.appendChild(thumbsUp);
-    actions.appendChild(thumbsDown);
-    actions.appendChild(div1);
     actions.appendChild(copyBtn);
     actions.appendChild(div2);
     actions.appendChild(regenBtn);
 
     return actions;
-  }
-
-  /**
-   * Track feedback for analytics/achievement
-   */
-  function trackFeedback(type, text) {
-    console.log(`[Chat] Feedback: ${type}`, text?.substring(0, 50));
-    if (typeof AchievementEngine !== "undefined") {
-      AchievementEngine.track("chat_feedback", { type, textLength: text?.length || 0 });
-    }
-    // Could send to backend analytics here
   }
 
   function formatNewsResponse(text) {
