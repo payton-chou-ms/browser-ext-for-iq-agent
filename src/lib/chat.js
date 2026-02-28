@@ -401,6 +401,12 @@
     const template = document.getElementById("tool-call-template");
     if (!template) return null;
     const card = template.querySelector(".tool-call-card").cloneNode(true);
+    const header = card.querySelector(".tool-call-header");
+    if (header) {
+      header.addEventListener("click", () => {
+        card.classList.toggle("expanded");
+      });
+    }
     const iconEl = card.querySelector(".tool-call-icon");
     if (iconEl) iconEl.textContent = getToolIcon(name);
     card.querySelector(".tool-call-name").textContent = name;
@@ -410,6 +416,7 @@
     card.querySelector(".tool-call-args").textContent = typeof args === "string" ? args : JSON.stringify(args, null, 2);
     card.querySelector(".tool-call-result").textContent = localizeRuntimeMessage("等待結果...");
     card.dataset.toolName = name;
+    card.dataset.runCount = "1";
 
     const now = Date.now();
     const entry = { name, status: "running", timestamp: new Date().toISOString(), startedAt: now, endedAt: null, args, result: null };
@@ -430,6 +437,63 @@
     root.panels?.tasks?.renderTasksList?.();
 
     return card;
+  }
+
+  function updateToolCardRunCount(card, baseName, count) {
+    if (!card) return;
+    card.dataset.runCount = String(count);
+    const nameEl = card.querySelector(".tool-call-name");
+    if (nameEl) {
+      nameEl.textContent = count > 1 ? `${baseName} ×${count}` : baseName;
+    }
+  }
+
+  function ensureToolCallsContainer(parentEl) {
+    if (!parentEl) return null;
+    let container = parentEl.querySelector(".tool-calls-container");
+    if (!container) {
+      container = document.createElement("div");
+      container.className = "tool-calls-container compact-mode";
+      parentEl.appendChild(container);
+    }
+    return container;
+  }
+
+  function ensureToolCallsSummary(container) {
+    if (!container) return null;
+    let summary = container.querySelector(".tool-calls-summary");
+    if (!summary) {
+      summary = document.createElement("div");
+      summary.className = "tool-calls-summary";
+      container.prepend(summary);
+    }
+    return summary;
+  }
+
+  function updateToolCallsSummary(summaryEl, stats) {
+    if (!summaryEl) return;
+    const parts = [];
+    if (stats.running > 0) parts.push(`${localizeRuntimeMessage("執行中")} ${stats.running}`);
+    if (stats.error > 0) parts.push(`${localizeRuntimeMessage("錯誤")} ${stats.error}`);
+    if (stats.success > 0) parts.push(`${localizeRuntimeMessage("完成")} ${stats.success}`);
+    if (stats.hidden > 0) parts.push(`+${stats.hidden} ${localizeRuntimeMessage("已收合")}`);
+    if (parts.length === 0) {
+      summaryEl.textContent = "";
+      summaryEl.classList.remove("visible");
+      return;
+    }
+    summaryEl.textContent = `🔧 ${parts.join(" · ")}`;
+    summaryEl.classList.add("visible");
+  }
+
+  function enforceVisibleRunningCards(container, maxVisibleRunningCards = 2) {
+    if (!container) return 0;
+    const runningCards = Array.from(container.querySelectorAll(".tool-call-card.running"));
+    runningCards.forEach((card, index) => {
+      const shouldHide = runningCards.length > maxVisibleRunningCards && index < runningCards.length - maxVisibleRunningCards;
+      card.classList.toggle("is-hidden", shouldHide);
+    });
+    return runningCards.filter((card) => card.classList.contains("is-hidden")).length;
   }
 
   function updateToolCallCard(card, status, result) {
@@ -566,7 +630,11 @@
     let streamDone = false;
     let intentHideTimer = null;
     const activeToolCards = new Map();
+    const activeToolNames = new Map();
     const runningToolOrder = [];
+    const toolCallStats = { running: 0, success: 0, error: 0, hidden: 0 };
+    let toolsContainerEl = null;
+    let toolSummaryEl = null;
 
     showIntentBar(localizeRuntimeMessage("處理中..."), "🤖");
 
@@ -608,7 +676,13 @@
           removeTyping();
           if (!bubble) bubble = createStreamingBotMessage();
 
-            const parentEl = bubble.parentElement;
+          const parentEl = bubble.parentElement;
+          if (!toolsContainerEl) {
+            toolsContainerEl = ensureToolCallsContainer(parentEl);
+          }
+          if (!toolSummaryEl) {
+            toolSummaryEl = ensureToolCallsSummary(toolsContainerEl);
+          }
 
           const evt = msg.data || {};
           const evtData = evt.data || {};
@@ -628,40 +702,94 @@
           if (evt.type === "tool.execution_start") {
             const toolName = evtData.toolName || evtData.name || "tool";
             const toolArgs = evtData.arguments || evtData.args || "";
-              const toolId = getToolEventId(evtData) || `${toolName}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+            const toolId = getToolEventId(evtData) || `${toolName}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
             if (typeof AchievementEngine !== "undefined") {
               AchievementEngine.track("agent_call", { agentType: toolName });
             }
-            currentToolCard = createToolCallCard(toolName, toolArgs);
+            const existingCard = activeToolNames.get(toolName);
+            if (existingCard) {
+              const count = Number(existingCard.dataset.runCount || "1") + 1;
+              updateToolCardRunCount(existingCard, toolName, count);
+              currentToolCard = existingCard;
+            } else {
+              currentToolCard = createToolCallCard(toolName, toolArgs);
+            }
+
             if (currentToolCard) {
-                currentToolCard.dataset.toolId = toolId;
-                activeToolCards.set(toolId, currentToolCard);
-                runningToolOrder.push(toolId);
-                parentEl?.appendChild(currentToolCard);
-                showIntentBar(`${localizeRuntimeMessage("執行工具")} · ${toolName}`, "🔧");
+              currentToolCard.dataset.toolId = toolId;
+              activeToolCards.set(toolId, currentToolCard);
+              runningToolOrder.push(toolId);
+
+              if (!existingCard) {
+                activeToolNames.set(toolName, currentToolCard);
+                toolsContainerEl?.appendChild(currentToolCard);
+              }
+
+              toolCallStats.running += 1;
+              toolCallStats.hidden = enforceVisibleRunningCards(toolsContainerEl, 2);
+              updateToolCallsSummary(toolSummaryEl, toolCallStats);
+              showIntentBar(`${localizeRuntimeMessage("執行工具")} · ${toolName}`, "🔧");
               utils.scrollToBottom?.();
             }
           }
           if (evt.type === "tool.execution_complete") {
-              const toolId = getToolEventId(evtData);
-              let targetCard = toolId ? activeToolCards.get(toolId) : null;
-              if (!targetCard && runningToolOrder.length > 0) {
-                const latestId = runningToolOrder.pop();
-                targetCard = activeToolCards.get(latestId);
-                if (latestId) activeToolCards.delete(latestId);
-              } else if (toolId) {
-                activeToolCards.delete(toolId);
-              }
-              updateToolCallCard(targetCard || currentToolCard, "success", evtData.result || evtData.output || t("tasks.done", "完成"));
-              currentToolCard = null;
-              showIntentBar(localizeRuntimeMessage("工具執行完成"), "✅");
+            const toolId = getToolEventId(evtData);
+            let targetCard = toolId ? activeToolCards.get(toolId) : null;
+            if (!targetCard && runningToolOrder.length > 0) {
+              const latestId = runningToolOrder.pop();
+              targetCard = activeToolCards.get(latestId);
+              if (latestId) activeToolCards.delete(latestId);
+            } else if (toolId) {
+              activeToolCards.delete(toolId);
+            }
+
+            const card = targetCard || currentToolCard;
+            const toolName = card?.dataset?.toolName || "";
+            const runCount = Number(card?.dataset?.runCount || "1");
+
+            if (card && runCount > 1 && toolName) {
+              updateToolCardRunCount(card, toolName, runCount - 1);
+            } else {
+              updateToolCallCard(card, "success", evtData.result || evtData.output || t("tasks.done", "完成"));
+              if (toolName) activeToolNames.delete(toolName);
+              setTimeout(() => card?.remove(), 140);
+            }
+
+            toolCallStats.running = Math.max(0, toolCallStats.running - 1);
+            toolCallStats.success += 1;
+            toolCallStats.hidden = enforceVisibleRunningCards(toolsContainerEl, 2);
+            updateToolCallsSummary(toolSummaryEl, toolCallStats);
+
+            currentToolCard = null;
+            showIntentBar(localizeRuntimeMessage("工具執行完成"), "✅");
+          }
+          if (evt.type === "tool.execution_error") {
+            const toolId = getToolEventId(evtData);
+            const targetCard = (toolId ? activeToolCards.get(toolId) : null) || currentToolCard;
+            const err = evtData.error || evtData.message || localizeRuntimeMessage("工具執行錯誤");
+            if (toolId) activeToolCards.delete(toolId);
+            if (targetCard) {
+              updateToolCallCard(targetCard, "error", err);
+              const toolName = targetCard.dataset.toolName;
+              if (toolName) activeToolNames.delete(toolName);
+            }
+            toolCallStats.running = Math.max(0, toolCallStats.running - 1);
+            toolCallStats.error += 1;
+            toolCallStats.hidden = enforceVisibleRunningCards(toolsContainerEl, 2);
+            updateToolCallsSummary(toolSummaryEl, toolCallStats);
+            currentToolCard = null;
+            showIntentBar(localizeRuntimeMessage("發生錯誤"), "⚠️");
           }
           if (evt.type === "session.error") {
             const errMsg = evtData.message || "Session error";
             content += `\n⚠ ${errMsg}`;
             bubble.innerHTML = formatText(content);
             if (currentToolCard) updateToolCallCard(currentToolCard, "error", errMsg);
-              showIntentBar(localizeRuntimeMessage("發生錯誤"), "⚠️");
+            toolCallStats.error += 1;
+            toolCallStats.running = Math.max(0, toolCallStats.running - 1);
+            toolCallStats.hidden = enforceVisibleRunningCards(toolsContainerEl, 2);
+            updateToolCallsSummary(toolSummaryEl, toolCallStats);
+            showIntentBar(localizeRuntimeMessage("發生錯誤"), "⚠️");
           }
 
           // Usage tracking
@@ -704,6 +832,10 @@
             toolCalls.forEach((tc) => { if (tc.status === "running") { tc.status = "success"; tc.endedAt = Date.now(); } });
             activeToolCards.forEach((card) => updateToolCallCard(card, "success", t("tasks.done", "完成")));
             activeToolCards.clear();
+            activeToolNames.clear();
+            toolCallStats.running = 0;
+            toolCallStats.hidden = 0;
+            updateToolCallsSummary(toolSummaryEl, toolCallStats);
             root.panels?.tasks?.renderTasksList?.();
             if (!bubble) bubble = createStreamingBotMessage();
             if (!content) {
@@ -745,6 +877,11 @@
             toolCalls.forEach((tc) => { if (tc.status === "running") { tc.status = "error"; tc.endedAt = Date.now(); } });
             activeToolCards.forEach((card) => updateToolCallCard(card, "error", localizeRuntimeMessage("串流錯誤")));
             activeToolCards.clear();
+            activeToolNames.clear();
+            toolCallStats.running = 0;
+            toolCallStats.error += 1;
+            toolCallStats.hidden = 0;
+            updateToolCallsSummary(toolSummaryEl, toolCallStats);
             root.panels?.tasks?.renderTasksList?.();
             if (!bubble) bubble = createStreamingBotMessage();
             const errText = msg.error || msg.message || localizeRuntimeMessage("串流錯誤");

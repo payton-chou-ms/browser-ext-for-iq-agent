@@ -51,4 +51,23 @@ describe("utils", () => {
     expect(html).toContain("&lt;img src=x onerror=alert(1)&gt;");
     expect(html).not.toContain("<img src=x onerror=alert(1)>");
   });
+
+  test("formatText renders headings, blockquotes, links and fenced code", () => {
+    const html = window.IQ.utils.formatText([
+      "# Release Notes",
+      "",
+      "> Important update",
+      "",
+      "Please check [docs](https://example.com/docs)",
+      "",
+      "```js",
+      "const x = 1;",
+      "```",
+    ].join("\n"));
+
+    expect(html).toContain("<h1>Release Notes</h1>");
+    expect(html).toContain("<blockquote><p>Important update</p></blockquote>");
+    expect(html).toContain('<a href="https://example.com/docs" target="_blank" rel="noopener noreferrer">docs</a>');
+    expect(html).toContain('<pre><code class="language-js">const x = 1;</code></pre>');
+  });
 });

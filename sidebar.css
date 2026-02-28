@@ -2603,6 +2603,20 @@ kbd {
 
 /* ===== Proactive Agent / Notification Panel ===== */
 
+#panel-notifications {
+  min-height: 0;
+}
+
+#panel-notifications .panel-scroll {
+  height: 100%;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 20px;
+}
+
 /* Notification badge on nav button */
 .notification-badge {
   position: absolute;

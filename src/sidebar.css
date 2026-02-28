@@ -928,7 +928,7 @@ body {
 .quick-prompts-add {
   background: var(--accent);
   border: none;
-  color: white;
+  color: #000;
   width: 22px;
   height: 22px;
   border-radius: 4px;
@@ -943,6 +943,7 @@ body {
 
 .quick-prompts-add:hover {
   background: var(--accent-hover);
+  color: #000;
 }
 
 .quick-prompts-list {
@@ -1098,11 +1099,12 @@ body {
 
 .quick-prompt-modal-actions .btn-save {
   background: var(--accent);
-  color: white;
+  color: #000;
 }
 
 .quick-prompt-modal-actions .btn-save:hover {
   background: var(--accent-hover);
+  color: #000;
 }
 
 kbd {
@@ -1407,6 +1409,42 @@ kbd {
 }
 
 .search-box input::placeholder { color: var(--text-muted); }
+
+/* History toolbar */
+.history-toolbar {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.history-toolbar .search-box {
+  flex: 1;
+}
+
+.btn-clear-history {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg-secondary);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.15s;
+  flex-shrink: 0;
+}
+
+.btn-clear-history:hover {
+  background: var(--error);
+  border-color: var(--error);
+  color: #fff;
+}
+
+.btn-clear-history:active {
+  transform: scale(0.95);
+}
 
 .history-list { display: flex; flex-direction: column; gap: 4px; }
 
@@ -2971,6 +3009,29 @@ kbd {
   margin: 8px 0;
 }
 
+.tool-calls-container.compact-mode {
+  gap: 6px;
+}
+
+.tool-calls-summary {
+  display: none;
+  font-size: 10px;
+  color: var(--text-muted);
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-family: var(--font-mono);
+}
+
+.tool-calls-summary.visible {
+  display: block;
+}
+
+.tool-call-card.is-hidden {
+  display: none;
+}
+
 /* ── Pulse Animation ── */
 @keyframes pulse {
   0%, 100% { opacity: 1; }
@@ -3036,6 +3097,20 @@ kbd {
 }
 
 /* ===== Proactive Agent / Notification Panel ===== */
+
+#panel-notifications {
+  min-height: 0;
+}
+
+#panel-notifications .panel-scroll {
+  height: 100%;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 20px;
+}
 
 /* Notification badge on nav button */
 .notification-badge {

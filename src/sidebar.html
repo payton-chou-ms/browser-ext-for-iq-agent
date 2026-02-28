@@ -240,9 +240,14 @@
       <!-- Panel: History -->
       <div class="panel" id="panel-history">
         <div class="panel-scroll">
-          <div class="search-box">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-            <input type="text" id="history-search" placeholder="搜尋對話紀錄...">
+          <div class="history-toolbar">
+            <div class="search-box">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              <input type="text" id="history-search" placeholder="搜尋對話紀錄...">
+            </div>
+            <button id="btn-clear-history" class="btn-clear-history" title="清除所有歷史記錄">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+            </button>
           </div>
           <div id="history-list" class="history-list">
             <div class="empty-state">
@@ -784,7 +789,7 @@
   <!-- Tool Call Card Template (VS Code Copilot Chat Style) -->
   <div id="tool-call-template" style="display:none">
     <div class="tool-call-card">
-      <div class="tool-call-header" onclick="this.parentElement.classList.toggle('expanded')">
+      <div class="tool-call-header">
         <span class="tool-call-spinner">
           <svg class="spinner-ring" width="14" height="14" viewBox="0 0 16 16">
             <circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="2" stroke-dasharray="28" stroke-dashoffset="8" stroke-linecap="round"/>

@@ -483,6 +483,22 @@
     if (id === "context")      PANELS.context?.fetchCliContext?.();
   }
 
+  function bindNotificationsScrollFallback() {
+    const notificationsScroll = document.querySelector("#panel-notifications .panel-scroll");
+    if (!notificationsScroll) return;
+
+    notificationsScroll.addEventListener("wheel", (event) => {
+      const maxScrollTop = notificationsScroll.scrollHeight - notificationsScroll.clientHeight;
+      if (maxScrollTop <= 0) return;
+
+      const nextScrollTop = Math.max(0, Math.min(maxScrollTop, notificationsScroll.scrollTop + event.deltaY));
+      if (nextScrollTop !== notificationsScroll.scrollTop) {
+        notificationsScroll.scrollTop = nextScrollTop;
+        event.preventDefault();
+      }
+    }, { passive: false });
+  }
+
   navBtns.forEach((btn) => {
     btn.addEventListener("click", () => switchPanel(btn.dataset.panel));
   });
@@ -490,6 +506,7 @@
   // ── Bridge functions (modules call back into bootstrap) ──
   const root = global.IQ || (global.IQ = {});
   root._switchPanel = switchPanel;
+  bindNotificationsScrollFallback();
 
   // ── Debug Log (DOM-bound) ──
   const debugLogEl = document.getElementById("debug-log");

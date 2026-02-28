@@ -128,6 +128,47 @@
     utils.updateText?.(dateEl, time);
   }
 
+  async function clearAllHistory() {
+    if (!isConnected()) {
+      utils.showToast?.(localizeRuntimeMessage("請先連接 CLI"));
+      return;
+    }
+
+    const confirmed = confirm(localizeRuntimeMessage("確定要清除所有歷史記錄嗎？此操作無法復原。"));
+    if (!confirmed) return;
+
+    try {
+      const sessions = await utils.sendToBackground?.({ type: "LIST_SESSIONS" });
+      const safeArr = Array.isArray(sessions) ? sessions : [];
+
+      if (safeArr.length === 0) {
+        utils.showToast?.(localizeRuntimeMessage("沒有歷史記錄可清除"));
+        return;
+      }
+
+      let deleted = 0;
+      for (const s of safeArr) {
+        const sid = s.sessionId || s.id;
+        if (sid) {
+          try {
+            await utils.sendToBackground?.({ type: "DELETE_SESSION", sessionId: sid });
+            deleted++;
+          } catch {
+            // Continue deleting others
+          }
+        }
+      }
+
+      // Clear current chat if it was in history
+      root.chat?.clearSession?.();
+      utils.triggerCachePolicy?.("session-delete");
+      loadHistorySessions();
+      utils.showToast?.(localizeRuntimeMessage(`已清除 ${deleted} 筆歷史記錄`));
+    } catch (err) {
+      utils.showToast?.(localizeRuntimeMessage("清除失敗: ") + err.message);
+    }
+  }
+
   function bindEvents() {
     document.getElementById("history-search")?.addEventListener("input", (e) => {
       const query = e.target.value.toLowerCase();
@@ -137,11 +178,14 @@
         item.style.display = text.includes(query) ? "" : "none";
       });
     });
+
+    document.getElementById("btn-clear-history")?.addEventListener("click", clearAllHistory);
   }
 
   root.panels.history = {
     loadHistorySessions,
     renderHistoryFromData,
+    clearAllHistory,
     bindEvents,
   };
 })(window);
