@@ -12,6 +12,7 @@
   const UTILS     = IQ.utils  || {};
   const CONN      = IQ.connection || {};
   const CHAT      = IQ.chat   || {};
+  const CHAT_TABS = IQ.chatTabs || {};
   const I18N_MOD  = IQ.i18n   || {};
   const THEME_MOD = IQ.theme  || {};
   const FILE_UP   = IQ.fileUpload || {};
@@ -31,6 +32,158 @@
   const suggestions  = document.getElementById("chat-suggestions");
 
   const escapeHtml = UTILS.escapeHtml || ((s) => s);
+
+  // ── Chat Tabs Management ──
+  const chatTabsContainer = document.getElementById("chat-tabs");
+  const btnAddTab = document.getElementById("btn-add-tab");
+  const tabCounterEl = document.getElementById("chat-tab-counter");
+
+  function renderChatTabs() {
+    if (!chatTabsContainer || !CHAT_TABS.getAllTabs) return;
+
+    const tabs = CHAT_TABS.getAllTabs();
+    const activeTabId = CHAT_TABS.getActiveTab?.()?.id;
+
+    chatTabsContainer.innerHTML = "";
+
+    for (const tab of tabs) {
+      const tabEl = document.createElement("div");
+      tabEl.className = `chat-tab${tab.id === activeTabId ? " active" : ""}${tab.status === "running" ? " running" : ""}${tab.status === "error" ? " error" : ""}`;
+      tabEl.dataset.tabId = tab.id;
+
+      const titleSpan = document.createElement("span");
+      titleSpan.className = "chat-tab-title";
+      titleSpan.textContent = tab.title || "新對話";
+      titleSpan.title = tab.title || "新對話";
+      tabEl.appendChild(titleSpan);
+
+      // Model badge (if model is set)
+      if (tab.model) {
+        const modelBadge = document.createElement("span");
+        modelBadge.className = "chat-tab-model";
+        // Show abbreviated model name (e.g., "gpt-4.1" -> "4.1", "claude-3.5-sonnet" -> "claude")
+        const shortModel = tab.model.replace(/^(gpt-|claude-|o[0-9]+-)/i, "").slice(0, 8);
+        modelBadge.textContent = shortModel;
+        modelBadge.title = `Model: ${tab.model}`;
+        tabEl.appendChild(modelBadge);
+      }
+
+      const closeBtn = document.createElement("button");
+      closeBtn.className = "chat-tab-close";
+      closeBtn.innerHTML = "\u2715";
+      closeBtn.title = "關閉";
+      closeBtn.dataset.tabId = tab.id;
+      tabEl.appendChild(closeBtn);
+
+      chatTabsContainer.appendChild(tabEl);
+    }
+
+    // Update counter
+    if (tabCounterEl) {
+      tabCounterEl.textContent = `${tabs.length}/${CHAT_TABS.MAX_TABS || 10}`;
+    }
+
+    // Update add button state
+    if (btnAddTab) {
+      btnAddTab.disabled = tabs.length >= (CHAT_TABS.MAX_TABS || 10);
+    }
+  }
+
+  function renderChatForActiveTab() {
+    const tab = CHAT_TABS.getActiveTab?.();
+    if (!tab || !chatMessages) return;
+
+    // Clear existing messages
+    chatMessages.innerHTML = "";
+
+    // Render chat history from active tab
+    for (const msg of tab.chatHistory || []) {
+      const msgEl = CHAT.createMessage?.(msg.role, msg.content);
+      if (msgEl) chatMessages.appendChild(msgEl);
+    }
+
+    // Sync session ID to CHAT module
+    CHAT.setCurrentSessionId?.(tab.sessionId);
+
+    // Sync model from tab (per-tab model support)
+    if (tab.model) {
+      CHAT.setCurrentModel?.(tab.model);
+      const modelSel = document.getElementById("config-model");
+      if (modelSel) modelSel.value = tab.model;
+    }
+
+    // Scroll to bottom
+    UTILS.scrollToBottom?.();
+  }
+
+  function bindChatTabsEvents() {
+    // Add tab button
+    btnAddTab?.addEventListener("click", () => {
+      const newTab = CHAT_TABS.createTab?.();
+      if (newTab) {
+        // Inherit current model to new tab
+        const chatState = CHAT.getState?.();
+        if (chatState?.currentModel) {
+          CHAT_TABS.setTabModel?.(newTab.id, chatState.currentModel);
+        }
+        renderChatTabs();
+        renderChatForActiveTab();
+        CHAT.showWelcome?.();
+      }
+    });
+
+    // Tab click delegation
+    chatTabsContainer?.addEventListener("click", async (e) => {
+      const closeBtn = e.target.closest(".chat-tab-close");
+      if (closeBtn) {
+        e.stopPropagation();
+        const tabId = closeBtn.dataset.tabId;
+        const tab = CHAT_TABS.getTab?.(tabId);
+
+        // Confirm if running
+        if (tab?.status === "running") {
+          if (!confirm(localizeRuntimeMessage("對話進行中，確定關閉？"))) return;
+        }
+
+        // Close with session destruction
+        await CHAT_TABS.closeTab?.(tabId, {
+          force: true,
+          destroySession: async (sessionId) => {
+            await UTILS.sendToBackground?.({ type: "DELETE_SESSION", sessionId });
+          },
+        });
+
+        renderChatTabs();
+        renderChatForActiveTab();
+        return;
+      }
+
+      const tabEl = e.target.closest(".chat-tab");
+      if (tabEl) {
+        const tabId = tabEl.dataset.tabId;
+        if (CHAT_TABS.switchTab?.(tabId)) {
+          renderChatTabs();
+          renderChatForActiveTab();
+          PANELS.tasks?.renderTasksList?.();
+        }
+      }
+    });
+
+    // Listen to chat tabs events
+    CHAT_TABS.onEvent?.((event, data) => {
+      if (event === "error" && data?.message) {
+        UTILS.showToast?.(data.message, "error");
+      }
+    });
+  }
+
+  async function initChatTabs() {
+    await CHAT_TABS.init?.();
+    renderChatTabs();
+    renderChatForActiveTab();
+    bindChatTabsEvents();
+  }
+
   const commandState = {
     open: false,
     activeIndex: -1,
@@ -692,7 +845,10 @@
   async function init() {
     await THEME_MOD.loadUiPreferences?.();
     loadFoundryConfig();
-    CHAT.showWelcome?.();
+    await initChatTabs();  // Initialize chat tabs first
+    if (!CHAT_TABS.getActiveTab?.()?.chatHistory?.length) {
+      CHAT.showWelcome?.();  // Show welcome only if no history
+    }
     PANELS.usage?.updateStats?.();
     loadCliConfig();
     CONN.checkConnection?.("cold-start");

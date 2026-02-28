@@ -96,6 +96,16 @@
 
       <!-- Panel: Chat -->
       <div class="panel active" id="panel-chat">
+        <!-- Multi-Tab Bar -->
+        <div class="chat-tab-bar" id="chat-tab-bar">
+          <div class="chat-tabs" id="chat-tabs">
+            <!-- Tabs rendered dynamically -->
+          </div>
+          <button class="chat-tab-add" id="btn-add-tab" title="新增對話">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+          </button>
+          <span class="chat-tab-counter" id="chat-tab-counter">1/10</span>
+        </div>
         <div class="chat-context-bar" id="context-bar">
           <span class="context-badge">�</span>
           <span class="context-text" id="context-bar-text">Copilot CLI</span>
@@ -787,6 +797,7 @@
   <script src="lib/theme.js"></script>
   <script src="lib/utils.js"></script>
   <script src="lib/connection.js"></script>
+  <script src="lib/chat-tabs.js"></script>
   <script src="lib/chat-session.js"></script>
   <script src="lib/chat-streaming.js"></script>
   <script src="lib/chat.js"></script>

@@ -234,6 +234,156 @@ body {
 .card-icon { font-size: 16px; }
 
 /* ===== Chat Panel ===== */
+
+/* ── Chat Tab Bar ── */
+.chat-tab-bar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 10px;
+  background: var(--bg-primary);
+  border-bottom: 1px solid var(--border);
+  min-height: 38px;
+  overflow: hidden;
+}
+
+.chat-tabs {
+  display: flex;
+  gap: 4px;
+  overflow-x: auto;
+  flex: 1;
+  scrollbar-width: none;
+}
+
+.chat-tabs::-webkit-scrollbar { display: none; }
+
+.chat-tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  white-space: nowrap;
+  max-width: 140px;
+  transition: all 0.15s ease;
+}
+
+.chat-tab:hover {
+  background: var(--bg-tertiary);
+  border-color: var(--accent);
+}
+
+.chat-tab.active {
+  background: var(--accent-subtle);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.chat-tab.running::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border: 2px solid var(--accent);
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: tabSpin 0.8s linear infinite;
+}
+
+@keyframes tabSpin {
+  to { transform: rotate(360deg); }
+}
+
+.chat-tab.error::before {
+  content: '⚠';
+  font-size: 10px;
+  color: var(--danger);
+}
+
+.chat-tab-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 90px;
+}
+
+.chat-tab-model {
+  font-size: 9px;
+  padding: 1px 4px;
+  background: var(--accent-subtle);
+  color: var(--accent);
+  border-radius: 3px;
+  opacity: 0.7;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.chat-tab.active .chat-tab-model {
+  opacity: 1;
+}
+
+.chat-tab-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 14px;
+  cursor: pointer;
+  border-radius: 3px;
+  opacity: 0;
+  transition: opacity 0.15s, background 0.15s;
+}
+
+.chat-tab:hover .chat-tab-close,
+.chat-tab.active .chat-tab-close {
+  opacity: 1;
+}
+
+.chat-tab-close:hover {
+  background: var(--danger-subtle);
+  color: var(--danger);
+}
+
+.chat-tab-add {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 1px dashed var(--border);
+  background: transparent;
+  color: var(--text-muted);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+}
+
+.chat-tab-add:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-subtle);
+}
+
+.chat-tab-add:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.chat-tab-counter {
+  font-size: 11px;
+  color: var(--text-muted);
+  padding: 0 6px;
+  flex-shrink: 0;
+}
+
 .chat-context-bar {
   display: flex;
   align-items: center;
