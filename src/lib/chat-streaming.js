@@ -21,8 +21,9 @@
       const template = document.getElementById("tool-call-template");
       if (!template) return null;
       const card = template.querySelector(".tool-call-card").cloneNode(true);
+      card.classList.add("running");
       card.querySelector(".tool-call-name").textContent = name;
-      card.querySelector(".tool-call-status").textContent = "running";
+      card.querySelector(".tool-call-status").textContent = "";
       card.querySelector(".tool-call-status").className = "tool-call-status running";
       card.querySelector(".tool-call-args").textContent = typeof args === "string" ? args : JSON.stringify(args, null, 2);
       card.querySelector(".tool-call-result").textContent = localizeRuntimeMessage("等待結果...");
@@ -42,9 +43,13 @@
 
     function updateToolCallCard(card, status, result) {
       if (!card) return;
+      // Update card class for spinner/check/error icons
+      card.classList.remove("running", "success", "error");
+      card.classList.add(status === "success" ? "success" : status === "error" ? "error" : "running");
+      
       const statusEl = card.querySelector(".tool-call-status");
       if (statusEl) {
-        statusEl.textContent = status;
+        statusEl.textContent = status === "success" ? "成功" : status === "error" ? "失敗" : "";
         statusEl.className = "tool-call-status " + (status === "success" ? "success" : status === "error" ? "error" : "running");
       }
       if (result != null) {
@@ -87,6 +92,7 @@
       let bubble = null;
       let content = "";
       let currentToolCard = null;
+      let toolCallsContainer = null;
       let streamDone = false;
       let pendingRender = null;
 
@@ -138,7 +144,13 @@
               }
               currentToolCard = createToolCallCard(toolName, toolArgs);
               if (currentToolCard) {
-                bubble.parentElement.appendChild(currentToolCard);
+                // Create container if not exists
+                if (!toolCallsContainer) {
+                  toolCallsContainer = document.createElement("div");
+                  toolCallsContainer.className = "tool-calls-container";
+                  bubble.parentElement.appendChild(toolCallsContainer);
+                }
+                toolCallsContainer.appendChild(currentToolCard);
                 utils.scrollToBottom?.();
               }
             }

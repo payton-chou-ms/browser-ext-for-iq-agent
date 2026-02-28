@@ -29,4 +29,26 @@ describe("utils", () => {
     expect(window.IQ.utils.getCached("key-0")).toBeUndefined();
     expect(window.IQ.utils.getCached("key-50")).toBe(50);
   });
+
+  test("formatText renders markdown-style lists", () => {
+    const html = window.IQ.utils.formatText([
+      "**MCP Status**",
+      "- Source: /tmp/mcp.json",
+      "- Servers: 2",
+      "1. playwright",
+      "2. github",
+    ].join("\n"));
+
+    expect(html).toContain("<strong>MCP Status</strong>");
+    expect(html).toContain("<ul>");
+    expect(html).toContain("<li>Source: /tmp/mcp.json</li>");
+    expect(html).toContain("<ol>");
+    expect(html).toContain("<li>playwright</li>");
+  });
+
+  test("formatText escapes html before markdown formatting", () => {
+    const html = window.IQ.utils.formatText("- <img src=x onerror=alert(1)>");
+    expect(html).toContain("&lt;img src=x onerror=alert(1)&gt;");
+    expect(html).not.toContain("<img src=x onerror=alert(1)>");
+  });
 });

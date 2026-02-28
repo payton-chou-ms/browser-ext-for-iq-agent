@@ -102,6 +102,19 @@
       if (msgEl) chatMessages.appendChild(msgEl);
     }
 
+    // If tab is streaming, show the partial content
+    const streamingContent = CHAT_TABS.getTabStreamingContent?.(tab.id);
+    if (tab.status === "running" && streamingContent) {
+      const streamBubble = CHAT.createStreamingBotMessage?.();
+      if (streamBubble) {
+        const formatText = UTILS.formatText || ((s) => s);
+        streamBubble.innerHTML = formatText(streamingContent);
+      }
+    } else if (tab.status === "running") {
+      // Tab is running but no content yet - show typing indicator
+      CHAT.showTyping?.();
+    }
+
     // Sync session ID to CHAT module
     CHAT.setCurrentSessionId?.(tab.sessionId);
 
@@ -193,10 +206,29 @@
   const COMMAND_GROUP_LABEL = {
     general: "General",
     skills: "Skills",
+    models: "Models",
     mcp: "MCP",
   };
 
   function getCommandItems() {
+    const chatState = CHAT.getState?.() || {};
+    const availableModels = Array.isArray(chatState.availableModels) ? chatState.availableModels : [];
+    const currentModel = chatState.currentModel || CONFIG.DEFAULT_MODEL || "gpt-4.1";
+
+    const getModelId = (m) => (typeof m === "string" ? m : m?.id || m?.name || String(m));
+    const getModelLabel = (m) => (typeof m === "string" ? m : m?.name || m?.id || String(m));
+
+    const normalizedModels = availableModels
+      .map((m) => ({ id: getModelId(m), label: getModelLabel(m) }))
+      .filter((m) => m.id);
+
+    const seen = new Set();
+    const modelOptions = normalizedModels.filter((m) => {
+      if (seen.has(m.id)) return false;
+      seen.add(m.id);
+      return true;
+    });
+
     const baseItems = [
       {
         id: "help",
@@ -209,6 +241,9 @@
           "- `/help` 顯示命令說明",
           "- `/skills list` 讀取技能",
           "- `/skills refresh` 刷新技能",
+          "- `/model list` 列出模型",
+          "- `/model refresh` 刷新模型",
+          "- `/model use <model-id>` 切換模型",
           "- `/mcp status` 檢視 MCP 狀態",
           "- `/mcp reload` 重新載入 MCP 設定",
         ].join("\n"),
@@ -244,6 +279,50 @@
         },
       },
       {
+        id: "model-list",
+        group: "models",
+        title: "列出模型",
+        description: "顯示目前可用模型與當前模型",
+        command: "/model list",
+        run: async () => {
+          const latest = await UTILS.cachedSendToBackground?.("models", { type: "LIST_MODELS" });
+          const models = Array.isArray(latest) ? latest : modelOptions.map((m) => m.id);
+
+          if (Array.isArray(latest) && latest.length > 0) {
+            CHAT.setAvailableModels?.(latest);
+            PANELS.usage?.populateModelSelect?.(latest);
+          }
+
+          if (!Array.isArray(models) || models.length === 0) {
+            return "目前查無可用模型。";
+          }
+
+          const ids = models.map((m) => (typeof m === "string" ? m : getModelId(m)));
+          return [
+            `**Models (${ids.length})**`,
+            `Current: \`${CHAT.getState?.().currentModel || currentModel}\``,
+            ...ids.slice(0, 20).map((id) => `- ${id}`),
+            ...(ids.length > 20 ? [`- ... 還有 ${ids.length - 20} 個`] : []),
+          ].join("\n");
+        },
+      },
+      {
+        id: "model-refresh",
+        group: "models",
+        title: "刷新模型",
+        description: "重新從 CLI 讀取可用模型",
+        command: "/model refresh",
+        run: async () => {
+          if (!CONN.isConnected?.()) return "目前未連線 Copilot CLI，請先連線後再刷新模型。";
+          const latest = await UTILS.sendToBackground?.({ type: "LIST_MODELS" });
+          if (!Array.isArray(latest) || latest.length === 0) return "CLI 未回傳任何模型。";
+          CHAT.setAvailableModels?.(latest);
+          PANELS.usage?.populateModelSelect?.(latest);
+          PANELS.usage?.renderModelsCard?.();
+          return `已刷新模型（${latest.length}）。`;
+        },
+      },
+      {
         id: "mcp-status",
         group: "mcp",
         title: "MCP 狀態",
@@ -253,11 +332,13 @@
           const res = await UTILS.sendToBackground?.({ type: "GET_MCP_CONFIG" });
           if (!res?.ok || !res.config) return `讀取 MCP 設定失敗：${res?.error || "unknown"}`;
           const servers = Object.keys(res.config.mcpServers || {});
+          const source = res.source || "~/.copilot/mcp-config.json";
           return [
             "**MCP Status**",
-            `- Source: ${res.source || "~/.copilot/mcp-config.json"}`,
-            `- Servers: ${servers.length}`,
-            ...servers.slice(0, 10).map((name) => `- ${name}`),
+            `Source: \`${source}\``,
+            `Servers: ${servers.length}`,
+            ...servers.slice(0, 10).map((name, index) => `${index + 1}. ${name}`),
+            ...(servers.length > 10 ? [`... and ${servers.length - 10} more`] : []),
           ].join("\n");
         },
       },
@@ -275,7 +356,19 @@
       },
     ];
 
-    return baseItems;
+    const modelSwitchItems = modelOptions.slice(0, 20).map((model) => ({
+      id: `model-use-${model.id}`,
+      group: "models",
+      title: `切換到 ${model.label}`,
+      description: model.id === currentModel ? "目前使用中" : `切換模型為 ${model.id}`,
+      command: `/model use ${model.id}`,
+      run: async () => {
+        await PANELS.usage?.switchModel?.(model.id);
+        return `已切換模型：\`${model.id}\``;
+      },
+    }));
+
+    return [...baseItems, ...modelSwitchItems];
   }
 
   function closeCommandMenu() {

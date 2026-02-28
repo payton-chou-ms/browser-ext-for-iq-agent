@@ -491,57 +491,6 @@ body {
   border-bottom-left-radius: 4px;
 }
 
-/* Message action bar (feedback, copy, regenerate) */
-.msg-actions {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  margin-top: 10px;
-  padding-top: 8px;
-  border-top: 1px solid rgba(255,255,255,0.06);
-  opacity: 0;
-  transition: opacity 0.2s ease;
-}
-
-.message.bot:hover .msg-actions,
-.message.bot:focus-within .msg-actions,
-.msg-actions.visible {
-  opacity: 1;
-}
-
-.msg-action-btn {
-  background: transparent;
-  border: none;
-  color: var(--text-muted);
-  cursor: pointer;
-  padding: 4px 8px;
-  border-radius: 6px;
-  font-size: 13px;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  transition: all 0.15s ease;
-}
-
-.msg-action-btn:hover {
-  background: rgba(255,255,255,0.08);
-  color: var(--text-primary);
-}
-
-.msg-action-btn.active,
-.msg-action-btn.selected {
-  color: var(--accent);
-}
-
-.msg-action-btn.thumbsup.selected { color: #48bb78; }
-.msg-action-btn.thumbsdown.selected { color: #fc8181; }
-
-.msg-action-divider {
-  color: var(--border);
-  font-size: 10px;
-  margin: 0 2px;
-}
-
 @keyframes msgIn {
   from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: translateY(0); }

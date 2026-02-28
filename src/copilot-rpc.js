@@ -92,7 +92,14 @@ const COPILOT_RPC = (() => {
           signal: controller.signal,
         });
 
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        if (!res.ok) {
+          let errDetail = "";
+          try {
+            const errBody = await res.text();
+            errDetail = `: ${errBody.slice(0, 200)}`;
+          } catch { /* ignore */ }
+          throw new Error(`HTTP ${res.status}${errDetail}`);
+        }
         _connected = true;
 
         const reader = res.body.getReader();

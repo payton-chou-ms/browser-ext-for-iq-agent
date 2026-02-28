@@ -1,7 +1,7 @@
 import type http from "node:http";
 
-export const MAX_BODY_SIZE_BYTES = 5 * 1024 * 1024; // 5 MB
-export const MAX_JSON_BODY_SIZE_BYTES = 2 * 1024 * 1024; // 2 MB
+export const MAX_BODY_SIZE_BYTES = 10 * 1024 * 1024; // 10 MB
+export const MAX_JSON_BODY_SIZE_BYTES = 10 * 1024 * 1024; // 10 MB (for base64 image attachments)
 
 export function readBody(req: http.IncomingMessage, maxSize = MAX_BODY_SIZE_BYTES): Promise<string> {
   return new Promise((resolve, reject) => {

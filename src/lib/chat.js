@@ -161,11 +161,118 @@
 
     const bubble = document.createElement("div");
     bubble.className = "msg-bubble";
-    bubble.innerHTML = formatText(role === "bot" ? formatNewsResponse(text) : text);
+
+    // Content wrapper
+    const content = document.createElement("div");
+    content.className = "msg-content";
+    content.innerHTML = formatText(role === "bot" ? formatNewsResponse(text) : text);
+    bubble.appendChild(content);
+
+    // Add action bar for bot messages
+    if (role === "bot") {
+      const actions = createMessageActions(content, text);
+      bubble.appendChild(actions);
+    }
 
     div.appendChild(avatar);
     div.appendChild(bubble);
     return div;
+  }
+
+  /**
+   * Create action bar for bot messages (feedback, copy, regenerate)
+   */
+  function createMessageActions(contentEl, rawText) {
+    const actions = document.createElement("div");
+    actions.className = "msg-actions";
+
+    // Thumbs up
+    const thumbsUp = document.createElement("button");
+    thumbsUp.className = "msg-action-btn thumbsup";
+    thumbsUp.title = t("actions.goodResponse", "Good response");
+    thumbsUp.innerHTML = "👍";
+    thumbsUp.addEventListener("click", () => {
+      thumbsUp.classList.toggle("selected");
+      thumbsDown.classList.remove("selected");
+      trackFeedback("thumbsup", rawText);
+    });
+
+    // Thumbs down
+    const thumbsDown = document.createElement("button");
+    thumbsDown.className = "msg-action-btn thumbsdown";
+    thumbsDown.title = t("actions.badResponse", "Bad response");
+    thumbsDown.innerHTML = "👎";
+    thumbsDown.addEventListener("click", () => {
+      thumbsDown.classList.toggle("selected");
+      thumbsUp.classList.remove("selected");
+      trackFeedback("thumbsdown", rawText);
+    });
+
+    // Divider
+    const div1 = document.createElement("span");
+    div1.className = "msg-action-divider";
+    div1.textContent = "·";
+
+    // Copy button
+    const copyBtn = document.createElement("button");
+    copyBtn.className = "msg-action-btn";
+    copyBtn.title = t("actions.copy", "Copy");
+    copyBtn.innerHTML = "📋";
+    copyBtn.addEventListener("click", async () => {
+      try {
+        // Get text content (strip HTML)
+        const textToCopy = contentEl.innerText || rawText;
+        await navigator.clipboard.writeText(textToCopy);
+        copyBtn.innerHTML = "✅";
+        setTimeout(() => { copyBtn.innerHTML = "📋"; }, 1500);
+        root.utils?.showToast?.(t("messages.copied", "已複製"));
+      } catch (err) {
+        console.error("Copy failed:", err);
+      }
+    });
+
+    // Divider
+    const div2 = document.createElement("span");
+    div2.className = "msg-action-divider";
+    div2.textContent = "·";
+
+    // Regenerate button
+    const regenBtn = document.createElement("button");
+    regenBtn.className = "msg-action-btn";
+    regenBtn.title = t("actions.regenerate", "Regenerate");
+    regenBtn.innerHTML = "⟳";
+    regenBtn.addEventListener("click", () => {
+      // Find the last user message and resend
+      const lastUserMsg = chatHistory.filter(h => h.role === "user").pop();
+      if (lastUserMsg?.content) {
+        root.utils?.showToast?.(t("messages.regenerating", "重新生成中..."));
+        // Remove the current bot message and regenerate
+        const parentMsg = actions.closest(".message.bot");
+        if (parentMsg) parentMsg.remove();
+        // Trigger resend
+        handleSend(lastUserMsg.content, { regenerate: true });
+      }
+    });
+
+    actions.appendChild(thumbsUp);
+    actions.appendChild(thumbsDown);
+    actions.appendChild(div1);
+    actions.appendChild(copyBtn);
+    actions.appendChild(div2);
+    actions.appendChild(regenBtn);
+
+    return actions;
+  }
+
+  /**
+   * Track feedback for analytics/achievement
+   */
+  function trackFeedback(type, text) {
+    console.log(`[Chat] Feedback: ${type}`, text?.substring(0, 50));
+    if (typeof AchievementEngine !== "undefined") {
+      AchievementEngine.track("chat_feedback", { type, textLength: text?.length || 0 });
+    }
+    // Could send to backend analytics here
   }
 
   function formatNewsResponse(text) {
@@ -486,6 +593,12 @@
       return;
     }
 
+    // Capture the tab ID at the start of streaming
+    const streamingTabId = getActiveTabId();
+
+    // Helper to check if this tab is still active (for DOM updates)
+    const isActiveTab = () => root.chatTabs?.getActiveTab?.()?.id === streamingTabId;
+
     showTyping();
     syncStatusToActiveTab("running");  // Set tab status to running
     let bubble = null;
@@ -507,8 +620,32 @@
     try {
       port = chrome.runtime.connect({ name: "copilot-stream" });
 
+      // Register port with tab for background streaming support
+      if (streamingTabId && root.chatTabs?.setTabStreamingPort) {
+        root.chatTabs.setTabStreamingPort(streamingTabId, port);
+      }
+
       port.onMessage.addListener((msg) => {
         if (msg.type === "STREAM_EVENT") {
+          // Always update tab state (even if not active)
+          if (streamingTabId && root.chatTabs?.setTabStreamingContent) {
+            const evt = msg.data || {};
+            const evtData = evt.data || {};
+            if (evt.type === "assistant.message_delta" && (evtData.deltaContent || evtData.content)) {
+              content += evtData.deltaContent || evtData.content;
+              root.chatTabs.setTabStreamingContent(streamingTabId, content);
+            }
+            if (evt.type === "assistant.message" && evtData.content) {
+              content = evtData.content;
+              root.chatTabs.setTabStreamingContent(streamingTabId, content);
+            }
+          }
+
+          // Only update DOM if this is still the active tab
+          if (!isActiveTab()) {
+            return; // Skip DOM updates for background tabs
+          }
+
           removeTyping();
           if (!bubble) bubble = createStreamingBotMessage();
 
@@ -588,57 +725,92 @@
 
         if (msg.type === "STREAM_DONE") {
           streamDone = true;
-          syncStatusToActiveTab("idle");  // Set tab status back to idle
-          removeTyping();
-          root.panels?.tasks?.stopTaskTimer?.();
-          toolCalls.forEach((tc) => { if (tc.status === "running") { tc.status = "success"; tc.endedAt = Date.now(); } });
-          activeToolCards.forEach((card) => updateToolCallCard(card, "success", t("tasks.done", "完成")));
-          activeToolCards.clear();
-          root.panels?.tasks?.renderTasksList?.();
-          if (!bubble) bubble = createStreamingBotMessage();
-          if (!content) {
-            const final = msg.data?.content || msg.data?.text || "";
-            if (final) {
-              content = formatNewsResponse(final);
+
+          // Update tab state (always, even if not active)
+          if (streamingTabId) {
+            root.chatTabs?.setTabStatus?.(streamingTabId, "idle");
+            root.chatTabs?.setTabStreamingPort?.(streamingTabId, null);
+            root.chatTabs?.setTabStreamingContent?.(streamingTabId, null);
+            // Push final message to tab's chat history
+            const finalContent = content || msg.data?.content || msg.data?.text || "";
+            if (finalContent) {
+              root.chatTabs?.pushChatMessage?.(streamingTabId, { role: "bot", content: formatNewsResponse(finalContent) });
+            }
+          }
+
+          // Only update DOM if this is still the active tab
+          if (isActiveTab()) {
+            removeTyping();
+            root.panels?.tasks?.stopTaskTimer?.();
+            toolCalls.forEach((tc) => { if (tc.status === "running") { tc.status = "success"; tc.endedAt = Date.now(); } });
+            activeToolCards.forEach((card) => updateToolCallCard(card, "success", t("tasks.done", "完成")));
+            activeToolCards.clear();
+            root.panels?.tasks?.renderTasksList?.();
+            if (!bubble) bubble = createStreamingBotMessage();
+            if (!content) {
+              const final = msg.data?.content || msg.data?.text || "";
+              if (final) {
+                content = formatNewsResponse(final);
+                bubble.innerHTML = formatText(content);
+              }
+            } else {
+              content = formatNewsResponse(content);
               bubble.innerHTML = formatText(content);
             }
-          } else {
-            content = formatNewsResponse(content);
-            bubble.innerHTML = formatText(content);
+            const streamEl = document.getElementById("streaming-msg");
+            if (streamEl) streamEl.removeAttribute("id");
+            pushChatHistory({ role: "bot", content });
+            if (intentHideTimer) clearTimeout(intentHideTimer);
+            intentHideTimer = setTimeout(() => hideIntentBar(), 600);
           }
-          const streamEl = document.getElementById("streaming-msg");
-          if (streamEl) streamEl.removeAttribute("id");
-          pushChatHistory({ role: "bot", content });
-          if (intentHideTimer) clearTimeout(intentHideTimer);
-          intentHideTimer = setTimeout(() => hideIntentBar(), 600);
           safeDisconnectPort(port);
         }
 
         if (msg.type === "STREAM_ERROR") {
           streamDone = true;
-          syncStatusToActiveTab("error");  // Set tab status to error
-          removeTyping();
-          root.panels?.tasks?.stopTaskTimer?.();
-          toolCalls.forEach((tc) => { if (tc.status === "running") { tc.status = "error"; tc.endedAt = Date.now(); } });
-          activeToolCards.forEach((card) => updateToolCallCard(card, "error", localizeRuntimeMessage("串流錯誤")));
-          activeToolCards.clear();
-          root.panels?.tasks?.renderTasksList?.();
-          if (!bubble) bubble = createStreamingBotMessage();
-          const errText = msg.error || msg.message || localizeRuntimeMessage("串流錯誤");
-          bubble.innerHTML = `<span style="color:var(--error)">⚠ ${escapeHtml(errText)}</span>`;
-          const streamEl = document.getElementById("streaming-msg");
-          if (streamEl) streamEl.removeAttribute("id");
-          pushChatHistory({ role: "bot", content: errText });
-          if (currentToolCard) updateToolCallCard(currentToolCard, "error", errText);
-          if (intentHideTimer) clearTimeout(intentHideTimer);
-          showIntentBar(localizeRuntimeMessage("回覆失敗"), "⚠️");
-          intentHideTimer = setTimeout(() => hideIntentBar(), 900);
+
+          // Update tab state (always, even if not active)
+          if (streamingTabId) {
+            root.chatTabs?.setTabStatus?.(streamingTabId, "error");
+            root.chatTabs?.setTabStreamingPort?.(streamingTabId, null);
+            root.chatTabs?.setTabStreamingContent?.(streamingTabId, null);
+            // Push error message to tab's chat history
+            const errText = msg.error || msg.message || localizeRuntimeMessage("串流錯誤");
+            root.chatTabs?.pushChatMessage?.(streamingTabId, { role: "bot", content: errText });
+          }
+
+          // Only update DOM if this is still the active tab
+          if (isActiveTab()) {
+            removeTyping();
+            root.panels?.tasks?.stopTaskTimer?.();
+            toolCalls.forEach((tc) => { if (tc.status === "running") { tc.status = "error"; tc.endedAt = Date.now(); } });
+            activeToolCards.forEach((card) => updateToolCallCard(card, "error", localizeRuntimeMessage("串流錯誤")));
+            activeToolCards.clear();
+            root.panels?.tasks?.renderTasksList?.();
+            if (!bubble) bubble = createStreamingBotMessage();
+            const errText = msg.error || msg.message || localizeRuntimeMessage("串流錯誤");
+            bubble.innerHTML = `<span style="color:var(--error)">⚠ ${escapeHtml(errText)}</span>`;
+            const streamEl = document.getElementById("streaming-msg");
+            if (streamEl) streamEl.removeAttribute("id");
+            pushChatHistory({ role: "bot", content: errText });
+            if (currentToolCard) updateToolCallCard(currentToolCard, "error", errText);
+            if (intentHideTimer) clearTimeout(intentHideTimer);
+            showIntentBar(localizeRuntimeMessage("回覆失敗"), "⚠️");
+            intentHideTimer = setTimeout(() => hideIntentBar(), 900);
+          }
           safeDisconnectPort(port);
         }
       });
 
       port.onDisconnect.addListener(() => {
-        if (!streamDone) {
+        // Clean up streaming state
+        if (streamingTabId) {
+          root.chatTabs?.setTabStreamingPort?.(streamingTabId, null);
+          if (!streamDone) {
+            root.chatTabs?.setTabStatus?.(streamingTabId, "idle");
+          }
+        }
+        if (!streamDone && isActiveTab()) {
           removeTyping();
           if (!content) fallbackSend(text);
         }

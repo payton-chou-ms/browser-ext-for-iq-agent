@@ -37,10 +37,80 @@
     if (chatMessages) chatMessages.scrollTop = chatMessages.scrollHeight;
   }
 
-  function formatText(text) {
-    return text
+  function formatInlineMarkdown(line) {
+    return line
       .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
-      .replace(/\n/g, "<br>");
+      .replace(/`([^`]+)`/g, "<code>$1</code>");
+  }
+
+  function formatText(text) {
+    const safeText = escapeHtml(String(text ?? ""));
+    const lines = safeText.split("\n");
+    const html = [];
+
+    let inUnorderedList = false;
+    let inOrderedList = false;
+
+    const closeLists = () => {
+      if (inUnorderedList) {
+        html.push("</ul>");
+        inUnorderedList = false;
+      }
+      if (inOrderedList) {
+        html.push("</ol>");
+        inOrderedList = false;
+      }
+    };
+
+    for (const rawLine of lines) {
+      const line = rawLine.trim();
+      const bulletMatch = line.match(/^[-*]\s+(.+)$/);
+      const orderedMatch = line.match(/^\d+\.\s+(.+)$/);
+
+      if (bulletMatch) {
+        if (inOrderedList) {
+          html.push("</ol>");
+          inOrderedList = false;
+        }
+        if (!inUnorderedList) {
+          html.push("<ul>");
+          inUnorderedList = true;
+        }
+        html.push(`<li>${formatInlineMarkdown(bulletMatch[1])}</li>`);
+        continue;
+      }
+
+      if (orderedMatch) {
+        if (inUnorderedList) {
+          html.push("</ul>");
+          inUnorderedList = false;
+        }
+        if (!inOrderedList) {
+          html.push("<ol>");
+          inOrderedList = true;
+        }
+        html.push(`<li>${formatInlineMarkdown(orderedMatch[1])}</li>`);
+        continue;
+      }
+
+      closeLists();
+
+      if (!line) {
+        html.push("<br>");
+        continue;
+      }
+
+      html.push(formatInlineMarkdown(rawLine));
+      html.push("<br>");
+    }
+
+    closeLists();
+
+    if (html[html.length - 1] === "<br>") {
+      html.pop();
+    }
+
+    return html.join("");
   }
 
   function formatTokenCount(n) {

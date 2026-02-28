@@ -51,7 +51,7 @@ describe("proxy body helpers", () => {
   });
 
   test("readJsonBody returns 413 when JSON body exceeds size guard", async () => {
-    const req = createReq(["x".repeat(2 * 1024 * 1024 + 1)]);
+    const req = createReq(["x".repeat(10 * 1024 * 1024 + 1)]);
     const res = {} as any;
     const jsonRes = vi.fn();
 

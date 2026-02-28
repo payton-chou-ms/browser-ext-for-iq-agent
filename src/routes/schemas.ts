@@ -4,8 +4,8 @@ const AttachmentSchema = z.object({
   name: z.string().min(1),
   type: z.string().optional().default(""),
   size: z.number().int().nonnegative().optional(),
-  dataUrl: z.string().optional(),
-  textContent: z.string().optional(),
+  dataUrl: z.string().nullish(),
+  textContent: z.string().nullish(),
   isImage: z.boolean().optional(),
 });
 

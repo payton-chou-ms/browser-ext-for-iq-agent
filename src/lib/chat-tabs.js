@@ -30,8 +30,14 @@
       },
       createdAt: new Date().toISOString(),
       lastActiveAt: new Date().toISOString(),
+      // Streaming state (not persisted)
+      streamingContent: null, // Partial content during streaming
+      streamingPort: null, // Chrome port for streaming (not serialized)
     };
   }
+
+  // ── Per-tab Streaming Port Registry (in-memory only) ──
+  const tabStreamingPorts = new Map();
 
   // ── State ──
   let tabs = [];
@@ -326,6 +332,43 @@
     return MAX_TABS;
   }
 
+  // ── Streaming Port Management ──
+  function setTabStreamingPort(tabId, port) {
+    if (port) {
+      tabStreamingPorts.set(tabId, port);
+    } else {
+      tabStreamingPorts.delete(tabId);
+    }
+  }
+
+  function getTabStreamingPort(tabId) {
+    return tabStreamingPorts.get(tabId) || null;
+  }
+
+  function cancelTabStreaming(tabId) {
+    const port = tabStreamingPorts.get(tabId);
+    if (port) {
+      try { port.disconnect(); } catch { /* ignore */ }
+      tabStreamingPorts.delete(tabId);
+    }
+    // Reset streaming state
+    updateTab(tabId, { streamingContent: null, status: "idle" });
+  }
+
+  function setTabStreamingContent(tabId, content) {
+    const idx = tabs.findIndex((t) => t.id === tabId);
+    if (idx === -1) return null;
+    // Direct mutation for performance (streaming updates are frequent)
+    tabs[idx].streamingContent = content;
+    // No save/emit for streaming content - it's transient
+    return tabs[idx];
+  }
+
+  function getTabStreamingContent(tabId) {
+    const tab = getTab(tabId);
+    return tab?.streamingContent || null;
+  }
+
   // ── Init ──
   async function init() {
     if (initialized) return;
@@ -358,6 +401,13 @@
     updateToolCall,
     clearToolCalls,
     updateTokenDetails,
+
+    // Streaming management
+    setTabStreamingPort,
+    getTabStreamingPort,
+    cancelTabStreaming,
+    setTabStreamingContent,
+    getTabStreamingContent,
 
     // Aggregates
     getTotalTokenDetails,

@@ -8,7 +8,7 @@ const args = process.argv.slice(2);
 const noBuild = args.includes("--no-build");
 
 const distProxyPath = path.resolve("dist/proxy.js");
-const sourceProxyPath = path.resolve("proxy.ts");
+const sourceProxyPath = path.resolve("src/proxy.ts");
 
 function shouldBuild() {
   if (noBuild) return false;
@@ -24,7 +24,7 @@ function shouldBuild() {
 
 if (shouldBuild()) {
   console.log("[proxy-launcher] Building TypeScript proxy...");
-  const build = spawnSync(process.execPath, ["scripts/build.mjs"], {
+  const build = spawnSync(process.execPath, ["src/scripts/build.mjs"], {
     stdio: "inherit",
     env: process.env,
   });
@@ -38,4 +38,4 @@ if (shouldBuild()) {
   console.log("[proxy-launcher] Skipping build (dist/proxy.js is up to date).");
 }
 
-await import("./dist/proxy.js");
+await import("../dist/proxy.js");

@@ -764,18 +764,30 @@
   <!-- Toast container -->
   <div id="toast-container"></div>
 
-  <!-- Tool Call Card Template (Enhanced) -->
+  <!-- Tool Call Card Template (VS Code Copilot Chat Style) -->
   <div id="tool-call-template" style="display:none">
     <div class="tool-call-card">
       <div class="tool-call-header" onclick="this.parentElement.classList.toggle('expanded')">
-        <span class="tool-call-icon">🔧</span>
+        <span class="tool-call-spinner">
+          <svg class="spinner-ring" width="14" height="14" viewBox="0 0 16 16">
+            <circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="2" stroke-dasharray="28" stroke-dashoffset="8" stroke-linecap="round"/>
+          </svg>
+        </span>
+        <span class="tool-call-check">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+            <path d="M13.78 4.22a.75.75 0 010 1.06l-7.25 7.25a.75.75 0 01-1.06 0L2.22 9.28a.75.75 0 011.06-1.06L6 10.94l6.72-6.72a.75.75 0 011.06 0z"/>
+          </svg>
+        </span>
+        <span class="tool-call-error">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+            <path d="M3.72 3.72a.75.75 0 011.06 0L8 6.94l3.22-3.22a.75.75 0 111.06 1.06L9.06 8l3.22 3.22a.75.75 0 11-1.06 1.06L8 9.06l-3.22 3.22a.75.75 0 01-1.06-1.06L6.94 8 3.72 4.78a.75.75 0 010-1.06z"/>
+          </svg>
+        </span>
+        <span class="tool-call-icon">🛠️</span>
         <span class="tool-call-name"></span>
         <span class="tool-call-timer">0.0s</span>
         <span class="tool-call-status"></span>
-        <svg class="tool-call-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
-      </div>
-      <div class="tool-call-progress">
-        <div class="tool-call-progress-bar"></div>
+        <svg class="tool-call-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
       </div>
       <div class="tool-call-body">
         <div class="tool-call-section">
