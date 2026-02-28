@@ -26,3 +26,6 @@ build/
 # Test artifacts
 playwright-report/
 test-results/
+
+plan/challenge-analysis.md
+docs/challenge-analysis.md

@@ -1,0 +1,88 @@
+{
+  "$schema": "https://raw.githubusercontent.com/modelcontextprotocol/servers/main/schema/mcp.schema.json",
+  "name": "iq-copilot-proxy",
+  "version": "1.0.0",
+  "description": "IQ Copilot Browser Extension Proxy Server - bridges Chrome Extension to Copilot CLI",
+  "server": {
+    "command": "node",
+    "args": ["dist/proxy.js"],
+    "env": {
+      "PORT": "8321",
+      "NODE_ENV": "production"
+    }
+  },
+  "tools": [
+    {
+      "name": "proactive_scan",
+      "description": "Scan current page content and provide AI suggestions",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "content": {
+            "type": "string",
+            "description": "Page content to analyze"
+          },
+          "url": {
+            "type": "string",
+            "description": "Current page URL"
+          }
+        },
+        "required": ["content"]
+      }
+    },
+    {
+      "name": "foundry_execute",
+      "description": "Execute a Microsoft Foundry skill",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "skillName": {
+            "type": "string",
+            "description": "Name of the Foundry skill to execute"
+          },
+          "parameters": {
+            "type": "object",
+            "description": "Parameters to pass to the skill"
+          }
+        },
+        "required": ["skillName"]
+      }
+    }
+  ],
+  "resources": [
+    {
+      "name": "chat_history",
+      "description": "Current chat session history",
+      "mimeType": "application/json"
+    },
+    {
+      "name": "page_context",
+      "description": "Current browser page context",
+      "mimeType": "text/plain"
+    }
+  ],
+  "prompts": [
+    {
+      "name": "summarize_page",
+      "description": "Summarize the current page content",
+      "arguments": [
+        {
+          "name": "length",
+          "description": "Summary length: short, medium, or long",
+          "required": false
+        }
+      ]
+    },
+    {
+      "name": "analyze_code",
+      "description": "Analyze code on the current page",
+      "arguments": [
+        {
+          "name": "focus",
+          "description": "Focus area: security, performance, or style",
+          "required": false
+        }
+      ]
+    }
+  ]
+}

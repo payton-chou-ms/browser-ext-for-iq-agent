@@ -1,7 +1,7 @@
 # IQ Copilot — Runtime 優化計畫
 
 > 建立：2026-02-27
-> 最後更新：2026-02-27
+> 最後更新：2026-02-28
 
 ---
 
@@ -60,12 +60,123 @@
 
 ---
 
-## 目前執行順序（review 後）
+## 🚀 新增優化建議（2026-02-28）
+
+### 🟡 P2 — 新增項目
+
+| ID | 問題 | 預估效益 | 實作方案 |
+|----|------|----------|----------|
+| P2-11 | **Chat Tabs 頻繁寫入** | 減少 80% storage writes | `saveTabs()` 每次 updateTab 都觸發，改用 debounce 500ms |
+| P2-12 | **Streaming DOM 全量更新** | 減少 50% reflow | `bubble.innerHTML = formatText(content)` 改用 diff 或 patch |
+| P2-13 | **formatText 主線程阻塞** | 減少 UI Jank | Markdown/code parsing 移至 Web Worker |
+
+### 🔵 P3 — 新增項目
+
+| ID | 問題 | 預估效益 | 實作方案 |
+|----|------|----------|----------|
+| P3-8 | **多 Tab 全量記憶體佔用** | 減少 60% 記憶體 | 非活躍 tab 的 chatHistory lazy load，只保留 metadata |
+| P3-9 | **長對話 DOM 效能** | 減少滾動卡頓 | Virtual scrolling（只渲染可視區域訊息） |
+| P3-10 | **大 chatHistory 儲存** | 擴充容量 10x | 改用 IndexedDB（chrome.storage.local 限制 5MB） |
+| P3-11 | **Skills 重複載入** | 減少 API calls | Skills 加長 cache TTL 至 30 分鐘（少變動） |
+| P3-12 | **首屏連線等待** | 感知速度提升 | Preconnect hint + 樂觀 UI（先顯示載入中） |
+| P3-13 | **Tab 切換閃爍** | 改善 UX | 使用 `requestAnimationFrame` batch DOM updates |
+
+---
+
+### P2-11：Chat Tabs Storage Debounce
+
+**問題分析**：
+```javascript
+// 目前：每次 updateTab 都立即呼叫 saveTabs()
+function updateTab(tabId, updates) {
+  // ...
+  saveTabs();  // ← 頻繁觸發（typing 時每秒數十次）
+}
+```
+
+**修復方案**：
+```javascript
+let saveTabsTimer = null;
+function debouncedSaveTabs() {
+  if (saveTabsTimer) clearTimeout(saveTabsTimer);
+  saveTabsTimer = setTimeout(() => {
+    saveTabs();
+    saveTabsTimer = null;
+  }, 500);  // 500ms debounce
+}
+```
+
+**影響範圍**：`lib/chat-tabs.js`
+
+---
+
+### P2-12：Streaming DOM Patch
+
+**問題分析**：
+```javascript
+// 目前：每次 delta 都重建整個 bubble innerHTML
+bubble.innerHTML = formatText(content);  // 觸發 layout thrashing
+```
+
+**修復方案**：
+1. 使用 `morphdom` 或 `diffDOM` 進行 DOM diff
+2. 或採用 text node append 方式處理純文字串流
+3. 對 code block 採用 incremental syntax highlighting
+
+---
+
+### P3-8：Tab Lazy Loading
+
+**問題分析**：
+10 個 tab，每個 100 條訊息 = 1000 條訊息常駐記憶體
+
+**修復方案**：
+```typescript
+interface ChatTabCompact {
+  id: string;
+  sessionId: string | null;
+  title: string;
+  model: string | null;
+  messageCount: number;     // 只存數量
+  lastMessage?: string;     // 預覽用
+  // chatHistory 不載入，切換時 lazy load
+}
+```
+
+---
+
+### P3-9：Virtual Scrolling
+
+**問題分析**：
+長對話（100+ 訊息）會導致 DOM 節點過多，滾動卡頓
+
+**修復方案**：
+- 採用 `@tanstack/virtual` 或手動實作
+- 只渲染可視區域 ±2 倍高度的訊息
+- 維持滾動位置與動態高度計算
+
+---
+
+## 優化優先順序建議
 
 ```
-P0-2（idle storm 驗收封板）
-→ P2-7/P2-8/P2-9/P2-10（觀測與必要調整）
-→ P3-6/P3-7（batch RPC + lazy init）
+Phase 1（穩定性）
+├── P0-2 驗收封板
+
+Phase 2（Quick Wins，1-2 天）
+├── P2-11 Chat Tabs Debounce（簡單，高回報）
+├── P2-7/P2-8/P2-9/P2-10 觀測
+
+Phase 3（Mid-term，3-5 天）
+├── P2-12 Streaming DOM Patch
+├── P2-13 Web Worker formatText
+├── P3-11 Skills Cache 延長
+
+Phase 4（Long-term）
+├── P3-8 Tab Lazy Load
+├── P3-9 Virtual Scrolling
+├── P3-10 IndexedDB Migration
+├── P3-6/P3-7 RPC Batch + Lazy Init
 ```
 
 ---
