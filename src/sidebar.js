@@ -873,6 +873,241 @@
     closeCommandMenu();
   });
 
+  // ===== Quick Prompts Feature =====
+  const QUICK_PROMPTS_STORAGE_KEY = "iq_quick_prompts";
+  const btnQuickPrompts = document.getElementById("btn-quick-prompts");
+  const quickPromptsPopup = document.getElementById("quick-prompts-popup");
+  const quickPromptsList = document.getElementById("quick-prompts-list");
+  const quickPromptsEmpty = document.getElementById("quick-prompts-empty");
+  const btnAddPrompt = document.getElementById("btn-add-prompt");
+  let quickPromptsOpen = false;
+  let quickPrompts = [];
+
+  // Debug: verify elements found
+  console.log("[QuickPrompts] Init:", { 
+    btnQuickPrompts: !!btnQuickPrompts, 
+    quickPromptsPopup: !!quickPromptsPopup,
+    quickPromptsList: !!quickPromptsList,
+    btnAddPrompt: !!btnAddPrompt
+  });
+
+  // Load quick prompts from storage
+  async function loadQuickPrompts() {
+    try {
+      if (typeof chrome !== "undefined" && chrome.storage?.local) {
+        const data = await chrome.storage.local.get(QUICK_PROMPTS_STORAGE_KEY);
+        quickPrompts = data[QUICK_PROMPTS_STORAGE_KEY] || [];
+      } else {
+        const raw = localStorage.getItem(QUICK_PROMPTS_STORAGE_KEY);
+        quickPrompts = raw ? JSON.parse(raw) : [];
+      }
+    } catch (e) {
+      console.error("[QuickPrompts] loadQuickPrompts error:", e);
+      quickPrompts = [];
+    }
+  }
+
+  // Save quick prompts to storage
+  async function saveQuickPrompts() {
+    try {
+      if (typeof chrome !== "undefined" && chrome.storage?.local) {
+        await chrome.storage.local.set({ [QUICK_PROMPTS_STORAGE_KEY]: quickPrompts });
+      } else {
+        localStorage.setItem(QUICK_PROMPTS_STORAGE_KEY, JSON.stringify(quickPrompts));
+      }
+    } catch (e) {
+      console.error("[QuickPrompts] saveQuickPrompts error:", e);
+    }
+  }
+
+  // Render quick prompts list
+  function renderQuickPrompts() {
+    if (!quickPromptsList || !quickPromptsEmpty) return;
+
+    if (quickPrompts.length === 0) {
+      quickPromptsList.style.display = "none";
+      quickPromptsEmpty.style.display = "flex";
+      return;
+    }
+
+    quickPromptsEmpty.style.display = "none";
+    quickPromptsList.style.display = "block";
+
+    quickPromptsList.innerHTML = quickPrompts.map((p, index) => `
+      <div class="quick-prompt-item" data-index="${index}">
+        <span class="prompt-icon">${escapeHtml(p.icon || "📝")}</span>
+        <div class="prompt-content">
+          <div class="prompt-title">${escapeHtml(p.title)}</div>
+          <div class="prompt-preview">${escapeHtml(p.prompt.slice(0, 50))}${p.prompt.length > 50 ? "..." : ""}</div>
+        </div>
+        <button class="prompt-delete" data-index="${index}" title="刪除">✕</button>
+      </div>
+    `).join("");
+  }
+
+  // Open quick prompts popup
+  function openQuickPromptsPopup() {
+    if (!quickPromptsPopup || !btnQuickPrompts) return;
+    renderQuickPrompts();
+
+    // Position popup above the button
+    const btnRect = btnQuickPrompts.getBoundingClientRect();
+    quickPromptsPopup.style.left = `${btnRect.left}px`;
+    quickPromptsPopup.style.bottom = `${window.innerHeight - btnRect.top + 8}px`;
+
+    quickPromptsPopup.style.display = "flex";
+    quickPromptsOpen = true;
+  }
+
+  // Close quick prompts popup
+  function closeQuickPromptsPopup() {
+    if (!quickPromptsPopup) return;
+    quickPromptsPopup.style.display = "none";
+    quickPromptsOpen = false;
+  }
+
+  // Toggle quick prompts popup
+  btnQuickPrompts?.addEventListener("click", (e) => {
+    console.log("[QuickPrompts] Button clicked, quickPromptsOpen:", quickPromptsOpen);
+    e.preventDefault();
+    e.stopPropagation();
+    if (quickPromptsOpen) {
+      closeQuickPromptsPopup();
+    } else {
+      openQuickPromptsPopup();
+    }
+  });
+
+  // Handle quick prompt item click
+  quickPromptsList?.addEventListener("click", (e) => {
+    const deleteBtn = e.target.closest(".prompt-delete");
+    if (deleteBtn) {
+      e.stopPropagation();
+      const index = parseInt(deleteBtn.dataset.index, 10);
+      if (!isNaN(index) && index >= 0 && index < quickPrompts.length) {
+        quickPrompts.splice(index, 1);
+        saveQuickPrompts();
+        renderQuickPrompts();
+        UTILS.showToast?.(localizeRuntimeMessage("提示已刪除"));
+      }
+      return;
+    }
+
+    const item = e.target.closest(".quick-prompt-item");
+    if (item) {
+      const index = parseInt(item.dataset.index, 10);
+      if (!isNaN(index) && index >= 0 && index < quickPrompts.length) {
+        const prompt = quickPrompts[index];
+        if (chatInput) {
+          chatInput.value = prompt.prompt;
+          chatInput.focus();
+          // Adjust textarea height
+          chatInput.style.height = "auto";
+          chatInput.style.height = Math.min(chatInput.scrollHeight, 120) + "px";
+        }
+        closeQuickPromptsPopup();
+      }
+    }
+  });
+
+  // Show add prompt modal
+  function showAddPromptModal() {
+    const modal = document.createElement("div");
+    modal.className = "quick-prompt-modal";
+    modal.innerHTML = `
+      <div class="quick-prompt-modal-content">
+        <h3>⭐ 新增常用提示</h3>
+        <input type="text" id="prompt-title-input" placeholder="標題 (例如：翻譯成中文)" maxlength="50">
+        <textarea id="prompt-content-input" placeholder="提示內容 (例如：請將以下內容翻譯成繁體中文...)"></textarea>
+        <div class="quick-prompt-modal-actions">
+          <button class="btn-cancel">取消</button>
+          <button class="btn-save">儲存</button>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(modal);
+
+    const titleInput = modal.querySelector("#prompt-title-input");
+    const contentInput = modal.querySelector("#prompt-content-input");
+    const cancelBtn = modal.querySelector(".btn-cancel");
+    const saveBtn = modal.querySelector(".btn-save");
+
+    // If there's text in chat input, use it as default content
+    if (chatInput?.value?.trim()) {
+      contentInput.value = chatInput.value.trim();
+    }
+
+    titleInput?.focus();
+
+    cancelBtn?.addEventListener("click", () => {
+      modal.remove();
+    });
+
+    saveBtn?.addEventListener("click", () => {
+      const title = titleInput?.value?.trim();
+      const prompt = contentInput?.value?.trim();
+
+      if (!title) {
+        UTILS.showToast?.(localizeRuntimeMessage("請輸入標題"), "error");
+        titleInput?.focus();
+        return;
+      }
+      if (!prompt) {
+        UTILS.showToast?.(localizeRuntimeMessage("請輸入提示內容"), "error");
+        contentInput?.focus();
+        return;
+      }
+
+      quickPrompts.push({
+        id: `qp-${Date.now()}`,
+        title,
+        prompt,
+        icon: "📝",
+        createdAt: new Date().toISOString(),
+      });
+
+      saveQuickPrompts();
+      renderQuickPrompts();
+      modal.remove();
+      UTILS.showToast?.(localizeRuntimeMessage("提示已儲存"));
+    });
+
+    // Close on backdrop click
+    modal.addEventListener("click", (e) => {
+      if (e.target === modal) {
+        modal.remove();
+      }
+    });
+
+    // Close on Escape
+    const handleEscape = (e) => {
+      if (e.key === "Escape") {
+        modal.remove();
+        document.removeEventListener("keydown", handleEscape);
+      }
+    };
+    document.addEventListener("keydown", handleEscape);
+  }
+
+  btnAddPrompt?.addEventListener("click", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    showAddPromptModal();
+  });
+
+  // Close popup when clicking outside
+  document.addEventListener("click", (event) => {
+    if (!quickPromptsOpen) return;
+    const target = event.target;
+    if (!(target instanceof Node)) return;
+    if (quickPromptsPopup?.contains(target) || btnQuickPrompts?.contains(target)) return;
+    closeQuickPromptsPopup();
+  });
+
+  // Initialize quick prompts
+  loadQuickPrompts();
+
   function startNewChat() {
     switchPanel("chat");
     if (chatMessages) chatMessages.innerHTML = "";

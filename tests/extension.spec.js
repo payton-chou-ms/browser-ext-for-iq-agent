@@ -39,7 +39,7 @@ test.describe('Extension Sidebar', () => {
     console.log(`Extension ID: ${extensionId}`);
 
     page = await context.newPage();
-    await page.goto(`chrome-extension://${extensionId}/sidebar.html`);
+    await page.goto(`chrome-extension://${extensionId}/src/sidebar.html`);
   });
 
   test.afterEach(async () => {

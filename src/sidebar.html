@@ -133,12 +133,29 @@
             <button class="input-action-btn" id="btn-command-menu" title="命令選單">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 12h16M4 18h10"/></svg>
             </button>
+            <button class="input-action-btn" id="btn-quick-prompts" title="常用提示">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+            </button>
             <textarea id="chat-input" placeholder="輸入訊息... (Ctrl+Enter 送出)" rows="1"></textarea>
             <button class="send-btn" id="btn-send" title="送出">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
             </button>
           </div>
           <div class="command-menu" id="command-menu" role="listbox" aria-label="命令選單" style="display:none"></div>
+          <!-- Quick Prompts Popup -->
+          <div class="quick-prompts-popup" id="quick-prompts-popup" style="display:none">
+            <div class="quick-prompts-header">
+              <span>⭐ 常用提示</span>
+              <button class="quick-prompts-add" id="btn-add-prompt" title="新增提示">+</button>
+            </div>
+            <div class="quick-prompts-list" id="quick-prompts-list">
+              <!-- Prompts will be rendered here -->
+            </div>
+            <div class="quick-prompts-empty" id="quick-prompts-empty">
+              <span>尚無常用提示</span>
+              <small>點擊 + 新增</small>
+            </div>
+          </div>
           <input type="file" id="file-input" multiple hidden accept=".txt,.md,.json,.js,.ts,.jsx,.tsx,.py,.html,.css,.csv,.xml,.yaml,.yml,.toml,.sh,.bash,.log,.pdf,.png,.jpg,.jpeg,.gif,.webp,.svg">
           <div class="chat-input-hint">
             <span>IQ Copilot · 按 <kbd>Enter</kbd> 送出（<kbd>Shift+Enter</kbd> 換行）· 📎 拖放或點擊附加檔案</span>
