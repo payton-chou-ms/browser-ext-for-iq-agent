@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, test } from "vitest";
 
-import "../../achievement-engine.ts";
+import "../../src/achievement-engine.ts";
 
 type Engine = {
   init: () => Promise<unknown>;

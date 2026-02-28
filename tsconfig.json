@@ -14,10 +14,11 @@
     "types": ["node"]
   },
   "include": [
-    "proxy.ts",
-    "achievement-engine.ts",
-    "shared/**/*.ts",
-    "routes/**/*.ts"
+    "src/proxy.ts",
+    "src/achievement-engine.ts",
+    "src/shared/**/*.ts",
+    "src/routes/**/*.ts",
+    "src/lib/**/*.ts"
   ],
   "exclude": [
     "node_modules",

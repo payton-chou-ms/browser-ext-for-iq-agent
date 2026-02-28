@@ -1,8 +1,8 @@
 import { describe, expect, test, vi } from "vitest";
 
-import { registerProactiveRoutes } from "../../routes/proactive";
-import { registerSessionRoutes } from "../../routes/session";
-import type { RouteTable } from "../../shared/types";
+import { registerProactiveRoutes } from "../../src/routes/proactive";
+import { registerSessionRoutes } from "../../src/routes/session";
+import type { RouteTable } from "../../src/shared/types";
 
 type CapturedResponse = {
   status?: number;

@@ -1,7 +1,7 @@
 import { describe, expect, test, vi } from "vitest";
 
-import { registerCoreRoutes } from "../../routes/core";
-import type { CoreRouteDeps, RouteTable } from "../../shared/types";
+import { registerCoreRoutes } from "../../src/routes/core";
+import type { CoreRouteDeps, RouteTable } from "../../src/shared/types";
 
 type Captured = { status?: number; body?: unknown };
 

@@ -9,7 +9,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const root = path.resolve(__dirname, '..');
+const root = path.resolve(__dirname, '../..');
 
 const pkgPath = path.join(root, 'package.json');
 const manifestPath = path.join(root, 'manifest.json');

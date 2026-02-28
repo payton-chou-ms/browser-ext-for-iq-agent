@@ -1,8 +1,8 @@
 import { EventEmitter } from "node:events";
 import { describe, expect, test, vi } from "vitest";
 
-import { registerSessionRoutes } from "../../routes/session";
-import type { RouteTable } from "../../shared/types";
+import { registerSessionRoutes } from "../../src/routes/session";
+import type { RouteTable } from "../../src/shared/types";
 
 function createReq() {
   const req = new EventEmitter() as any;

@@ -14,7 +14,7 @@ const common = {
 
 const proxyBuild = {
   ...common,
-  entryPoints: ["proxy.ts"],
+  entryPoints: ["src/proxy.ts"],
   outfile: "dist/proxy.js",
   minify: false,
   banner: { js: "#!/usr/bin/env node" },
@@ -28,8 +28,8 @@ const achievementBuild = {
   target: "es2020",
   sourcemap: true,
   legalComments: "none",
-  entryPoints: ["achievement-engine.ts"],
-  outfile: "achievement-engine.js",
+  entryPoints: ["src/achievement-engine.ts"],
+  outfile: "src/achievement-engine.js",
   minify: false,
 };
 

@@ -47,10 +47,15 @@ flowchart LR
 ## Project Structure
 
 ```
-├── docs/              # 完整文件 (README, architecture, RAI)
-├── lib/               # 共用模組
-│   └── panels/        # UI 面板模組
-├── routes/            # Proxy API 路由
+├── src/               # 源代碼
+│   ├── sidebar.*      # Extension UI
+│   ├── background.js  # Service Worker
+│   ├── proxy.ts       # Local API gateway
+│   ├── lib/           # 共用模組
+│   │   └── panels/    # UI 面板模組
+│   ├── routes/        # Proxy API 路由
+│   └── scripts/       # Build scripts
+├── docs/              # 完整文件
 ├── tests/             # 測試檔案
 ├── presentations/     # Demo 簡報
 ├── AGENTS.md          # Agent 開發指引

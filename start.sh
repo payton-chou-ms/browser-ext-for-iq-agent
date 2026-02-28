@@ -136,8 +136,8 @@ fi
 ok "${P_CLI} Copilot CLI ready (PID $CLI_PID, port $CLI_PORT)"
 
 # 3) Start HTTP proxy
-log "${P_PROXY} Starting node proxy.js --cli-port $CLI_PORT --http-port $HTTP_PORT"
-node proxy.js --cli-port "$CLI_PORT" --http-port "$HTTP_PORT" > >(
+log "${P_PROXY} Starting node src/proxy.js --cli-port $CLI_PORT --http-port $HTTP_PORT"
+node src/proxy.js --cli-port "$CLI_PORT" --http-port "$HTTP_PORT" > >(
   while IFS= read -r line; do
     echo -e "${DIM}[$(ts)]${NC} ${P_PROXY} $line"
   done
@@ -231,7 +231,7 @@ while true; do
     fi
     log "${P_PROXY} ⚠ Proxy died (attempt $PROXY_RESTART_COUNT/$MAX_PROXY_RESTARTS). Restarting..."
     sleep 2
-    node proxy.js --cli-port "$CLI_PORT" --http-port "$HTTP_PORT" > >(
+    node src/proxy.js --cli-port "$CLI_PORT" --http-port "$HTTP_PORT" > >(
       while IFS= read -r line; do
         echo -e "${DIM}[$(ts)]${NC} ${P_PROXY} $line"
       done

@@ -142,10 +142,10 @@ flowchart TB
 
 | 元件 | 檔案 | 職責 |
 |------|------|------|
-| **Sidebar UI** | `sidebar.*`, `lib/*` | 使用者介面、聊天、面板管理 |
-| **Service Worker** | `background.js` | 訊息路由、串流橋接 |
-| **Content Script** | `content_script.js` | 頁面上下文擷取 |
-| **Proxy Server** | `proxy.ts`, `routes/*` | API 閘道、認證、SSE 串流 |
+| **Sidebar UI** | `src/sidebar.*`, `src/lib/*` | 使用者介面、聊天、面板管理 |
+| **Service Worker** | `src/background.js` | 訊息路由、串流橋接 |
+| **Content Script** | `src/content_script.js` | 頁面上下文擷取 |
+| **Proxy Server** | `src/proxy.ts`, `src/routes/*` | API 閘道、認證、SSE 串流 |
 | **Copilot SDK** | `@github/copilot-sdk` | CLI 通訊協定 |
 
 詳細架構說明：[architecture.md](./architecture.md)

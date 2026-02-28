@@ -1,7 +1,7 @@
 import { describe, expect, test, vi } from "vitest";
 
-import { registerFoundryRoutes } from "../../routes/foundry";
-import type { RouteTable } from "../../shared/types";
+import { registerFoundryRoutes } from "../../src/routes/foundry";
+import type { RouteTable } from "../../src/shared/types";
 
 type Captured = { status?: number; body?: unknown };
 

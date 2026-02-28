@@ -13,7 +13,7 @@
     "default_title": "開啟 IQ Copilot"
   },
   "side_panel": {
-    "default_path": "sidebar.html"
+    "default_path": "src/sidebar.html"
   },
   "permissions": [
     "activeTab",
@@ -27,7 +27,7 @@
     "http://127.0.0.1/*"
   ],
   "background": {
-    "service_worker": "background.js"
+    "service_worker": "src/background.js"
   },
   "content_scripts": [
     {
@@ -37,7 +37,7 @@
       ],
       "run_at": "document_idle",
       "js": [
-        "content_script.js"
+        "src/content_script.js"
       ]
     }
   ]

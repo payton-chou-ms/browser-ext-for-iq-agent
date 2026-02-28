@@ -2,9 +2,9 @@ import { beforeAll, beforeEach, describe, expect, test } from "vitest";
 
 beforeAll(async () => {
   window.IQ = {};
-  await import("../../lib/state.js");
-  await import("../../lib/i18n.js");
-  await import("../../lib/utils.js");
+  await import("../../src/lib/state.js");
+  await import("../../src/lib/i18n.js");
+  await import("../../src/lib/utils.js");
 });
 
 describe("utils", () => {

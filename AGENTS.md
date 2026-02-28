@@ -25,12 +25,12 @@ Chrome Extension (MV3)
 
 | Path | Purpose |
 |------|---------|
-| `sidebar.js` | Main UI controller |
-| `background.js` | Extension service worker |
-| `proxy.ts` | Local API gateway |
-| `routes/*.ts` | Modular API routes |
-| `lib/*.js` | Shared utilities |
-| `lib/panels/*.js` | UI panel modules |
+| `src/sidebar.js` | Main UI controller |
+| `src/background.js` | Extension service worker |
+| `src/proxy.ts` | Local API gateway |
+| `src/routes/*.ts` | Modular API routes |
+| `src/lib/*.js` | Shared utilities |
+| `src/lib/panels/*.js` | UI panel modules |
 
 ## Development Commands
 
@@ -70,21 +70,21 @@ npm run build
 ## Common Tasks
 
 ### Adding a New Panel
-1. Create `lib/panels/new-panel.js`
-2. Add panel button in `sidebar.html`
-3. Register in `sidebar.js` panel system
+1. Create `src/lib/panels/new-panel.js`
+2. Add panel button in `src/sidebar.html`
+3. Register in `src/sidebar.js` panel system
 4. Add i18n keys if needed
 
 ### Adding a New Route
-1. Create handler in `routes/`
-2. Register in `proxy.ts` router
-3. Add Zod schema in `routes/schemas.ts`
+1. Create handler in `src/routes/`
+2. Register in `src/proxy.ts` router
+3. Add Zod schema in `src/routes/schemas.ts`
 4. Add unit tests
 
 ### Modifying Chat Behavior
-- Streaming logic: `lib/chat-streaming.js`
-- Tab management: `lib/chat-tabs.js`
-- History: `lib/chat-session.js`
+- Streaming logic: `src/lib/chat-streaming.js`
+- Tab management: `src/lib/chat-tabs.js`
+- History: `src/lib/chat-session.js`
 
 ## Security Notes
 

@@ -1,7 +1,7 @@
 import { EventEmitter } from "node:events";
 import { describe, expect, test, vi } from "vitest";
 
-import { readBody, readJsonBody } from "../../lib/proxy-body";
+import { readBody, readJsonBody } from "../../src/lib/proxy-body";
 
 function createReq(chunks: string[] = []) {
   const req = new EventEmitter() as any;
