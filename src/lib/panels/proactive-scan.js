@@ -336,8 +336,9 @@
         utils.showToast?.("已新增查詢排程小卡");
         const newCardId = res?.card?.id;
         if (newCardId) {
-          const safeCardId = String(newCardId).replace(/"/g, "\\\"");
-          const newCardEl = document.querySelector(`.proactive-schedule-card[data-card-id="${safeCardId}"]`);
+          const newCardIdStr = String(newCardId);
+          const newCardEl = Array.from(document.querySelectorAll(".proactive-schedule-card"))
+            .find((el) => el instanceof HTMLElement && el.dataset.cardId === newCardIdStr);
           if (newCardEl instanceof HTMLElement) {
             setScheduleCardEditorExpanded(newCardEl, true);
             newCardEl.scrollIntoView({ block: "nearest", behavior: "smooth" });
