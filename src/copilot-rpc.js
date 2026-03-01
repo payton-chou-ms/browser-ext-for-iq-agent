@@ -15,6 +15,45 @@ const COPILOT_RPC = (() => {
 
   const MAX_LOG_CHARS = 2048;
 
+  function redactSensitive(value) {
+    try {
+      if (value === null || typeof value !== "object") {
+        return value;
+      }
+      const SENSITIVE_KEYS = new Set([
+        "apikey",
+        "api_key",
+        "authorization",
+        "auth",
+        "password",
+        "token",
+        "secret",
+      ]);
+      const redactObject = (obj) => {
+        if (obj === null || typeof obj !== "object") {
+          return obj;
+        }
+        if (Array.isArray(obj)) {
+          return obj.map(redactObject);
+        }
+        const clone = {};
+        for (const [k, v] of Object.entries(obj)) {
+          if (SENSITIVE_KEYS.has(k.toLowerCase())) {
+            clone[k] = "[REDACTED]";
+          } else if (v && typeof v === "object") {
+            clone[k] = redactObject(v);
+          } else {
+            clone[k] = v;
+          }
+        }
+        return clone;
+      };
+      return redactObject(value);
+    } catch {
+      return value;
+    }
+  }
+
   function truncateForLog(value) {
     try {
       const serialized = typeof value === "string" ? value : JSON.stringify(value);
@@ -31,7 +70,7 @@ const COPILOT_RPC = (() => {
 
   async function apiCall(path, body = {}, timeoutMs = DEFAULT_TIMEOUT_MS) {
     const url = `${_baseUrl}${path}`;
-    console.log(`[RPC] → POST ${path}`, truncateForLog(body));
+    console.log(`[RPC] → POST ${path}`, truncateForLog(redactSensitive(body)));
 
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
