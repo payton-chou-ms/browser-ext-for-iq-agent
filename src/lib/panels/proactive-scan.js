@@ -9,6 +9,13 @@
     function isConnected() { return root.connection?.isConnected?.() || false; }
     function localizeRuntimeMessage(m) { return (i18n.localizeRuntimeMessage || ((x) => x))(m); }
     function escapeHtml(s) { return (utils.escapeHtml || ((x) => x))(s); }
+    function cssEscape(s) {
+      if (typeof CSS !== "undefined" && typeof CSS.escape === "function") {
+        return CSS.escape(s);
+      }
+      // Basic fallback: escape backslashes and double quotes for use in attribute selectors
+      return String(s).replace(/\\/g, "\\\\").replace(/"/g, "\\\"");
+    }
 
     const AUTO_SCAN_MIN_INTERVAL_MS = 5 * 60 * 1000;
     const SUMMARY_PREVIEW_MAX_CHARS = 72;
@@ -233,7 +240,7 @@
 
       // After rendering cards, attach any stored results
       for (const card of cardsWithResults) {
-        const safeId = String(card.id).replace(/"/g, "\\\"");
+        const safeId = cssEscape(String(card.id));
         const cardEl = listEl.querySelector(`.proactive-schedule-card[data-card-id="${safeId}"]`);
         if (cardEl instanceof HTMLElement) {
           renderApi.renderScheduleCardResult(cardEl, card.agent, card.lastResult);
