@@ -11,6 +11,7 @@ import { registerCoreRoutes } from "./routes/core.js";
 import { registerSessionRoutes } from "./routes/session.js";
 import { registerFoundryRoutes } from "./routes/foundry.js";
 import { registerProactiveRoutes } from "./routes/proactive.js";
+import { registerWorkiqRoutes } from "./routes/workiq.js";
 import { readBody, readJsonBody as readJsonBodyInternal } from "./lib/proxy-body.js";
 
 const args = process.argv.slice(2);
@@ -528,6 +529,7 @@ registerSessionRoutes(routes, {
   log,
   buildPromptWithAttachments,
   cors,
+  loadMcpConfigFromDisk,
 });
 
 registerFoundryRoutes(routes, {
@@ -555,6 +557,15 @@ registerProactiveRoutes(routes, {
     runGhosts: (promptOverride?: string) => runProactiveGhosts(promptOverride || ""),
     runMeetingPrep: (promptOverride?: string) => runProactiveMeetingPrep(promptOverride || ""),
   },
+});
+
+registerWorkiqRoutes(routes, {
+  ensureClient,
+  getSessionOrResume,
+  sessions,
+  jsonRes,
+  readJsonBody,
+  log,
 });
 
 const server = http.createServer(async (req, res) => {

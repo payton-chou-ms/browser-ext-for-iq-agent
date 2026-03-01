@@ -75,6 +75,7 @@ export function registerSessionRoutes(routes: RouteTable, deps: SessionRouteDeps
     log,
     buildPromptWithAttachments,
     cors,
+    loadMcpConfigFromDisk,
   } = deps;
 
   routes["POST /api/session/switch-model"] = async (req, res) => {
@@ -105,11 +106,20 @@ export function registerSessionRoutes(routes: RouteTable, deps: SessionRouteDeps
     if (!body) return;
 
     log("SESSION", "Creating session with config:", JSON.stringify(body));
+
+    // Load MCP config from disk
+    const mcpConfig = loadMcpConfigFromDisk();
+    const mcpServers = mcpConfig.config?.mcpServers || {};
+    if (Object.keys(mcpServers).length > 0) {
+      log("SESSION", `Loading ${Object.keys(mcpServers).length} MCP servers from ${mcpConfig.source}`);
+    }
+
     const c = await ensureClient();
     const config = {
       ...(body.model && { model: body.model }),
       ...(body.streaming !== undefined && { streaming: body.streaming }),
       ...(body.systemMessage && { systemMessage: { content: body.systemMessage } }),
+      ...(Object.keys(mcpServers).length > 0 && { mcpServers }),
       onPermissionRequest: approveAll,
     };
 

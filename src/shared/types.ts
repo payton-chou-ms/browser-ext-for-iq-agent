@@ -215,6 +215,7 @@ export interface SessionRouteDeps {
   log: LogFn;
   buildPromptWithAttachments: (prompt: string, attachments: readonly Attachment[]) => string;
   cors: CorsFn;
+  loadMcpConfigFromDisk: () => { source: string; config: { mcpServers?: Record<string, unknown> } };
 }
 
 export interface FoundryRouteDeps {
@@ -242,4 +243,13 @@ export interface ProactiveRouteDeps {
   readJsonBody: ReadJsonBodyFn;
   log: LogFn;
   proactive: ProactiveModule;
+}
+
+export interface WorkiqRouteDeps {
+  ensureClient: EnsureClientFn;
+  getSessionOrResume: GetSessionOrResumeFn;
+  sessions: Map<string, CopilotSession>;
+  jsonRes: JsonResFn;
+  readJsonBody: ReadJsonBodyFn;
+  log: LogFn;
 }

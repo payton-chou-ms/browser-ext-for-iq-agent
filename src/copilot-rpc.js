@@ -167,6 +167,10 @@ const COPILOT_RPC = (() => {
     return res.skills || [];
   }
 
+  async function workiqQuery(query, sessionId) {
+    return await apiCall("/api/workiq/query", { query, sessionId });
+  }
+
   async function getQuota() {
     const res = await apiCall("/api/quota");
     return res.quota || {};
@@ -321,6 +325,7 @@ const COPILOT_RPC = (() => {
     listTools,
     listLocalSkills,
     executeSkill,
+    workiqQuery,
     getQuota,
     switchModel,
     createSession,

@@ -397,26 +397,18 @@
       }
 
       try {
+        // Use dedicated WorkIQ endpoint to ensure correct tool routing
         const response = await UTILS.sendToBackground?.({
-          type: "EXECUTE_SKILL",
-          skillName: "workiq",
-          command: "invoke",
-          payload: { message: query, source: "slash-command" },
+          type: "WORKIQ_QUERY",
+          query,
         });
 
-        if (response?.ok && response?.mode !== "mock") {
-          const result = response.result || {};
-          const textResult = result.response_text || result.output?.response_text || result.output?.message || result.summary;
-          CHAT.addBotMessage?.(typeof textResult === "string" && textResult.trim()
-            ? textResult
-            : `\`\`\`json\n${escapeHtml(JSON.stringify(result.output || result, null, 2))}\n\`\`\``);
+        if (response?.ok) {
+          const content = response.content || "";
+          CHAT.addBotMessage?.(content || "WorkIQ 查詢完成，但沒有回傳內容。");
         } else {
-          if (response?.mode === "mock") {
-            UTILS.showToast?.("目前是 MVP mock skill，已改用一般查詢模式");
-          }
-          // Explicitly request WorkIQ tool usage in the prompt
-          const workiqPrompt = `Use the workiq skill to answer this question: ${query}`;
-          await CHAT.sendMessageStreaming?.(workiqPrompt, []);
+          const errorMsg = response?.error || "Unknown error";
+          CHAT.addBotMessage?.(`⚠ WorkIQ 查詢失敗: ${errorMsg}`);
         }
       } catch (err) {
         CHAT.addBotMessage?.(`⚠ ${localizeRuntimeMessage("命令執行失敗")}: ${err?.message || String(err)}`);

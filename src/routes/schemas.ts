@@ -59,6 +59,10 @@ export const Schemas = {
       model: z.string().optional(),
     })
     .default({}),
+  workiqQuery: z.object({
+    query: z.string().min(1),
+    sessionId: z.string().optional(),
+  }),
 } as const;
 
 // Export inferred types for each schema
@@ -71,3 +75,4 @@ export type SkillsExecuteInput = z.infer<typeof Schemas.skillsExecute>;
 export type FoundryConfigInput = z.infer<typeof Schemas.foundryConfig>;
 export type McpConfigWriteInput = z.infer<typeof Schemas.mcpConfigWrite>;
 export type ProactiveConfigInput = z.infer<typeof Schemas.proactiveConfig>;
+export type WorkiqQueryInput = z.infer<typeof Schemas.workiqQuery>;

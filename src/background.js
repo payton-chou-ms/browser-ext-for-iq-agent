@@ -439,6 +439,9 @@ async function handleMessage(msg) {
     case "EXECUTE_SKILL":
       return await COPILOT_RPC.executeSkill(msg.skillName, msg.command, msg.payload || {});
 
+    case "WORKIQ_QUERY":
+      return await COPILOT_RPC.workiqQuery(msg.query, msg.sessionId);
+
     // Quota
     case "GET_QUOTA":
       return await COPILOT_RPC.getQuota();
