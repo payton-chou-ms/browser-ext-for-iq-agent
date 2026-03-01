@@ -396,20 +396,12 @@
         return true;
       }
 
+      // Use the workiq MCP tool to query Microsoft 365 data
+      // This is more reliable than skill invocation for ensuring correct tool usage
+      const workiqPrompt = `Use the workiq MCP tool (workiq-ask_work_iq) to answer this question about Microsoft 365 data. Do NOT use foundry_agent_skill. Query: ${query}`;
+      
       try {
-        // Use dedicated WorkIQ endpoint to ensure correct tool routing
-        const response = await UTILS.sendToBackground?.({
-          type: "WORKIQ_QUERY",
-          query,
-        });
-
-        if (response?.ok) {
-          const content = response.content || "";
-          CHAT.addBotMessage?.(content || "WorkIQ 查詢完成，但沒有回傳內容。");
-        } else {
-          const errorMsg = response?.error || "Unknown error";
-          CHAT.addBotMessage?.(`⚠ WorkIQ 查詢失敗: ${errorMsg}`);
-        }
+        await CHAT.sendMessageStreaming?.(workiqPrompt);
       } catch (err) {
         CHAT.addBotMessage?.(`⚠ ${localizeRuntimeMessage("命令執行失敗")}: ${err?.message || String(err)}`);
       }

@@ -1,8 +1,9 @@
 import type { RouteTable, WorkiqRouteDeps } from "../shared/types.js";
+import type { CopilotSession } from "@github/copilot-sdk";
 import { Schemas, type WorkiqQueryInput } from "./schemas.js";
 
 export function registerWorkiqRoutes(routes: RouteTable, deps: WorkiqRouteDeps): void {
-  const { jsonRes, readJsonBody, log, getSessionOrResume, sessions } = deps;
+  const { ensureClient, jsonRes, readJsonBody, log, getSessionOrResume, sessions } = deps;
 
   /**
    * POST /api/workiq/query
@@ -38,13 +39,17 @@ export function registerWorkiqRoutes(routes: RouteTable, deps: WorkiqRouteDeps):
       }
     }
 
+    // If no session found, return error (we need existing session with MCP tools loaded)
     if (!session) {
+      log("WORKIQ", "No active session found - cannot use WorkIQ without MCP tools");
       jsonRes(res, 400, {
         ok: false,
-        error: "No active session. Please start a chat session first.",
+        error: "No active session. Please start a chat session first to load WorkIQ MCP tools.",
       });
       return;
     }
+
+    log("WORKIQ", `Using session: ${session.sessionId}`);
 
     try {
       // Build a prompt that explicitly requests WorkIQ tool usage
@@ -57,8 +62,9 @@ export function registerWorkiqRoutes(routes: RouteTable, deps: WorkiqRouteDeps):
         `Question: ${query}`,
       ].join("\n");
 
-      log("WORKIQ", `Sending prompt to session ${session.id.slice(0, 8)}...`);
-      const result = await session.sendAndWait({ prompt: workiqPrompt });
+      log("WORKIQ", `Sending prompt to session ${session.sessionId}...`);
+      // WorkIQ may take longer to query M365 data, use 120s timeout
+      const result = await session.sendAndWait({ prompt: workiqPrompt }, 120000);
 
       const content = result?.data?.content ?? "";
       const messageId = result?.data?.messageId ?? null;
@@ -73,10 +79,13 @@ export function registerWorkiqRoutes(routes: RouteTable, deps: WorkiqRouteDeps):
         toolUsed: "workiq-ask_work_iq",
       });
     } catch (err) {
-      log("WORKIQ", `Error: ${(err as Error).message}`);
+      const error = err as Error;
+      log("WORKIQ", `Error: ${error.message}`);
+      log("WORKIQ", `Stack: ${error.stack}`);
       jsonRes(res, 500, {
         ok: false,
-        error: (err as Error).message,
+        error: error.message,
+        stack: error.stack,
       });
     }
   };
