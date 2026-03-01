@@ -63,8 +63,86 @@
     return parsed;
   }
 
+  // Detect whether content is already HTML (has block-level tags)
+  const HTML_DETECT_RE = /<(?:p|div|ul|ol|li|h[1-6]|table|tr|td|th|blockquote|pre|br\s*\/?)(?:\s[^>]*)?>\s*/i;
+
+  /**
+   * Sanitize HTML — allow safe formatting tags, strip everything dangerous.
+   * Allowlist approach: only permit known-safe elements and attributes.
+   */
+  function sanitizeHtml(html) {
+    const ALLOWED_TAGS = new Set([
+      "p", "br", "strong", "b", "em", "i", "u", "s", "del",
+      "code", "pre", "blockquote",
+      "ul", "ol", "li",
+      "h1", "h2", "h3", "h4", "h5", "h6",
+      "a", "img",
+      "table", "thead", "tbody", "tr", "th", "td",
+      "hr", "span", "div", "sup", "sub",
+    ]);
+    const ALLOWED_ATTRS = {
+      a: new Set(["href", "target", "rel"]),
+      img: new Set(["src", "alt", "width", "height", "style", "class"]),
+      code: new Set(["class"]),
+      pre: new Set(["class"]),
+      span: new Set(["class", "style"]),
+      td: new Set(["colspan", "rowspan"]),
+      th: new Set(["colspan", "rowspan"]),
+    };
+
+    // Use DOMParser to parse, then walk and filter
+    const doc = new DOMParser().parseFromString(html, "text/html");
+    function cleanNode(node) {
+      const children = Array.from(node.childNodes);
+      for (const child of children) {
+        if (child.nodeType === Node.TEXT_NODE) continue;
+        if (child.nodeType === Node.COMMENT_NODE) {
+          node.removeChild(child);
+          continue;
+        }
+        if (child.nodeType !== Node.ELEMENT_NODE) {
+          node.removeChild(child);
+          continue;
+        }
+        const tag = child.tagName.toLowerCase();
+        if (!ALLOWED_TAGS.has(tag)) {
+          // Replace disallowed element with its text content
+          const text = document.createTextNode(child.textContent || "");
+          node.replaceChild(text, child);
+          continue;
+        }
+        // Remove disallowed attributes
+        const allowedSet = ALLOWED_ATTRS[tag] || new Set();
+        const attrs = Array.from(child.attributes);
+        for (const attr of attrs) {
+          if (!allowedSet.has(attr.name)) {
+            child.removeAttribute(attr.name);
+          }
+        }
+        // Force safe link attributes
+        if (tag === "a") {
+          child.setAttribute("target", "_blank");
+          child.setAttribute("rel", "noopener noreferrer");
+          // Block javascript: URLs
+          const href = (child.getAttribute("href") || "").trim().toLowerCase();
+          if (href.startsWith("javascript:") || href.startsWith("data:")) {
+            child.removeAttribute("href");
+          }
+        }
+        cleanNode(child);
+      }
+    }
+    cleanNode(doc.body);
+    return doc.body.innerHTML;
+  }
+
   function formatText(text) {
-    const safeText = escapeHtml(String(text ?? "")).replace(/\r\n?/g, "\n");
+    const raw = String(text ?? "");
+    // If content is already HTML, sanitize and return directly
+    if (HTML_DETECT_RE.test(raw)) {
+      return sanitizeHtml(raw);
+    }
+    const safeText = escapeHtml(raw).replace(/\r\n?/g, "\n");
     const lines = safeText.split("\n");
     const html = [];
 
@@ -773,6 +851,7 @@
     pushWithLimitImmutable,
     trimContainerChildren,
     escapeHtml,
+    sanitizeHtml,
     showToast,
     scrollToBottom,
     formatText,

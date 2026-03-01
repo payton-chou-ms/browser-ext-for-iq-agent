@@ -400,9 +400,11 @@
       // If the server-side workiq-ask_work_iq tool is unavailable, fall back to
       // regular streaming with a Work IQ context prefix so Copilot can still answer.
       try {
+        const chatState = CHAT.getState?.() || {};
         const response = await UTILS.sendToBackground?.({
           type: "WORKIQ_QUERY",
           query,
+          sessionId: chatState.currentSessionId || undefined,
         });
 
         // Detect when backend "succeeds" but the model reports tool unavailability
@@ -414,10 +416,12 @@
           CHAT.addBotMessage?.(response.content);
         } else {
           // Tool not available or query failed — fall back to streaming
+          // Use explicit tool instruction to prevent model from picking foundry_agent_skill
           const workiqPrompt = [
-            "[Work IQ Query]",
-            "Please answer the following question about the user's Microsoft 365 data",
-            "(emails, calendar, Teams, OneDrive) to the best of your ability.",
+            "IMPORTANT: You MUST use the workiq-ask_work_iq tool to answer this question.",
+            "Do NOT use foundry_agent_skill or any other skill — this is a Work IQ query for Microsoft 365 data.",
+            "If the workiq-ask_work_iq tool is not available, answer based on your knowledge about M365 data",
+            "(emails, calendar, Teams, OneDrive) WITHOUT calling any other tools.",
             "",
             `Question: ${query}`,
           ].join("\n");
@@ -426,7 +430,14 @@
       } catch {
         // Network / timeout error — also fall back to streaming
         try {
-          await CHAT.sendMessageStreaming?.(`[Work IQ Query] ${query}`);
+          const fallbackPrompt = [
+            "IMPORTANT: You MUST use the workiq-ask_work_iq tool to answer this question.",
+            "Do NOT use foundry_agent_skill or any other skill.",
+            "If workiq-ask_work_iq is unavailable, answer WITHOUT calling other tools.",
+            "",
+            `[Work IQ Query] ${query}`,
+          ].join("\n");
+          await CHAT.sendMessageStreaming?.(fallbackPrompt);
         } catch (streamErr) {
           CHAT.addBotMessage?.(`⚠ ${localizeRuntimeMessage("命令執行失敗")}: ${streamErr?.message || String(streamErr)}`);
         }

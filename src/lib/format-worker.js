@@ -42,9 +42,43 @@ function formatInlineMarkdown(line) {
   return parsed;
 }
 
+// ── Detect whether content is already HTML (has block-level tags) ──
+const HTML_DETECT_RE = /<(?:p|div|ul|ol|li|h[1-6]|table|tr|td|th|blockquote|pre|br\s*\/?)(?:\s[^>]*)?>\s*/i;
+
+/**
+ * Sanitize HTML in Worker context (no DOM — use regex allowlist).
+ * Strip dangerous tags/attributes, keep safe formatting.
+ */
+function sanitizeHtmlWorker(html) {
+  const ALLOWED_TAG_RE = /^(?:p|br|strong|b|em|i|u|s|del|code|pre|blockquote|ul|ol|li|h[1-6]|a|img|table|thead|tbody|tr|th|td|hr|span|div|sup|sub)$/i;
+  // Remove <script>, <style>, <iframe>, <object>, <embed>, <form>, <input>, <svg>, event handlers
+  let safe = html
+    .replace(/<script[\s\S]*?<\/script>/gi, "")
+    .replace(/<style[\s\S]*?<\/style>/gi, "")
+    .replace(/<iframe[\s\S]*?<\/iframe>/gi, "")
+    .replace(/<object[\s\S]*?<\/object>/gi, "")
+    .replace(/<embed[^>]*>/gi, "")
+    .replace(/<form[\s\S]*?<\/form>/gi, "")
+    .replace(/<input[^>]*>/gi, "")
+    .replace(/<svg[\s\S]*?<\/svg>/gi, "");
+  // Remove on* event attributes
+  safe = safe.replace(/\s+on\w+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, "");
+  // Remove javascript: and data: from href/src
+  safe = safe.replace(/(href|src)\s*=\s*["']?\s*javascript:/gi, '$1="');
+  safe = safe.replace(/(href|src)\s*=\s*["']?\s*data:/gi, '$1="');
+  // Force target="_blank" rel="noopener noreferrer" on <a> tags
+  safe = safe.replace(/<a\s/gi, '<a target="_blank" rel="noopener noreferrer" ');
+  return safe;
+}
+
 // ── Block-level markdown → HTML ──
 function formatText(text) {
-  const safeText = escapeHtml(String(text ?? "")).replace(/\r\n?/g, "\n");
+  const raw = String(text ?? "");
+  // If content is already HTML, sanitize and return directly
+  if (HTML_DETECT_RE.test(raw)) {
+    return sanitizeHtmlWorker(raw);
+  }
+  const safeText = escapeHtml(raw).replace(/\r\n?/g, "\n");
   const lines = safeText.split("\n");
   const html = [];
 

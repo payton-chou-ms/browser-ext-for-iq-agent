@@ -93,6 +93,8 @@
 
       // Structural markdown patterns that require full formatText rebuild
       const STRUCTURAL_MD = /```|^#{1,6}\s|^\|.*\|.*\||^[-*]\s|^\d+\.\s|^>/m;
+      // Detect HTML content — when present, always do full innerHTML render
+      const HTML_DETECT_RE = /<(?:p|div|ul|ol|li|h[1-6]|table|tr|td|th|blockquote|pre|br\s*\/?)(?:\s[^>]*)?>(\s|$)/i;
 
       // Batched render - coalesces rapid message_delta updates to next frame
       // P2-12b: Uses text-node append for plain deltas, full rebuild only
@@ -104,9 +106,10 @@
           if (!bubble) return;
 
           const delta = content.slice(lastRenderedLength);
+          const isHtml = HTML_DETECT_RE.test(content);
 
-          // First render or structural markdown detected → full rebuild
-          if (lastRenderedLength === 0 || STRUCTURAL_MD.test(delta)) {
+          // HTML content or first render or structural markdown → full rebuild
+          if (isHtml || lastRenderedLength === 0 || STRUCTURAL_MD.test(delta)) {
             bubble.innerHTML = formatText(content);
             if (deferredRebuild) { clearTimeout(deferredRebuild); deferredRebuild = null; }
           } else if (delta) {
