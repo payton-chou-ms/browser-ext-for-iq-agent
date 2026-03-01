@@ -52,6 +52,18 @@ describe("utils", () => {
     expect(html).not.toContain("<img src=x onerror=alert(1)>");
   });
 
+  test("formatText renders markdown images as img tags", () => {
+    const html = window.IQ.utils.formatText("Here is the result: ![generated banner](https://example.com/banner.png)");
+    expect(html).toContain('<img src="https://example.com/banner.png" alt="generated banner"');
+    expect(html).not.toContain("![generated banner]");
+  });
+
+  test("formatText renders link after image without confusion", () => {
+    const html = window.IQ.utils.formatText("![img](https://example.com/a.png) and [link](https://example.com/b)");
+    expect(html).toContain('<img src="https://example.com/a.png"');
+    expect(html).toContain('<a href="https://example.com/b"');
+  });
+
   test("formatText renders headings, blockquotes, links and fenced code", () => {
     const html = window.IQ.utils.formatText([
       "# Release Notes",
