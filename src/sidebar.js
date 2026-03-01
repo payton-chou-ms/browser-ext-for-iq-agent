@@ -239,8 +239,6 @@
         run: async () => [
           "**可用命令**",
           "- `/help` 顯示命令說明",
-          "- `/skills list` 讀取技能",
-          "- `/skills refresh` 刷新技能",
           "- `/foundry_agent_skills <query>` 使用 Foundry skill 查詢",
           "- `/model list` 列出模型",
           "- `/model refresh` 刷新模型",
@@ -248,62 +246,6 @@
           "- `/mcp status` 檢視 MCP 狀態",
           "- `/mcp reload` 重新載入 MCP 設定",
         ].join("\n"),
-      },
-      {
-        id: "skills-list",
-        group: "skills",
-        title: "列出技能",
-        description: "從 CLI 讀取目前技能清單",
-        command: "/skills list",
-        run: async () => {
-          if (!CONN.isConnected?.()) return "目前未連線 Copilot CLI，請先連線後再查詢 skills。";
-          const currentModel = CHAT.getState?.().currentModel;
-          const tools = await UTILS.cachedSendToBackground?.("tools", { type: "LIST_TOOLS", model: currentModel });
-          const localSkills = await UTILS.cachedSendToBackground?.("local-skills", { type: "LIST_LOCAL_SKILLS" });
-
-          const merged = [];
-          const seen = new Set();
-          if (Array.isArray(tools)) {
-            for (const tool of tools) {
-              const name = String(tool?.name || "").trim();
-              const key = name.toLowerCase();
-              if (!key || seen.has(key)) continue;
-              seen.add(key);
-              merged.push({ name, source: "cli" });
-            }
-          }
-          if (Array.isArray(localSkills)) {
-            for (const skill of localSkills) {
-              const name = String(skill?.name || "").trim();
-              const key = name.toLowerCase();
-              if (!key || seen.has(key)) continue;
-              seen.add(key);
-              merged.push({ name, source: "local" });
-            }
-          }
-
-          if (merged.length === 0) return "CLI 與本地 Skills 皆未回傳資料。";
-
-          return [
-            `**Skills (${merged.length})**`,
-            `- CLI: ${Array.isArray(tools) ? tools.length : 0}`,
-            `- Local: ${Array.isArray(localSkills) ? localSkills.length : 0}`,
-            ...merged.slice(0, 20).map((tool) => `- (${tool.source}) \`${tool.name || "unknown"}\``),
-            ...(merged.length > 20 ? [`- ... 還有 ${merged.length - 20} 個`] : []),
-          ].join("\n");
-        },
-      },
-      {
-        id: "skills-refresh",
-        group: "skills",
-        title: "刷新技能",
-        description: "重新載入 skills 面板資料",
-        command: "/skills refresh",
-        run: async () => {
-          switchPanel("skills");
-          await PANELS.skills?.loadSkillsFromCli?.(true);
-          return "已刷新 Skills。";
-        },
       },
       {
         id: "foundry-agent-skills",
@@ -649,49 +591,6 @@
     }
   }
 
-  async function loadFoundryConfig() {
-    try {
-      const res = await UTILS.sendToBackground?.({ type: "GET_FOUNDRY_CONFIG" });
-      const endpointEl = document.getElementById("config-foundry-endpoint");
-      const badge = document.getElementById("foundry-status-badge");
-      const t = I18N_MOD.t || ((k, d) => d);
-      if (endpointEl && res?.endpoint) endpointEl.value = res.endpoint;
-      
-      // Set auth method radio based on stored config
-      const authMethod = res?.authMethod || "identity";
-      const identityRadio = document.querySelector('input[name="foundry-auth-method"][value="identity"]');
-      const apikeyRadio = document.querySelector('input[name="foundry-auth-method"][value="apikey"]');
-      if (identityRadio) identityRadio.checked = authMethod === "identity";
-      if (apikeyRadio) apikeyRadio.checked = authMethod === "apikey";
-      toggleFoundryAuthUI(authMethod);
-      
-      if (badge) {
-        const isConfigured = res?.endpoint && (authMethod === "identity" || res?.hasApiKey);
-        badge.textContent = isConfigured
-          ? t("messages.foundryConfigured", "已設定")
-          : t("messages.foundryNotConfigured", "未設定");
-        badge.style.color = isConfigured ? "var(--success)" : "";
-      }
-    } catch (err) {
-      UTILS.debugLog?.("ERR", "loadFoundryConfig error:", err.message);
-    }
-  }
-
-  // Toggle Foundry auth UI based on selected method
-  function toggleFoundryAuthUI(method) {
-    const apikeyGroup = document.getElementById("foundry-apikey-group");
-    const identityInfo = document.getElementById("foundry-identity-info");
-    if (apikeyGroup) apikeyGroup.style.display = method === "apikey" ? "block" : "none";
-    if (identityInfo) identityInfo.style.display = method === "identity" ? "block" : "none";
-  }
-
-  // Auth method radio change handler
-  document.querySelectorAll('input[name="foundry-auth-method"]').forEach((radio) => {
-    radio.addEventListener("change", (e) => {
-      toggleFoundryAuthUI(e.target.value);
-    });
-  });
-
   // Connect button
   document.getElementById("btn-connect")?.addEventListener("click", async () => {
     const host = document.getElementById("config-host")?.value?.trim() || "127.0.0.1";
@@ -750,47 +649,11 @@
     UTILS.showToast?.(I18N_MOD.t?.("messages.languageChanged", "Language switched"));
   });
 
-  // Foundry config buttons
-  document.getElementById("btn-save-foundry")?.addEventListener("click", async () => {
-    const endpoint = document.getElementById("config-foundry-endpoint")?.value?.trim();
-    const authMethod = document.querySelector('input[name="foundry-auth-method"]:checked')?.value || "identity";
-    const apiKey = authMethod === "apikey" ? document.getElementById("config-foundry-key")?.value?.trim() : undefined;
-    
-    if (!endpoint) { UTILS.showToast?.(localizeRuntimeMessage("請輸入 Endpoint")); return; }
-    try {
-      await UTILS.sendToBackground?.({ type: "SET_FOUNDRY_CONFIG", endpoint, authMethod, apiKey });
-      if (authMethod === "apikey") document.getElementById("config-foundry-key").value = "";
-      UTILS.showToast?.(localizeRuntimeMessage("Microsoft Foundry 設定已儲存"));
-      loadFoundryConfig();
-    } catch (err) {
-      UTILS.showToast?.(localizeRuntimeMessage("儲存失敗: ") + err.message);
-    }
+  // Extension reload shortcut
+  document.getElementById("btn-reload-extension")?.addEventListener("click", () => {
+    UTILS.showToast?.(localizeRuntimeMessage("正在重新載入擴充功能..."));
+    setTimeout(() => chrome.runtime.reload(), 150);
   });
-
-  document.getElementById("btn-test-foundry")?.addEventListener("click", async () => {
-    UTILS.showToast?.(localizeRuntimeMessage("測試連線中..."));
-    try {
-      const res = await UTILS.sendToBackground?.({ type: "TEST_FOUNDRY_CONNECTION" });
-      if (res?.ok) {
-        UTILS.showToast?.(localizeRuntimeMessage("✅ Foundry 連線成功"));
-      } else {
-        UTILS.showToast?.(localizeRuntimeMessage("⚠ 連線失敗: ") + (res?.error || "Unknown"));
-      }
-    } catch (err) {
-      UTILS.showToast?.(localizeRuntimeMessage("連線失敗: ") + err.message);
-    }
-  });
-
-  // System message persistence
-  const sysMsg = document.getElementById("config-system-message");
-  if (sysMsg) {
-    chrome.storage.local.get("systemMessage", (data) => {
-      if (data.systemMessage) sysMsg.value = data.systemMessage;
-    });
-    sysMsg.addEventListener("input", () => {
-      chrome.storage.local.set({ systemMessage: sysMsg.value });
-    });
-  }
 
   // MCP Config upload handler
   const mcpDropzone = document.getElementById("mcp-dropzone");
@@ -1312,8 +1175,8 @@
     onSessions: (sessions) => {
       PANELS.history?.renderHistoryFromData?.(sessions);
     },
-    onTools: (tools) => {
-      PANELS.skills?.renderSkillsFromData?.(tools);
+    onTools: (_tools) => {
+      // Skills panel removed; tools are shown in Context panel.
     },
     onQuota: (_quota) => {
       // quota data is cached by connection; usage panel reads from cache
@@ -1328,7 +1191,7 @@
       PANELS.usage?.populateModelSelect?.(models);
     },
     loadHistorySessions: () => PANELS.history?.loadHistorySessions?.(),
-    loadSkillsFromCli: () => PANELS.skills?.loadSkillsFromCli?.(),
+    loadSkillsFromCli: () => {},
     loadQuotaFromCli: () => PANELS.usage?.loadQuotaFromCli?.(),
     fetchCliContext: () => PANELS.context?.fetchCliContext?.(),
   });
@@ -1336,7 +1199,6 @@
   // ── Init ──
   async function init() {
     await THEME_MOD.loadUiPreferences?.();
-    loadFoundryConfig();
     await initChatTabs();  // Initialize chat tabs first
     if (!CHAT_TABS.getActiveTab?.()?.chatHistory?.length) {
       CHAT.showWelcome?.();  // Show welcome only if no history
@@ -1354,7 +1216,6 @@
     FILE_UP.bindEvents?.();
     PANELS.context?.bindEvents?.();
     PANELS.history?.bindEvents?.();
-    PANELS.skills?.bindEvents?.();
     PANELS.proactive?.bindEvents?.();
     PANELS.achievements?.bindEvents?.();
 

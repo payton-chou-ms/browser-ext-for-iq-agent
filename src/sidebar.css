@@ -1341,6 +1341,29 @@ kbd {
 .meta-key { color: var(--text-muted); }
 .meta-val { color: var(--text-secondary); text-align: right; max-width: 60%; overflow: hidden; text-overflow: ellipsis; }
 
+.meta-item--two-col {
+  display: grid;
+  grid-template-columns: minmax(128px, 36%) minmax(0, 1fr);
+  column-gap: 10px;
+  align-items: center;
+}
+
+.meta-col-name {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.meta-col-desc {
+  text-align: left;
+  max-width: none;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 /* ===== Agent Panel ===== */
 .agent-action-row {
   margin-top: 0;
@@ -3520,6 +3543,99 @@ kbd {
 
 .insight-section .empty-state .empty-icon {
   font-size: 28px;
+}
+
+/* Proactive schedule cards */
+.proactive-schedule-cards-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.proactive-schedule-card {
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px;
+}
+
+.proactive-schedule-card-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.proactive-schedule-card-title {
+  font-size: 12px;
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.proactive-schedule-card-status {
+  margin-left: auto;
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+.proactive-schedule-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.proactive-schedule-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.proactive-schedule-field.wide {
+  grid-column: span 2;
+}
+
+.proactive-schedule-field label {
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+.proactive-schedule-field input,
+.proactive-schedule-field select {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-primary);
+  font-size: 12px;
+  padding: 6px 8px;
+}
+
+.proactive-weekday-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.proactive-weekday-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  color: var(--text-secondary);
+  padding: 2px 6px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+}
+
+.proactive-schedule-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.proactive-schedule-actions .action-btn {
+  flex: 1;
+  padding: 6px 8px;
+  font-size: 11px;
 }
 
 /* ── Inline-style elimination (P1) ── */

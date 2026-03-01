@@ -11,6 +11,42 @@
   function localizeRuntimeMessage(m) { return (i18n.localizeRuntimeMessage || ((x) => x))(m); }
   function isConnected() { return root.connection?.isConnected?.() || false; }
 
+  function mergeContextToolsWithLocalSkills(ctx, localSkills) {
+    const mergedCtx = { ...(ctx || {}) };
+    const baseTools = Array.isArray(mergedCtx.tools) ? mergedCtx.tools : [];
+    const skills = Array.isArray(localSkills) ? localSkills : [];
+
+    const mergedTools = [];
+    const seen = new Set();
+
+    for (const tool of baseTools) {
+      const name = String(tool?.name || "").trim();
+      const key = name.toLowerCase();
+      if (!key || seen.has(key)) continue;
+      seen.add(key);
+      mergedTools.push({
+        name,
+        description: tool?.description,
+        source: tool?.source || "cli",
+      });
+    }
+
+    for (const skill of skills) {
+      const name = String(skill?.name || "").trim();
+      const key = name.toLowerCase();
+      if (!key || seen.has(key)) continue;
+      seen.add(key);
+      mergedTools.push({
+        name,
+        description: skill?.description,
+        source: "local-skill",
+      });
+    }
+
+    mergedCtx.tools = mergedTools;
+    return mergedCtx;
+  }
+
   async function fetchCliContext() {
     if (!isConnected()) {
       renderCliContextDisconnected();
@@ -20,8 +56,16 @@
       const ctx = await utils.cachedSendToBackground?.("context", { type: "GET_CONTEXT" });
       utils.debugLog?.("CTX", "GET_CONTEXT response:", ctx);
       if (ctx && !ctx.error) {
-        cliContext = ctx;
-        renderCliContext(ctx);
+        let mergedCtx = ctx;
+        try {
+          const localSkills = await utils.sendToBackground?.({ type: "LIST_LOCAL_SKILLS" });
+          mergedCtx = mergeContextToolsWithLocalSkills(ctx, localSkills);
+        } catch (err) {
+          utils.debugLog?.("WARN", "LIST_LOCAL_SKILLS fallback failed:", err?.message || String(err));
+        }
+
+        cliContext = mergedCtx;
+        renderCliContext(mergedCtx);
         if (typeof AchievementEngine !== "undefined") {
           AchievementEngine.track("context_viewed");
         }
@@ -81,8 +125,12 @@
     setHTML("ctx-tools-list", tools.length === 0
         ? `<p class="text-muted">${localizeRuntimeMessage("無可用工具")}</p>`
         : tools.map((t) => {
-            const desc = t.description ? ` title="${escapeHtml(t.description)}"` : "";
-            return `<div class="meta-item"${desc}><span class="meta-key">${escapeHtml(t.name)}</span></div>`;
+            const isLocalSkill = t.source === "local-skill";
+            const icon = isLocalSkill ? "🧩 " : "";
+            const rawDesc = String(t.description || "").replace(/\s+/g, " ").trim();
+            const shortDesc = rawDesc.length > 56 ? `${rawDesc.slice(0, 56)}…` : rawDesc;
+            const desc = rawDesc ? ` title="${escapeHtml(rawDesc)}"` : "";
+            return `<div class="meta-item meta-item--two-col"${desc}><span class="meta-key meta-col-name">${icon}${escapeHtml(t.name)}</span><span class="meta-val meta-col-desc">${escapeHtml(shortDesc || "—")}</span></div>`;
           }).join(""));
 
     const quota = ctx.quota || {};
@@ -152,6 +200,7 @@
   function bindEvents() {
     document.getElementById("ctx-refresh")?.addEventListener("click", () => {
       utils.invalidateCache?.("context");
+      utils.invalidateCache?.("local-skills");
       fetchCliContext();
       utils.showToast?.(localizeRuntimeMessage("Context 重新載入中..."));
     });

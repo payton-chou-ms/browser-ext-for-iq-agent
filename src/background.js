@@ -14,6 +14,228 @@ const CONNECTION_ALARM_NAME = "connection-health-check";
 const CONNECTION_CHECK_PERIOD_CONNECTED_MIN = 5;
 const CONNECTION_CHECK_PERIOD_DISCONNECTED_MIN = 1;
 const LAST_BROADCAST_STATE_KEY = "iq_lastBroadcastState";
+const PROACTIVE_SCHEDULES_KEY = "proactiveScheduleCards";
+const PROACTIVE_SCHEDULE_ALARM_PREFIX = "proactive-schedule-";
+const LEGACY_PROACTIVE_ALARMS = [
+  "proactive-briefing",
+  "proactive-deadlines",
+  "proactive-ghosts",
+  "proactive-meeting-prep",
+];
+
+let proactiveScheduleCards = [];
+
+function createDefaultProactiveScheduleCards() {
+  return [
+    {
+      id: "default-briefing",
+      name: "每日晨報",
+      agent: "briefing",
+      enabled: true,
+      schedule: { mode: "daily", hour: 8, minute: 0, intervalMinutes: 60, weekdays: [1, 2, 3, 4, 5] },
+      lastRun: null,
+      lastStatus: "idle",
+    },
+    {
+      id: "default-deadlines",
+      name: "截止日追蹤",
+      agent: "deadlines",
+      enabled: true,
+      schedule: { mode: "interval", hour: 9, minute: 0, intervalMinutes: 720, weekdays: [1, 2, 3, 4, 5] },
+      lastRun: null,
+      lastStatus: "idle",
+    },
+    {
+      id: "default-ghosts",
+      name: "未回覆偵測",
+      agent: "ghosts",
+      enabled: true,
+      schedule: { mode: "interval", hour: 9, minute: 0, intervalMinutes: 240, weekdays: [1, 2, 3, 4, 5] },
+      lastRun: null,
+      lastStatus: "idle",
+    },
+    {
+      id: "default-meeting-prep",
+      name: "會議準備",
+      agent: "meeting-prep",
+      enabled: true,
+      schedule: { mode: "interval", hour: 9, minute: 0, intervalMinutes: 30, weekdays: [1, 2, 3, 4, 5] },
+      lastRun: null,
+      lastStatus: "idle",
+    },
+  ];
+}
+
+function normalizeWeekdays(weekdays) {
+  if (!Array.isArray(weekdays)) return [1, 2, 3, 4, 5];
+  const values = weekdays
+    .map((v) => Number(v))
+    .filter((v) => Number.isInteger(v) && v >= 0 && v <= 6);
+  return [...new Set(values)].sort((a, b) => a - b);
+}
+
+function normalizeProactiveScheduleCard(raw) {
+  const id = typeof raw?.id === "string" && raw.id.trim() ? raw.id.trim() : `card-${Date.now()}`;
+  const agent = ["briefing", "deadlines", "ghosts", "meeting-prep"].includes(raw?.agent)
+    ? raw.agent
+    : "briefing";
+  const mode = ["interval", "daily", "weekly"].includes(raw?.schedule?.mode)
+    ? raw.schedule.mode
+    : "interval";
+  const hour = Math.min(23, Math.max(0, Number(raw?.schedule?.hour ?? 9) || 9));
+  const minute = Math.min(59, Math.max(0, Number(raw?.schedule?.minute ?? 0) || 0));
+  const intervalMinutes = Math.min(24 * 60, Math.max(1, Number(raw?.schedule?.intervalMinutes ?? 60) || 60));
+  const weekdays = normalizeWeekdays(raw?.schedule?.weekdays);
+
+  return {
+    id,
+    name: typeof raw?.name === "string" && raw.name.trim() ? raw.name.trim() : "新查詢卡",
+    agent,
+    enabled: raw?.enabled !== false,
+    schedule: {
+      mode,
+      hour,
+      minute,
+      intervalMinutes,
+      weekdays: weekdays.length > 0 ? weekdays : [1, 2, 3, 4, 5],
+    },
+    lastRun: typeof raw?.lastRun === "string" ? raw.lastRun : null,
+    lastStatus: typeof raw?.lastStatus === "string" ? raw.lastStatus : "idle",
+  };
+}
+
+function alarmNameForScheduleCard(cardId) {
+  return `${PROACTIVE_SCHEDULE_ALARM_PREFIX}${cardId}`;
+}
+
+function isProactiveScheduleAlarm(name) {
+  return typeof name === "string" && name.startsWith(PROACTIVE_SCHEDULE_ALARM_PREFIX);
+}
+
+function minutesUntilTime(hour, minute) {
+  const now = new Date();
+  const target = new Date(now);
+  target.setHours(hour, minute, 0, 0);
+  if (target <= now) target.setDate(target.getDate() + 1);
+  return Math.max(1, Math.round((target - now) / 60000));
+}
+
+function getAlarmOptionsForSchedule(card) {
+  const schedule = card.schedule || {};
+  if (schedule.mode === "interval") {
+    return {
+      delayInMinutes: 1,
+      periodInMinutes: Math.min(24 * 60, Math.max(1, Number(schedule.intervalMinutes || 60))),
+    };
+  }
+  return {
+    delayInMinutes: minutesUntilTime(Number(schedule.hour || 9), Number(schedule.minute || 0)),
+    periodInMinutes: 24 * 60,
+  };
+}
+
+function shouldRunScheduleCardNow(card, now = new Date()) {
+  const schedule = card.schedule || {};
+  if (schedule.mode !== "weekly") return true;
+  const weekdays = normalizeWeekdays(schedule.weekdays);
+  return weekdays.includes(now.getDay());
+}
+
+async function saveProactiveScheduleCards(cards) {
+  proactiveScheduleCards = cards.map((card) => ({ ...card, schedule: { ...card.schedule } }));
+  await chrome.storage.local.set({ [PROACTIVE_SCHEDULES_KEY]: proactiveScheduleCards });
+}
+
+async function loadProactiveScheduleCards() {
+  const local = await chrome.storage.local.get([PROACTIVE_SCHEDULES_KEY]);
+  const stored = Array.isArray(local?.[PROACTIVE_SCHEDULES_KEY]) ? local[PROACTIVE_SCHEDULES_KEY] : [];
+  if (stored.length === 0) {
+    const defaults = createDefaultProactiveScheduleCards().map(normalizeProactiveScheduleCard);
+    await saveProactiveScheduleCards(defaults);
+    return defaults;
+  }
+  const normalized = stored.map(normalizeProactiveScheduleCard);
+  await saveProactiveScheduleCards(normalized);
+  return normalized;
+}
+
+async function clearLegacyAndScheduleAlarms() {
+  const alarms = await chrome.alarms.getAll();
+  const removals = alarms
+    .filter((alarm) => LEGACY_PROACTIVE_ALARMS.includes(alarm.name) || isProactiveScheduleAlarm(alarm.name))
+    .map((alarm) => chrome.alarms.clear(alarm.name));
+  await Promise.all(removals);
+}
+
+async function applyProactiveScheduleAlarms() {
+  await clearLegacyAndScheduleAlarms();
+  const creations = proactiveScheduleCards
+    .filter((card) => card.enabled)
+    .map((card) => {
+      const alarmName = alarmNameForScheduleCard(card.id);
+      chrome.alarms.create(alarmName, getAlarmOptionsForSchedule(card));
+      return alarmName;
+    });
+  console.log(`[BG] Applied proactive schedule alarms: ${creations.join(", ") || "none"}`);
+}
+
+function getProactiveScheduleCardById(cardId) {
+  return proactiveScheduleCards.find((card) => card.id === cardId) || null;
+}
+
+async function executeProactiveAgent(agent) {
+  switch (agent) {
+    case "briefing":
+      return await COPILOT_RPC.proactiveBriefing();
+    case "deadlines":
+      return await COPILOT_RPC.proactiveDeadlines();
+    case "ghosts":
+      return await COPILOT_RPC.proactiveGhosts();
+    case "meeting-prep":
+      return await COPILOT_RPC.proactiveMeetingPrep();
+    default:
+      throw new Error(`Unknown proactive agent: ${agent}`);
+  }
+}
+
+async function updateScheduleCardRunState(cardId, nextStatus, scannedAt) {
+  const updated = proactiveScheduleCards.map((card) => (
+    card.id === cardId
+      ? { ...card, lastStatus: nextStatus, lastRun: scannedAt || card.lastRun }
+      : card
+  ));
+  await saveProactiveScheduleCards(updated);
+}
+
+async function runScheduleCardNow(cardId, reason = "manual") {
+  const card = getProactiveScheduleCardById(cardId);
+  if (!card) return { ok: false, error: "找不到排程卡" };
+  if (!card.enabled) return { ok: false, error: "排程卡已停用" };
+
+  try {
+    const result = await executeProactiveAgent(card.agent);
+    const scannedAt = new Date().toISOString();
+    await updateScheduleCardRunState(card.id, result?.ok ? "ok" : "error", scannedAt);
+    if (result?.ok) {
+      chrome.runtime.sendMessage({
+        type: "PROACTIVE_UPDATE",
+        agent: card.agent,
+        data: result.data || result.results,
+        scannedAt,
+        source: reason,
+      }).catch(() => {});
+    }
+    return { ok: !!result?.ok, result, scannedAt };
+  } catch (err) {
+    await updateScheduleCardRunState(card.id, "error", new Date().toISOString());
+    return { ok: false, error: err?.message || "執行失敗" };
+  }
+}
+
+async function initializeProactiveSchedules() {
+  proactiveScheduleCards = await loadProactiveScheduleCards();
+  await applyProactiveScheduleAlarms();
+}
 
 // ── Session Storage for Sensitive Keys ──
 // chrome.storage.session is memory-only — cleared when browser closes.
@@ -201,6 +423,64 @@ async function handleMessage(msg) {
       } catch {
         return { ok: true, config: { workiqPrompt: prompt }, localOnly: true };
       }
+    }
+
+    case "GET_PROACTIVE_SCHEDULE_CARDS": {
+      if (!Array.isArray(proactiveScheduleCards) || proactiveScheduleCards.length === 0) {
+        proactiveScheduleCards = await loadProactiveScheduleCards();
+      }
+      return { ok: true, cards: proactiveScheduleCards };
+    }
+
+    case "ADD_PROACTIVE_SCHEDULE_CARD": {
+      const next = normalizeProactiveScheduleCard({
+        id: `card-${Date.now()}`,
+        name: msg?.name || "新查詢卡",
+        agent: msg?.agent || "briefing",
+        enabled: true,
+        schedule: {
+          mode: "interval",
+          intervalMinutes: 60,
+          hour: 9,
+          minute: 0,
+          weekdays: [1, 2, 3, 4, 5],
+        },
+      });
+      const cards = [...proactiveScheduleCards, next];
+      await saveProactiveScheduleCards(cards);
+      await applyProactiveScheduleAlarms();
+      return { ok: true, card: next, cards: proactiveScheduleCards };
+    }
+
+    case "UPSERT_PROACTIVE_SCHEDULE_CARD": {
+      const incoming = normalizeProactiveScheduleCard(msg?.card || {});
+      const exists = proactiveScheduleCards.some((card) => card.id === incoming.id);
+      const cards = exists
+        ? proactiveScheduleCards.map((card) => (card.id === incoming.id ? { ...incoming } : card))
+        : [...proactiveScheduleCards, incoming];
+      await saveProactiveScheduleCards(cards);
+      await applyProactiveScheduleAlarms();
+      return { ok: true, card: incoming, cards: proactiveScheduleCards };
+    }
+
+    case "DELETE_PROACTIVE_SCHEDULE_CARD": {
+      const cardId = typeof msg?.cardId === "string" ? msg.cardId : "";
+      if (!cardId) return { ok: false, error: "cardId is required" };
+      const cards = proactiveScheduleCards.filter((card) => card.id !== cardId);
+      await saveProactiveScheduleCards(cards);
+      await applyProactiveScheduleAlarms();
+      return { ok: true, cards: proactiveScheduleCards };
+    }
+
+    case "APPLY_PROACTIVE_SCHEDULE_CARD": {
+      const cardId = typeof msg?.cardId === "string" ? msg.cardId : "";
+      if (!cardId) return { ok: false, error: "cardId is required" };
+      await applyProactiveScheduleAlarms();
+      if (msg?.runNow) {
+        const runResult = await runScheduleCardNow(cardId, "manual-refresh");
+        return { ok: runResult.ok, runResult, cards: proactiveScheduleCards };
+      }
+      return { ok: true, cards: proactiveScheduleCards };
     }
 
     // Tab info
@@ -410,44 +690,9 @@ async function scheduleConnectionHealthAlarm(state = connectionState) {
 }
 
 // ── Proactive Agent Scheduling ──
-// Set up alarms for proactive scans (with duplicate-creation guard)
-async function ensureAlarm(name, options) {
-  const existing = await chrome.alarms.get(name);
-  if (!existing) {
-    chrome.alarms.create(name, options);
-    console.log(`[BG] Alarm created: ${name}`);
-  } else {
-    console.log(`[BG] Alarm already exists: ${name}`);
-  }
-}
-
-ensureAlarm("proactive-briefing", {
-  periodInMinutes: 24 * 60,
-  delayInMinutes: minutesUntilHour(8),
+initializeProactiveSchedules().catch((err) => {
+  console.error("[BG] initializeProactiveSchedules failed:", err?.message || err);
 });
-
-ensureAlarm("proactive-deadlines", {
-  periodInMinutes: 12 * 60,
-  delayInMinutes: 1,
-});
-
-ensureAlarm("proactive-ghosts", {
-  periodInMinutes: 4 * 60,
-  delayInMinutes: 2,
-});
-
-ensureAlarm("proactive-meeting-prep", {
-  periodInMinutes: 30,
-  delayInMinutes: 3,
-});
-
-function minutesUntilHour(targetHour) {
-  const now = new Date();
-  const target = new Date(now);
-  target.setHours(targetHour, 0, 0, 0);
-  if (target <= now) target.setDate(target.getDate() + 1);
-  return Math.max(1, Math.round((target - now) / 60000));
-}
 
 chrome.alarms.onAlarm.addListener(async (alarm) => {
   if (alarm.name === CONNECTION_ALARM_NAME) {
@@ -473,6 +718,21 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
 
   if (connectionState !== "connected") return;
   console.log(`[BG] Alarm fired: ${alarm.name}`);
+
+  if (isProactiveScheduleAlarm(alarm.name)) {
+    const cardId = alarm.name.slice(PROACTIVE_SCHEDULE_ALARM_PREFIX.length);
+    const card = getProactiveScheduleCardById(cardId);
+    if (!card || !card.enabled) return;
+    if (!shouldRunScheduleCardNow(card, new Date())) {
+      console.log(`[BG] Skip weekly schedule card ${cardId} on non-selected weekday`);
+      return;
+    }
+    const runResult = await runScheduleCardNow(cardId, "alarm");
+    if (!runResult.ok) {
+      console.error(`[BG] Proactive schedule card run failed (${cardId}):`, runResult.error || "unknown");
+    }
+    return;
+  }
 
   let result = null;
   try {

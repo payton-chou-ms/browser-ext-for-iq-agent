@@ -19,11 +19,6 @@
             <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
           </svg>
         </button>
-        <button class="nav-btn" data-panel="skills" title="Skills">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>
-          </svg>
-        </button>
         <button class="nav-btn" data-panel="mcp" title="MCP">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/>
@@ -323,28 +318,6 @@
         </div>
       </div>
 
-      <!-- Panel: Skills -->
-      <div class="panel" id="panel-skills">
-        <div class="panel-scroll">
-          <div class="glass-card" id="skills-status-card">
-            <div class="card-header">
-              <span class="card-icon">⚡</span>
-              <h3>Skills</h3>
-              <button class="icon-btn" id="btn-refresh-skills" title="重新載入" style="margin-left:auto">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
-              </button>
-            </div>
-            <p class="text-muted" id="skills-source-label" style="font-size:11px;margin:4px 0 0">從 Copilot CLI 載入</p>
-          </div>
-          <div class="skills-grid" id="skills-grid">
-            <div class="empty-state" id="skills-empty">
-              <span class="empty-icon">⏳</span>
-              <p>連接 Copilot CLI 後自動載入 Skills</p>
-            </div>
-          </div>
-        </div>
-      </div>
-
       <!-- Panel: MCP -->
       <div class="panel" id="panel-mcp">
         <div class="panel-scroll">
@@ -362,6 +335,19 @@
               <button class="action-btn" id="btn-format-mcp">格式化</button>
             </div>
             <p class="text-muted" style="font-size:10px;margin-top:8px" id="mcp-source-label">從本機設定檔讀取</p>
+            <p style="font-size:12px;color:var(--text-muted);margin:12px 0 8px;">
+              上傳 MCP 伺服器設定檔，格式為 <code style="background:rgba(255,255,255,0.1);padding:1px 4px;border-radius:3px;">{"mcpServers": {...}}</code>
+            </p>
+            <div class="upload-area" id="upload-mcp-config">
+              <input type="file" id="file-mcp-config" accept=".json" hidden>
+              <div class="upload-dropzone" id="mcp-dropzone" data-target="file-mcp-config">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                <span>上傳 MCP Config JSON</span>
+              </div>
+            </div>
+            <div class="action-row" style="margin-top:12px;">
+              <button class="action-btn" id="btn-download-mcp-sample">📥 下載範本</button>
+            </div>
           </div>
         </div>
       </div>
@@ -376,11 +362,25 @@
               <h3>Proactive Agent</h3>
               <span class="agent-badge" id="notif-total-count">0</span>
               <button class="action-btn" id="btn-mark-all-read" style="margin-left:8px">全部已讀</button>
+              <button class="icon-btn" id="btn-add-schedule-card" title="新增查詢排程小卡" style="margin-left:8px">+</button>
               <button class="icon-btn" id="btn-refresh-proactive" title="立即掃描" style="margin-left:auto">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
               </button>
             </div>
             <p class="text-muted" style="font-size:11px;margin-top:4px" id="notif-last-scan">尚未掃描</p>
+          </div>
+
+          <div class="glass-card" id="proactive-schedule-cards-card">
+            <div class="card-header">
+              <span class="card-icon">🗂️</span>
+              <h3>查詢排程小卡</h3>
+            </div>
+            <div id="proactive-schedule-cards-list" class="proactive-schedule-cards-list"></div>
+            <div class="empty-state" id="proactive-schedule-cards-empty">
+              <span class="empty-icon">＋</span>
+              <p>尚未建立排程小卡</p>
+              <p class="text-muted" style="font-size:11px">點擊上方 + 新增一張查詢卡</p>
+            </div>
           </div>
 
           <div class="glass-card" id="top-priority-card">
@@ -411,12 +411,26 @@
             </div>
           </div>
 
+          <div class="glass-card" id="proactive-prompt-status-card" style="display:none;">
+            <div class="card-header">
+              <span class="card-icon">✨</span>
+              <h3>Prompt 套用狀態</h3>
+            </div>
+            <p id="proactive-prompt-status-text" class="text-muted" style="font-size:12px;margin:6px 0 8px;">尚未套用 Prompt</p>
+            <div class="action-row">
+              <button class="action-btn" id="btn-run-proactive-prompt-query">立即套用並查詢</button>
+            </div>
+          </div>
+
           <!-- Idea 1: Daily Briefing -->
           <div class="glass-card insight-section" id="briefing-section">
             <div class="card-header insight-section-header" data-toggle="briefing-content">
               <span class="card-icon">☀️</span>
               <h3>每日晨報</h3>
               <span class="insight-count" id="briefing-count">0</span>
+              <button class="icon-btn section-refresh-btn" id="btn-refresh-briefing" title="刷新每日晨報" data-agent="briefing" style="margin-left:8px">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
+              </button>
               <svg class="section-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
             </div>
             <div class="insight-section-body" id="briefing-content">
@@ -466,6 +480,9 @@
               <span class="card-icon">⏰</span>
               <h3>截止日追蹤</h3>
               <span class="insight-count" id="deadline-count">0</span>
+              <button class="icon-btn section-refresh-btn" id="btn-refresh-deadlines" title="刷新截止日追蹤" data-agent="deadlines" style="margin-left:8px">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
+              </button>
               <svg class="section-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
             </div>
             <div class="insight-section-body" id="deadline-content">
@@ -483,6 +500,9 @@
               <span class="card-icon">👻</span>
               <h3>未回覆偵測</h3>
               <span class="insight-count" id="ghost-count">0</span>
+              <button class="icon-btn section-refresh-btn" id="btn-refresh-ghosts" title="刷新未回覆偵測" data-agent="ghosts" style="margin-left:8px">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
+              </button>
               <svg class="section-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
             </div>
             <div class="insight-section-body" id="ghost-content">
@@ -500,6 +520,9 @@
               <span class="card-icon">📋</span>
               <h3>會議準備</h3>
               <span class="insight-count" id="meeting-prep-count">0</span>
+              <button class="icon-btn section-refresh-btn" id="btn-refresh-meeting-prep" title="刷新會議準備" data-agent="meeting-prep" style="margin-left:8px">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
+              </button>
               <svg class="section-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
             </div>
             <div class="insight-section-body" id="meeting-prep-content">
@@ -571,6 +594,8 @@
               <div class="version-row"><span>Manifest</span><span>V3</span></div>
               <div class="version-row"><span>Runtime</span><span>Chromium</span></div>
               <div class="version-row"><span>Platform</span><span>Edge</span></div>
+              <div class="version-row"><span>Author</span><span>Payton Chou</span></div>
+              <div class="version-row"><span>LinkedIn</span><span><a href="https://www.linkedin.com/in/payton-chou-768081125/" target="_blank" rel="noopener noreferrer">payton-chou-768081125</a></span></div>
             </div>
           </div>
           <div class="glass-card">
@@ -656,64 +681,13 @@
               </select>
             </div>
           </div>
-          <!-- Microsoft Foundry (optional) -->
+          <!-- Extension Control -->
           <div class="glass-card">
-            <div class="card-header"><span class="card-icon">☁️</span><h3>Microsoft Foundry</h3><span class="agent-badge" id="foundry-status-badge" style="margin-left:auto">未設定</span></div>
-            <p style="font-size:11px;color:var(--text-muted);margin-bottom:8px;">選填 — 使用 Azure 身分識別 (Entra ID) 進行驗證，無需手動輸入 API Key。</p>
-            <div class="config-form">
-              <div class="form-group">
-                <label for="config-foundry-endpoint">Endpoint</label>
-                <input type="text" id="config-foundry-endpoint" class="form-input" placeholder="https://your-resource.services.ai.azure.com/">
-              </div>
-              <div class="form-group">
-                <label>驗證方式</label>
-                <div style="display:flex;gap:12px;align-items:center;margin-top:4px;">
-                  <label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:12px;">
-                    <input type="radio" name="foundry-auth-method" value="identity" checked style="margin:0;">
-                    <span>🔐 Azure 身分識別</span>
-                  </label>
-                  <label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:12px;color:var(--text-muted);">
-                    <input type="radio" name="foundry-auth-method" value="apikey" style="margin:0;">
-                    <span>🔑 API Key (舊版)</span>
-                  </label>
-                </div>
-              </div>
-              <div class="form-group" id="foundry-apikey-group" style="display:none;">
-                <label for="config-foundry-key">API Key</label>
-                <input type="password" id="config-foundry-key" class="form-input" placeholder="••••••••">
-              </div>
-              <div id="foundry-identity-info" style="background:rgba(99,179,237,0.1);border-radius:6px;padding:8px 10px;margin-bottom:8px;font-size:11px;color:var(--text-muted);">
-                <span style="color:var(--info);">ℹ️</span> 將使用目前登入的 Azure 帳戶進行驗證。請確保已透過 <code style="background:rgba(255,255,255,0.1);padding:1px 4px;border-radius:3px;">az login</code> 或 Copilot CLI 登入。
-              </div>
-              <div class="action-row">
-                <button class="action-btn primary" id="btn-save-foundry">儲存</button>
-                <button class="action-btn" id="btn-test-foundry">測試連線</button>
-              </div>
+            <div class="card-header"><span class="card-icon">♻️</span><h3>Extension</h3></div>
+            <div class="action-row">
+              <button class="action-btn" id="btn-reload-extension">重新載入擴充功能</button>
             </div>
-          </div>
-          <!-- System Message -->
-          <div class="glass-card">
-            <div class="card-header"><span class="card-icon">💬</span><h3>System Message</h3></div>
-            <div class="form-group">
-              <textarea id="config-system-message" class="form-textarea" rows="4" placeholder="輸入自訂 System Message..."></textarea>
-            </div>
-          </div>
-          <!-- MCP Config Upload -->
-          <div class="glass-card">
-            <div class="card-header"><span class="card-icon">🔌</span><h3>MCP Config</h3></div>
-            <p style="font-size:12px;color:var(--text-muted);margin-bottom:12px;">
-              上傳 MCP 伺服器設定檔，格式為 <code style="background:rgba(255,255,255,0.1);padding:1px 4px;border-radius:3px;">{"mcpServers": {...}}</code>
-            </p>
-            <div class="upload-area" id="upload-mcp-config">
-              <input type="file" id="file-mcp-config" accept=".json" hidden>
-              <div class="upload-dropzone" id="mcp-dropzone" data-target="file-mcp-config">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-                <span>上傳 MCP Config JSON</span>
-              </div>
-            </div>
-            <div class="action-row" style="margin-top:12px;">
-              <button class="action-btn" id="btn-download-mcp-sample">📥 下載範本</button>
-            </div>
+            <p class="text-muted" style="font-size:11px;margin-top:8px;">重新載入後會套用最新程式碼與權限設定。</p>
           </div>
           <!-- Debug Log -->
           <div class="glass-card">
@@ -788,7 +762,6 @@
   <script src="lib/panels/history.js"></script>
   <script src="lib/panels/usage.js"></script>
   <script src="lib/panels/mcp.js"></script>
-  <script src="lib/panels/skills.js"></script>
   <script src="lib/panels/proactive-state.js"></script>
   <script src="lib/panels/proactive-render.js"></script>
   <script src="lib/panels/proactive-scan.js"></script>

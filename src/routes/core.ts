@@ -9,6 +9,20 @@ type LocalSkillItem = {
 };
 
 function extractSkillDescription(skillDoc: string): string {
+  const frontmatterMatch = skillDoc.match(/^---\s*\n([\s\S]*?)\n---/);
+  if (frontmatterMatch?.[1]) {
+    const frontmatter = frontmatterMatch[1];
+    const descLine = frontmatter
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .find((line) => line.toLowerCase().startsWith("description:"));
+
+    if (descLine) {
+      const desc = descLine.replace(/^description:\s*/i, "").trim().replace(/^['"]|['"]$/g, "");
+      if (desc) return desc;
+    }
+  }
+
   const lines = skillDoc
     .split(/\r?\n/)
     .map((line) => line.trim())
@@ -215,16 +229,44 @@ export function registerCoreRoutes(routes: RouteTable, deps: CoreRouteDeps): voi
       context.models = [];
     }
 
+    const mergedTools: Array<{ name: string; description?: string; source: "cli" | "local-skill" }> = [];
+    const seenToolNames = new Set<string>();
+
     try {
       const toolsResult = await c.rpc.tools.list({});
-      context.tools = (toolsResult.tools || []).map((t: { name: string; description?: string }) => ({
-        name: t.name,
-        description: t.description,
-      }));
+      for (const t of (toolsResult.tools || [])) {
+        const name = String(t?.name || "").trim();
+        const key = name.toLowerCase();
+        if (!key || seenToolNames.has(key)) continue;
+        seenToolNames.add(key);
+        mergedTools.push({
+          name,
+          description: t?.description,
+          source: "cli",
+        });
+      }
     } catch (err) {
       log("WARN", "tools.list not available:", (err as Error).message);
-      context.tools = [];
     }
+
+    try {
+      const localSkills = listLocalSkills(process.cwd(), fs, path);
+      for (const skill of localSkills) {
+        const name = String(skill?.name || "").trim();
+        const key = name.toLowerCase();
+        if (!key || seenToolNames.has(key)) continue;
+        seenToolNames.add(key);
+        mergedTools.push({
+          name,
+          description: skill.description,
+          source: "local-skill",
+        });
+      }
+    } catch (err) {
+      log("WARN", "listLocalSkills not available:", (err as Error).message);
+    }
+
+    context.tools = mergedTools;
 
     try {
       const sessionsList = await c.listSessions();

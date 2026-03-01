@@ -49,50 +49,11 @@
     setBar("bar-context", "bar-context-count", stats.pages);
     setBar("bar-tasks", "bar-tasks-count", toolCalls.length);
 
-    renderModelsCard();
   }
 
   function renderModelsCard() {
-    let card = document.getElementById("models-card");
-    const scrollEl = document.querySelector("#panel-usage .panel-scroll");
-    if (!scrollEl) return;
-
-    const chatState = root.chat?.getState?.() || {};
-    const availableModels = chatState.availableModels || [];
-    const currentModel = chatState.currentModel;
-    const helpers = root.panels?.helpers || {};
-
-    if (availableModels.length === 0) {
-      if (card) card.remove();
-      return;
-    }
-
-    if (!card) {
-      card = document.createElement("div");
-      card.id = "models-card";
-      card.className = "glass-card";
-      scrollEl.appendChild(card);
-    }
-
-    card.innerHTML = `
-      <div class="card-header"><span class="card-icon">🧠</span><h3>Available Models</h3></div>
-      <div class="token-detail-grid" id="models-list">
-        ${availableModels.map((m) => {
-          const modelId = typeof m === "string" ? m : m.id || m.name || String(m);
-          const modelLabel = typeof m === "string" ? m : m.name || m.id || String(m);
-          const active = modelId === currentModel;
-          return helpers.renderModelItem?.({ modelId, label: modelLabel, active }) || "";
-        }).join("")}
-      </div>
-    `;
-
-    card.querySelectorAll(".model-item").forEach((item) => {
-      item.addEventListener("click", () => {
-        const modelId = item.dataset.model;
-        if (modelId === currentModel) return;
-        switchModel(modelId);
-      });
-    });
+    const card = document.getElementById("models-card");
+    if (card) card.remove();
   }
 
   async function switchModel(modelName) {
@@ -111,7 +72,6 @@
     const sel = document.getElementById("config-model");
     if (sel) sel.value = modelName;
 
-    renderModelsCard();
     utils.showToast?.(`${localizeRuntimeMessage("切換模型中: ")}${modelName}…`);
     utils.debugLog?.("CFG", `Model switching to: ${modelName}`);
 
@@ -128,7 +88,6 @@
           root.chat?.setCurrentModel?.(prevModel);
           chrome.storage.local.set({ selectedModel: prevModel });
           if (sel) sel.value = prevModel;
-          renderModelsCard();
         }
       } catch (err) {
         utils.showToast?.(`${localizeRuntimeMessage("模型切換失敗: ")}${err.message}`, "error");
@@ -136,7 +95,6 @@
         root.chat?.setCurrentModel?.(prevModel);
         chrome.storage.local.set({ selectedModel: prevModel });
         if (sel) sel.value = prevModel;
-        renderModelsCard();
       }
     } else {
       utils.showToast?.(`${localizeRuntimeMessage("已選定模型: ")}${modelName}${localizeRuntimeMessage("（下次交談使用）")}`);
