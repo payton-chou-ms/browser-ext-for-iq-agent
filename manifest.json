@@ -23,8 +23,7 @@
     "alarms"
   ],
   "host_permissions": [
-    "http://localhost/*",
-    "http://127.0.0.1/*"
+    "<all_urls>"
   ],
   "content_security_policy": {
     "extension_pages": "script-src 'self'; object-src 'self'"
