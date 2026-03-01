@@ -319,24 +319,22 @@
     return true;
   }
 
-  async function runActiveCommand(sendMessageFn) {
+  async function runActiveCommand(_sendMessageFn) {
     const item = commandState.items[commandState.activeIndex];
     closeCommandMenu();
     if (!item) return;
-    const typedText = String(_chatInput?.value || "").trim();
-    const supportsArgs = /^\/(foundry_agent_skills?|foundryagentskills?|foundry_agent_skill|foundryagentskill)$/i.test(item.command);
-    const useTypedCommand =
-      typedText === item.command ||
-      (supportsArgs && typedText.startsWith(`${item.command} `));
-    const commandText = useTypedCommand ? typedText : item.command;
 
-    _chatInput.value = "";
-    _chatInput.style.height = "auto";
-    const handled = await handleSlashCommand(commandText);
-    if (handled) return;
+    // Fill command into input box for user to edit before sending
+    const supportsArgs = /^\/(foundry_agent_skills?|foundryagentskills?|foundry_agent_skill|foundryagentskill)$/i.test(item.command);
+    const commandText = supportsArgs ? `${item.command} ` : item.command;
 
     _chatInput.value = commandText;
-    await sendMessageFn?.();
+    _chatInput.style.height = "auto";
+    _chatInput.focus();
+
+    // Move cursor to end of input
+    const len = commandText.length;
+    _chatInput.setSelectionRange?.(len, len);
   }
 
   function isOpen() {
