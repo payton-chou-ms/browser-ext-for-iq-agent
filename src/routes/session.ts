@@ -1,6 +1,7 @@
 import { approveAll } from "@github/copilot-sdk";
 import { spawnSync } from "node:child_process";
 import path from "node:path";
+import fs from "node:fs";
 import type { RouteTable, SessionRouteDeps } from "../shared/types.js";
 import {
   Schemas,
@@ -47,6 +48,46 @@ function parseRepository(remoteUrl: string, gitRoot: string): string {
 
   if (!gitRoot) return "";
   return path.basename(gitRoot);
+}
+
+/**
+ * Transform image file paths in content to markdown image links.
+ * Detects paths like /path/to/output/image.png and converts to:
+ * ![Generated Image](http://127.0.0.1:8321/api/image?path=...)
+ */
+function transformImagePaths(content: string, httpPort: number): string {
+  // Match common image paths in output directory
+  const imagePathRegex = /(?:^|\s|：|\:|儲存至)(\/?(?:[\w./-]+\/)?output\/[^\s\n]+\.(?:png|jpg|jpeg|gif|webp))/gi;
+  
+  let transformed = content;
+  const matches = content.matchAll(imagePathRegex);
+  
+  for (const match of matches) {
+    const imagePath = match[1];
+    // Check if this path already has a markdown image link
+    if (content.includes(`](http://127.0.0.1:${httpPort}/api/image?path=`)) {
+      continue;
+    }
+    
+    // Resolve to absolute path if relative
+    const absPath = path.isAbsolute(imagePath) 
+      ? imagePath 
+      : path.resolve(process.cwd(), imagePath);
+    
+    // Only transform if file exists
+    if (fs.existsSync(absPath)) {
+      const encodedPath = encodeURIComponent(absPath);
+      const imageUrl = `http://127.0.0.1:${httpPort}/api/image?path=${encodedPath}`;
+      const markdownImage = `\n\n![Generated Image](${imageUrl})`;
+      
+      // Append markdown image if not already present
+      if (!transformed.includes(imageUrl)) {
+        transformed += markdownImage;
+      }
+    }
+  }
+  
+  return transformed;
 }
 
 function getSessionRuntimeContext(): SessionRuntimeContext {
@@ -205,7 +246,9 @@ export function registerSessionRoutes(routes: RouteTable, deps: SessionRouteDeps
       "CHAT",
       `[${body.sessionId.slice(0, 8)}] sendAndWait: ${fullPrompt.slice(0, 100)}... (${body.attachments?.length || 0} files)`
     );
-    const result = await session.sendAndWait({ prompt: fullPrompt });
+    // 180s timeout for long-running operations like image generation
+    const SEND_AND_WAIT_TIMEOUT_MS = 180_000;
+    const result = await session.sendAndWait({ prompt: fullPrompt }, SEND_AND_WAIT_TIMEOUT_MS);
     log("CHAT", `[${body.sessionId.slice(0, 8)}] Response received`);
 
     const content = result?.data?.content ?? "";

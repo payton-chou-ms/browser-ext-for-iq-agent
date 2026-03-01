@@ -5,7 +5,7 @@
 > - ✅ `chrome.storage.session` 用於敏感 key（`background.js`, `lib/connection.js`）
 > - ✅ Proxy 只聽 `127.0.0.1`（`proxy.ts:523`）
 > - ✅ Extension 本身零 secrets，透過 proxy 注入
-> - ⬜ CI/CD 自動發佈（GitHub Actions 待設定）
+> - ✅ CI/CD Publish job 已移除（改為手動上傳 artifact）
 > - ⬜ Secret rotation 機制
 
 ## 涉及的 Secrets
@@ -14,7 +14,7 @@
 |--------|------|----------|
 | **Azure Foundry API Key** | 呼叫 Azure AI model endpoint | 長期，需定期 rotate |
 | **Copilot SDK Token** | CLI `copilot` 認證（`GITHUB_TOKEN`） | 短期，per-session |
-| **Chrome Web Store API** | 自動發佈 extension | CI 專用 |
+| ~~Chrome Web Store API~~ | ~~自動發佈 extension~~ | 已移除（手動上傳） |
 
 ---
 
@@ -75,10 +75,10 @@ env:
   FOUNDRY_API_KEY: ${{ secrets.FOUNDRY_API_KEY }}
   FOUNDRY_ENDPOINT: ${{ secrets.FOUNDRY_ENDPOINT }}
 
-# 發佈用
-  CHROME_EXTENSION_ID: ${{ secrets.CHROME_EXTENSION_ID }}
-  CHROME_CLIENT_ID: ${{ secrets.CHROME_CLIENT_ID }}
-  CHROME_REFRESH_TOKEN: ${{ secrets.CHROME_REFRESH_TOKEN }}
+# 發佈用（已移除 publish job，改為手動上傳） 
+  # CHROME_EXTENSION_ID: (不再需要)
+  # CHROME_CLIENT_ID: (不再需要)
+  # CHROME_REFRESH_TOKEN: (不再需要)
 ```
 
 ### 5. 使用者端部署 — Config Panel

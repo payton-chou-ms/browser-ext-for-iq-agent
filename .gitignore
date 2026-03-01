@@ -26,6 +26,7 @@ src/achievement-engine.js
 src/achievement-engine.js.map
 
 # Test artifacts
+coverage/
 playwright-report/
 test-results/
 

@@ -1,116 +1,127 @@
-# Agent Instructions
+# IQ Copilot — Agent Instructions
 
-> 本文件提供 AI 助手與開發者操作本專案時的指引。
+> 本文件描述 IQ Copilot 的 AI 能力與開發指引，供 AI Agent 與開發者參考。
 
-## Project Overview
+## Product Overview
 
-IQ Copilot 是一個 **Chrome 瀏覽器擴充功能**，整合 GitHub Copilot CLI 與企業內部工具（Work IQ、Microsoft Foundry），提供側欄 AI 助手體驗。
+IQ Copilot 是一個 **Chrome 瀏覽器擴充功能**（MV3），透過側欄提供企業級 AI 助手體驗。整合 GitHub Copilot CLI、Microsoft Foundry Agent Service 與 Work IQ（M365），形成三大 IQ 平台協同：
 
-## Architecture Summary
+| Platform | 能力 | 後端 |
+|----------|------|------|
+| **Foundry IQ** | 企業知識庫語意搜尋（UM / PKM / Fabric Agent） | Microsoft Foundry Agent Service |
+| **Work IQ** | M365 行事曆、郵件、Teams 整合 + Proactive Scan | Work IQ API (M365 Graph) |
+| **Copilot IQ** | 通用 AI 對話、程式碼分析、頁面摘要 | GitHub Copilot CLI + @github/copilot-sdk |
+
+## Agent Capabilities
+
+### Foundry Agent Skills
+
+透過 `/foundry_agent_skills <query>` 呼叫 Foundry Agent：
+
+- **um-semantic-agent** — 產品語意搜尋（投影機規格、功能比較）
+- **pkm-semantic-agent** — 內部知識庫（SOP、FAQ、技術文件）
+- **fabric-semantic-agent** — 數據分析（銷售報表、庫存趨勢）
+
+技能腳本：`.github/skills/foundry_agent_skill/scripts/foundry_agent.sh`
+
+### Image Generation
+
+透過 `/gen-img <prompt>` 使用 Azure OpenAI 生成圖片（gpt-image-1.5, 1536×1024）。
+
+技能腳本：`.github/skills/gen-img/scripts/generate_image.py`
+
+### Proactive Scan
+
+自動掃描當前頁面內容，提供上下文感知建議：
+- 偵測頁面類型（產品頁、文件、程式碼）
+- 產出結構化建議卡片
+- 支援一鍵深入對話
+
+### MCP Tools
+
+`mcp.json` 定義 MCP 協定工具：
+
+| Tool | Description |
+|------|-------------|
+| `proactive_scan` | 掃描頁面內容提供 AI 建議 |
+| `foundry_execute` | 執行 Foundry Skill |
+
+Prompts：`summarize_page`、`analyze_code`
+
+## Slash Commands
+
+| Command | Description |
+|---------|-------------|
+| `/help` | 顯示所有可用命令 |
+| `/foundry_agent_skills <query>` | 呼叫 Foundry Agent 執行語意搜尋 |
+| `/model list` | 列出可用模型 |
+| `/model refresh` | 重新載入模型清單 |
+| `/model use <model-id>` | 切換當前 Tab 模型 |
+
+---
+
+## Architecture
 
 ```
 Chrome Extension (MV3)
-    ├── sidebar.html/js    # UI 層
-    ├── background.js      # Service Worker (訊息路由)
-    └── content_script.js  # 頁面上下文擷取
-          ↓
-    Local Proxy (proxy.ts)
-          ↓
-    @github/copilot-sdk
-          ↓
-    Copilot CLI
+├── sidebar.html/js + lib/*   → UI 層
+├── background.js             → Service Worker (訊息路由)
+└── content_script.js         → 頁面上下文擷取
+      ↓ HTTP/SSE
+Local Proxy (proxy.ts + routes/*)
+      ↓
+@github/copilot-sdk → Copilot CLI
+Microsoft Foundry Agent Service
 ```
 
-## Key Files
+### Key Files
 
 | Path | Purpose |
 |------|---------|
-| `src/sidebar.js` | Main UI controller |
-| `src/background.js` | Extension service worker |
-| `src/proxy.ts` | Local API gateway |
-| `src/routes/*.ts` | Modular API routes |
-| `src/lib/*.js` | Shared utilities |
-| `src/lib/panels/*.js` | UI panel modules |
+| `src/sidebar.js` | UI controller（聊天、面板、命令選單） |
+| `src/background.js` | Service Worker（訊息路由、SSE 橋接） |
+| `src/proxy.ts` | API gateway + route registration |
+| `src/routes/*.ts` | 5 大路由模組：core / session / foundry / proactive / workiq |
+| `src/lib/*.js` | 共用工具（chat-streaming, chat-tabs, i18n, state...） |
+| `src/lib/panels/*.js` | UI 面板模組 |
 
-## Development Commands
+### Route Domains
+
+| Domain | 路由前綴 | 職責 |
+|--------|---------|------|
+| **core** | `/api/chat`, `/api/models` | 聊天串流、模型管理 |
+| **session** | `/api/session` | SSE 會話管理 |
+| **foundry** | `/api/skills/*` | Foundry Agent 執行 |
+| **proactive** | `/api/proactive/*` | Proactive Scan |
+| **workiq** | `/api/workiq/*` | M365 整合 |
+
+## Development
 
 ```bash
-# Start development
-./start.sh
-
-# Run tests
-npm test
-
-# Lint
-npm run lint
-
-# Build
-npm run build
+./start.sh          # 啟動 Copilot CLI + Proxy
+npm test            # E2E tests (Playwright)
+npm run test:unit   # Unit tests (Vitest)
+npm run lint        # ESLint
+npm run build       # TypeScript build
 ```
 
-## Code Style Guidelines
-
-### TypeScript/JavaScript
-- Use ESM imports
-- Prefer `const` over `let`
-- Use async/await over callbacks
-- Follow existing naming conventions (camelCase)
-
-### File Organization
-- Keep files focused and small (<500 lines)
-- Group related functionality in `lib/panels/`
-- Route handlers in `routes/`
-
-## Testing Expectations
-
-- Unit tests in `tests/unit/`
-- E2E tests in `tests/`
-- Maintain 80%+ coverage for new code
-
-## Common Tasks
-
-### Adding a New Panel
-1. Create `src/lib/panels/new-panel.js`
-2. Add panel button in `src/sidebar.html`
-3. Register in `src/sidebar.js` panel system
-4. Add i18n keys if needed
-
 ### Adding a New Route
+
 1. Create handler in `src/routes/`
 2. Register in `src/proxy.ts` router
 3. Add Zod schema in `src/routes/schemas.ts`
-4. Add unit tests
+4. Add unit tests in `tests/unit/`
 
 ### Modifying Chat Behavior
-- Streaming logic: `src/lib/chat-streaming.js`
+
+- Streaming: `src/lib/chat-streaming.js`
 - Tab management: `src/lib/chat-tabs.js`
-- History: `src/lib/chat-session.js`
+- Session history: `src/lib/chat-session.js`
 
-## Security Notes
+## Security
 
-- Never hardcode secrets
-- Validate all user inputs with Zod schemas
-- Use Content Security Policy in manifest.json
-- CORS restricted to extension origin
-
-## MCP Integration
-
-See `mcp.json` for MCP server configuration.
-The extension supports loading MCP tools from `~/.copilot/mcp-config.json`.
-
-## Troubleshooting
-
-### Proxy Connection Failed
-1. Check if `./start.sh` is running
-2. Verify port 8321 is available
-3. Check Copilot CLI auth status
-
-### Extension Not Loading
-1. Verify manifest.json syntax
-2. Check Chrome developer mode enabled
-3. Look for errors in `chrome://extensions`
-
-### Streaming Not Working
-1. Check background.js console for errors
-2. Verify SSE connection in Network tab
-3. Ensure session is active
+- Zod schemas 驗證所有輸入
+- CSP 定義於 `manifest.json`
+- CORS 限制為擴充功能 origin
+- 認證 token 不持久化於客戶端
+- 所有 secrets 透過環境變數注入

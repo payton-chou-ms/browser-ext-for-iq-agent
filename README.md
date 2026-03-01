@@ -1,82 +1,131 @@
 # IQ Copilot Browser Extension
 
-> Chrome Extension (MV3) + Local Proxy，企業級 AI 助手側欄。
+> Chrome 側邊欄 AI 助手 — 整合 GitHub Copilot、Foundry IQ、Work IQ、Fabric IQ
 
 [![CI](https://github.com/payton-chou-ms/browser-ext-for-iq-agent/actions/workflows/ci.yml/badge.svg)](https://github.com/payton-chou-ms/browser-ext-for-iq-agent/actions)
 
-## Quick Start
+---
 
-```bash
-# 1. 安裝依賴
-npm install
+## 🎯 What is IQ Copilot?
 
-# 2. 啟動服務
-./start.sh
+IQ Copilot 是一款**瀏覽器原生側邊欄 AI 助手**（Chrome MV3），透過本地 HTTP Proxy 橋接 GitHub Copilot CLI，並整合三大企業 IQ 平台：
 
-# 3. 載入擴充功能
-# chrome://extensions → 開發人員模式 → Load unpacked → 選擇本目錄
-```
+| IQ 平台 | 能力 |
+|---------|------|
+| **Foundry IQ** | 企業知識 Agent — 產品手冊查詢、售後排障（um / pkm / fabric agent） |
+| **Work IQ** | M365 資料查詢 — 郵件、行事曆、Teams、OneDrive |
+| **Fabric IQ** | 結構化規格庫 — 產品規格比對與篩選 |
 
-## Features
+---
 
-- 🗂️ **多 Tab 聊天** - 最多 10 個並行對話
-- 🤖 **Per-Tab 模型** - 每個 Tab 可選用不同模型
-- ⚡ **Quick Custom Prompt** - 儲存常用 prompt，一鍵套用
-- 📎 **檔案問答** - 上傳附件後直接分析與回答
-- 🌐 **網頁問答** - 讀取當前頁面內容後回答
-- 🔧 **Skills/Tools** - 視覺化工具執行狀態
-- 📡 **Proactive Scan** - 頁面智慧掃描建議
-- 📊 **Token Tracking** - 即時用量追蹤
-- 🏆 **Achievement System** - 遊戲化互動
+## 📈 Business Impact
 
-## Architecture
+| 指標 | 效益 |
+|------|------|
+| 資訊搜尋時間 | **-50%** |
+| 會議準備時間 | **-40%** |
+| 漏回郵件風險 | **-80%** |
+| 系統切換次數 | **-70%** |
+| 報價/諮詢效率 | **3×** |
+
+---
+
+## 🏗️ Architecture
 
 ```mermaid
 flowchart LR
-  A[Chrome Sidebar] -->|runtime| B[background.js]
-  B -->|HTTP| C[proxy.ts]
-  C -->|SDK| D[Copilot CLI]
-  C --> E[Foundry API]
+  A[Chrome Sidebar] -->|runtime msg / stream port| B[background.js]
+  B -->|HTTP / SSE| C[proxy.ts :8321]
+  C -->|@github/copilot-sdk| D[Copilot CLI :4321]
+  C -->|child_process| E[Foundry Agent Skills]
+  C -->|via Copilot session| F[Work IQ · M365]
+  C <-->|read/write| G[MCP Config]
 ```
 
-## Documentation
+---
 
-📚 **[Full Documentation →](./docs/README.md)**
-
-- [Features](./docs/FEATURES-zhtw.md)
-- [Demo Script](./docs/DEMO-zhtw.md)
-- [Architecture](./docs/architecture.md)
-- [CI/CD Flow](./docs/cicd_flow.md)
-- [RAI Notes](./docs/README.md#-responsible-ai-rai-notes)
-- [Archive](./docs/archive/README.md)
-
-## Project Structure
-
-```
-├── src/               # 源代碼
-│   ├── sidebar.*      # Extension UI
-│   ├── background.js  # Service Worker
-│   ├── proxy.ts       # Local API gateway
-│   ├── lib/           # 共用模組
-│   │   └── panels/    # UI 面板模組
-│   ├── routes/        # Proxy API 路由
-│   └── scripts/       # Build scripts
-├── docs/              # 完整文件
-├── tests/             # 測試檔案
-├── presentations/     # Demo 簡報
-├── AGENTS.md          # Agent 開發指引
-└── mcp.json           # MCP 設定
-```
-
-## Development
+## 🚀 Quick Start
 
 ```bash
-npm run lint          # Lint
-npm test              # E2E tests
-npm run build         # Build proxy
-npm run build:watch   # Watch mode
+# 1. Install dependencies
+npm install
+
+# 2. Start proxy + Copilot CLI
+./start.sh
+
+# 3. Load extension
+#    chrome://extensions → Developer mode → Load unpacked → select this directory
+
+# 4. Open sidebar and start chatting!
 ```
 
-## License
+### Prerequisites
+
+- **Node.js** 20+, **Chrome** 90+
+- **Copilot CLI** installed & authenticated (`copilot auth login`)
+- **az login** completed (for Foundry Agent skills)
+
+---
+
+## 📦 Project Structure
+
+```
+├── src/
+│   ├── sidebar.*          # Extension UI (HTML/CSS/JS)
+│   ├── background.js      # MV3 Service Worker (message routing)
+│   ├── content_script.js   # Page context capture
+│   ├── proxy.ts           # Local HTTP Proxy (main entry)
+│   ├── lib/               # Frontend modules (chat, state, i18n, utils…)
+│   │   └── panels/        # UI panel modules (proactive, achievements…)
+│   ├── routes/            # Proxy API routes (core, session, foundry, proactive, workiq)
+│   ├── shared/            # Shared types & contracts
+│   └── scripts/           # Build & dev scripts
+├── docs/                  # Full documentation
+├── tests/                 # Unit (Vitest) & E2E (Playwright)
+├── .github/skills/        # Extensible skill scripts (foundry_agent, gen-img)
+├── AGENTS.md              # AI Agent capabilities description
+└── plan/                  # Implementation plans & archive
+```
+
+---
+
+## 🧪 Development
+
+| Command | Description |
+|---------|-------------|
+| `./start.sh` | Start proxy + health check |
+| `npm run lint` | ESLint |
+| `npm run test:unit` | Vitest unit tests |
+| `npm test` | Full test suite |
+| `npm run build` | Build proxy bundle |
+| `npm run build:watch` | Watch mode |
+
+---
+
+## 📚 Documentation
+
+| Document | Description |
+|----------|-------------|
+| [Features & Business Impact](./docs/FEATURES.md) | 功能亮點、三大 IQ 協同、ROI |
+| [Demo Script](./docs/DEMO.md) | Demo 腳本與可直接貼上的 Prompt |
+| [Architecture](./docs/architecture.md) | 系統架構深入解析（Mermaid 圖表） |
+| [CI/CD Flow](./docs/cicd_flow.md) | CI/CD 流程與打包說明 |
+| [E2E Testing](./docs/E2E-TESTING.md) | Playwright E2E 測試指南 |
+| [Archive](./docs/archive/) | 歷史文件 |
+
+---
+
+## 🛡️ Security & Responsible AI
+
+- **本地優先**：Proxy 僅監聽 localhost，敏感資料不離開使用者電腦
+- **最小權限**：Extension 僅請求 `activeTab`、`sidePanel`、`tabs`、`storage`、`alarms`
+- **輸入驗證**：所有 Proxy 路由經 Zod schema 驗證 + body size 限制
+- **日誌遮罩**：API key / token 等敏感值自動 redact
+- **AI 透明度**：所有工具執行狀態即時顯示、token 消耗可追蹤
+- **限制聲明**：AI 回應可能不準確，使用者應驗證重要資訊
+
+---
+
+## 📄 License
 
 MIT

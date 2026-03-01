@@ -46,4 +46,16 @@ python scripts/generate_image.py "一隻可愛的貓咪" -o ./output/cat.png
 尺寸: 1536x1024
 模型: gpt-image-1.5
 ✅ 圖片已儲存至: ./output/output_20260125_143052.png
+
+![Generated Image](http://127.0.0.1:8321/api/image?path=...)
 ```
+
+## 重要：回應格式
+
+執行完成後，腳本會輸出一個 Markdown 格式的圖片連結：
+```
+![Generated Image](http://127.0.0.1:8321/api/image?path=/path/to/image.png)
+```
+
+**你必須在回應中直接包含這個 Markdown 圖片連結，讓用戶可以看到生成的圖片。**
+不要只回報檔案路徑，要把完整的 `![Generated Image](...)` 這行原封不動地放在你的回覆中。

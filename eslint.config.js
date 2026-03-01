@@ -27,7 +27,7 @@ export default [
 
   // ── Node files (proxy, config, scripts) ──
   {
-    files: ["proxy.js", "proxy.old.js", "copilot-rpc.js", "playwright.config.js", "scripts/**/*.mjs"],
+    files: ["proxy.js", "copilot-rpc.js", "playwright.config.js", "scripts/**/*.mjs"],
     languageOptions: {
       ecmaVersion: "latest",
       sourceType: "module",
