@@ -73,6 +73,7 @@
           "**可用命令**",
           "- `/help` 顯示命令說明",
           "- `/foundry_agent_skills <query>` 使用 Foundry skill 查詢",
+          "- `/workiq <query>` 使用 Work IQ 查詢",
           "- `/model list` 列出模型",
           "- `/model refresh` 刷新模型",
           "- `/model use <model-id>` 切換模型",
@@ -90,6 +91,18 @@
           "**Foundry Agent Skills**",
           "用法：`/foundry_agent_skills <query>`",
           "範例：`/foundry_agent_skills How do I fix projector screen flickering?`",
+        ].join("\n"),
+      },
+      {
+        id: "workiq",
+        group: "skills",
+        title: "Work IQ 查詢",
+        description: "用法：/workiq <query>",
+        command: "/workiq",
+        run: async () => [
+          "**Work IQ**",
+          "用法：`/workiq <query>`",
+          "範例：`/workiq What meetings do I have today?`",
         ].join("\n"),
       },
       {
@@ -289,6 +302,56 @@
         const response = await UTILS.sendToBackground?.({
           type: "EXECUTE_SKILL",
           skillName: "foundry_agent_skill",
+          command: "invoke",
+          payload: { message: query, source: "slash-command" },
+        });
+
+        if (response?.ok && response?.mode !== "mock") {
+          const result = response.result || {};
+          const textResult = result.response_text || result.output?.response_text || result.output?.message || result.summary;
+          CHAT.addBotMessage?.(typeof textResult === "string" && textResult.trim()
+            ? textResult
+            : `\`\`\`json\n${escapeHtml(JSON.stringify(result.output || result, null, 2))}\n\`\`\``);
+        } else {
+          if (response?.mode === "mock") {
+            UTILS.showToast?.("目前是 MVP mock skill，已改用一般查詢模式");
+          }
+          await CHAT.sendMessageStreaming?.(query, []);
+        }
+      } catch (err) {
+        CHAT.addBotMessage?.(`⚠ ${localizeRuntimeMessage("命令執行失敗")}: ${err?.message || String(err)}`);
+      }
+
+      PANELS.usage?.updateStats?.();
+      return true;
+    }
+
+    // Handle /workiq command
+    const workiqMatch = commandText.match(/^\/workiq(?:\s+([\s\S]+))?$/i);
+    if (workiqMatch) {
+      const query = String(workiqMatch[1] || "").trim();
+      CHAT.addUserMessage?.(commandText);
+
+      if (!query) {
+        CHAT.addBotMessage?.([
+          "**Work IQ**",
+          "用法：`/workiq <query>`",
+          "範例：`/workiq What meetings do I have today?`",
+        ].join("\n"));
+        PANELS.usage?.updateStats?.();
+        return true;
+      }
+
+      if (!CONN.isConnected?.()) {
+        CHAT.addBotMessage?.("目前未連線 Copilot CLI，請先連線後再使用 `/workiq`。");
+        PANELS.usage?.updateStats?.();
+        return true;
+      }
+
+      try {
+        const response = await UTILS.sendToBackground?.({
+          type: "EXECUTE_SKILL",
+          skillName: "workiq",
           command: "invoke",
           payload: { message: query, source: "slash-command" },
         });
