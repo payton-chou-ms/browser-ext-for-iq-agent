@@ -1,83 +1,98 @@
-# IQ Copilot Demo Prompt Pack（繁體中文）
+# IQ Copilot — Demo Prompt Pack
 
-目前維護版本為繁體中文（本文件）。
+> Copy-paste each prompt into the IQ Copilot sidebar to demo the corresponding feature.
 
 ---
 
-## 1) 智慧對話助手（直接貼上）
+## 1. Smart Chat Assistant
+
+### 1-1 Page Summary (navigate to a news article first)
 
 ```text
-請用 5 點摘要這個頁面，最後補 3 個建議下一步。
+Summarize this page in 5 bullet points, then suggest 3 next steps.
 ```
 
-Open URL: https://www.msn.com/zh-tw/news/living/%E9%80%8F%E5%A4%A9%E5%8E%9D%E5%B0%87%E6%88%90%E8%BF%BD%E6%86%B6-%E4%BF%A1%E7%BE%A9%E6%88%BF%E5%B1%8B-%E9%9B%BB%E6%A2%AF%E5%A4%A7%E6%A8%93%E6%88%90%E5%85%A8%E5%8F%B0%E8%B6%A8%E5%8B%A2-%E5%B0%8F%E5%AE%85%E5%8C%96%E4%BA%8C%E6%88%BF%E5%B9%B3%E8%BB%8A%E6%88%90%E4%B8%BB%E6%B5%81/ar-AA1WWohT?ocid=msedgntp&pc=U531&cvid=69a378d58e9a40c2bcb8289b4271934d&ei=14
+### 1-2 Page Summary — English (open any non-English page)
+
+> Example URL: `https://www.msn.com/zh-tw/news/living/...`
+
 ```text
 Please summarize this page in English with key risks and action items.
 ```
 
-Open URL: file:///Users/payton/Downloads/X.pdf
+### 1-3 Document Summary (open a PDF)
+
+> Example: `file:///Users/payton/Downloads/X.pdf`
+
 ```text
 Summarize this document and list action items with owner and ETA.
 ```
 
-Upload file
+### 1-4 Screenshot Analysis (click the 📷 screenshot button first)
+
 ```text
 Please summarize key issues from this screenshot and propose top 3 fixes.
 ```
 
-click screenshot button
+### 1-5 Page Analysis (upload a PDF)
+
 ```text
 Based on this page, what are the top 3 key points and 2 potential risks?
 ```
 
-use slash command to check help, model list, mcp list
+### 1-6 Slash Commands
+
+Use `/help`, `/models`, `/mcp` to explore available commands, models, and MCP tools.
 
 ---
 
-## 2) Multi-Tab + Multi-Session（直接貼上）
+## 2. Multi-Tab & Multi-Session
 
-### Tab A（產品規格）
+### Tab A — Product Overview
 
 ```text
-請介紹 Microsoft 的產品，使用 1000 字
+Introduce Microsoft's product lineup in approximately 1000 words.
 ```
 
-### Tab B（故障排查）
+### Tab B — Company Overview
 
 ```text
-請介紹 Microsoft 公司，使用 1000 字
+Introduce Microsoft as a company in approximately 1000 words.
 ```
 
 ---
 
-## 3) Proactive + Work IQ
+## 3. Proactive & Work IQ
 
-List the features in the panel
+Open the **Proactive** panel from the left nav and review the listed features.
 
 ---
 
-## 4) Skills / MCP / microsoftdocs / context7（直接貼上）
+## 4. Skills / MCP / Microsoft Docs / Context7
 
-### skills / MCP
+### 4-1 Work IQ Skill
+
 ```text
 /workiq check latest microsoft foundry deck
 ```
-### microsoftdocs
+
+### 4-2 Microsoft Docs
 
 ```text
-請用 Microsoft 官方文件整理 Azure Functions HTTP trigger 的設定步驟與注意事項。
+Using official Microsoft documentation, outline the setup steps and best practices for Azure Functions HTTP triggers.
 ```
 
-### context7
+### 4-3 Context7
 
 ```text
-/context7 用 context7 幫我查 openai python sdk 最新 chat completion 用法，給最小可跑範例
+/context7 Look up the latest OpenAI Python SDK chat completion usage and provide a minimal runnable example.
 ```
+
 ---
 
-## 5) Foundry Agent（直接貼上）
+## 5. Foundry Agents
 
-### UM (`um-semantic-agent`)
+### 5-1 UM Agent (`um-semantic-agent`)
 
 ```text
 /foundry_agent_skills um-semantic-agent to check Which projectors support Short Throw?
@@ -93,7 +108,7 @@ Please list WXGA models and their ports.
 Compare the port differences between EW805ST and EU610ST.
 ```
 
-### PKM (`pkm-semantic-agent`)
+### 5-2 PKM Agent (`pkm-semantic-agent`)
 
 ```text
 /foundry_agent_skills pkm-semantic-agent to check
@@ -105,7 +120,7 @@ How do I fix projector screen flickering?
 Why is there no image? Please provide step-by-step troubleshooting.
 ```
 
-### Fabric (`fabric-specs-agent`)
+### 5-3 Fabric Agent (`fabric-specs-agent`)
 
 ```text
 /foundry_agent_skills fabric-specs-agent to check
@@ -119,7 +134,7 @@ Please list 4K UHD models and their brightness.
 
 ---
 
-## 6) Foundry 模型（`gen_img`）直接貼上
+## 6. Image Generation (`gen_img`)
 
 ```text
 /gen_img Generate a cute cat picture
@@ -127,7 +142,9 @@ Please list 4K UHD models and their brightness.
 
 ---
 
-## 7) Quick Custom Prompt（直接貼上）
+## 7. Quick Custom Prompts
+
+### Action Summary
 
 ```text
 Action
@@ -138,11 +155,19 @@ Please output:
 3) Risks and blockers
 ```
 
+### TLDR
+
 ```text
 TLDR
 
-把這段內容改寫成：主管 30 秒可讀完的版本 + 執行者待辦版本。
+Rewrite this content into two versions:
+- Executive brief (readable in 30 seconds)
+- Action-item checklist for the team
 ```
 
-## 8) Usage / Achievement / History（直接貼上）
+---
+
+## 8. Usage / Achievements / History
+
+Open the **Usage**, **Achievements**, and **History** panels from the left nav to review session stats, unlocked badges, and past conversations.
 
