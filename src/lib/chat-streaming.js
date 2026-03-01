@@ -35,9 +35,6 @@
       toolCalls.push(entry);
       card.dataset.toolIndex = toolCalls.length - 1;
 
-      root.panels?.tasks?.startTaskTimer?.();
-      root.panels?.tasks?.renderTasksList?.();
-
       return card;
     }
 
@@ -64,10 +61,6 @@
         toolCalls[idx].result = result;
         toolCalls[idx].endedAt = Date.now();
 
-        const allDone = toolCalls.every((tc) => tc.status !== "running");
-        if (allDone) root.panels?.tasks?.stopTaskTimer?.();
-
-        root.panels?.tasks?.renderTasksList?.();
       }
     }
 
@@ -187,9 +180,7 @@
           if (msg.type === "STREAM_DONE") {
             streamDone = true;
             removeTyping();
-            root.panels?.tasks?.stopTaskTimer?.();
             getToolCalls().forEach((tc) => { if (tc.status === "running") { tc.status = "success"; tc.endedAt = Date.now(); } });
-            root.panels?.tasks?.renderTasksList?.();
             if (!bubble) bubble = createStreamingBotMessage();
             if (!content) {
               const final = msg.data?.content || msg.data?.text || "";
@@ -207,9 +198,7 @@
           if (msg.type === "STREAM_ERROR") {
             streamDone = true;
             removeTyping();
-            root.panels?.tasks?.stopTaskTimer?.();
             getToolCalls().forEach((tc) => { if (tc.status === "running") { tc.status = "error"; tc.endedAt = Date.now(); } });
-            root.panels?.tasks?.renderTasksList?.();
             if (!bubble) bubble = createStreamingBotMessage();
             const errText = msg.error || msg.message || localizeRuntimeMessage("串流錯誤");
             bubble.innerHTML = `<span style="color:var(--error)">⚠ ${escapeHtml(errText)}</span>`;

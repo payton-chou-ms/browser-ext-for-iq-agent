@@ -12,7 +12,6 @@
         agent: "代理",
         history: "歷史",
         usage: "使用量",
-        tasks: "任務",
         skills: "技能",
         mcp: "MCP",
         notifications: "通知",
@@ -58,7 +57,6 @@
         agent: "Agent",
         history: "History",
         usage: "Usage",
-        tasks: "Tasks",
         skills: "Skills",
         mcp: "MCP",
         notifications: "Notifications",
@@ -313,7 +311,7 @@
 
   function translateStaticUi() {
     const map = currentLanguage === "en" ? STATIC_ZH_EN : STATIC_EN_ZH;
-    const skipRoots = new Set(["chat-messages", "debug-log", "tasks-timeline", "parallel-task-list"]);
+    const skipRoots = new Set(["chat-messages", "debug-log"]);
 
     const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
     let node = walker.nextNode();

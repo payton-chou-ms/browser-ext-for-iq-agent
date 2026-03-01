@@ -1,6 +1,69 @@
 import type { RouteTable, CoreRouteDeps } from "../shared/types.js";
 import { Schemas, type ToolsListInput, type McpConfigWriteInput, type SkillsExecuteInput } from "./schemas.js";
 
+type LocalSkillItem = {
+  name: string;
+  description: string;
+  source: "local-skill";
+  path: string;
+};
+
+function extractSkillDescription(skillDoc: string): string {
+  const lines = skillDoc
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0);
+
+  for (const line of lines) {
+    if (line.startsWith("#")) continue;
+    if (line.startsWith("```")) continue;
+    if (line.startsWith("-")) continue;
+    return line;
+  }
+
+  return "Local repo skill";
+}
+
+function listLocalSkills(baseDir: string, fsImpl: CoreRouteDeps["fs"], pathImpl: CoreRouteDeps["path"]): LocalSkillItem[] {
+  const skillsRoot = pathImpl.join(baseDir, ".github", "skills");
+  if (!fsImpl.existsSync(skillsRoot)) return [];
+
+  const entries = fsImpl.readdirSync(skillsRoot, { withFileTypes: true });
+  const skills = entries
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => {
+      const skillName = entry.name;
+      const skillPath = pathImpl.join(skillsRoot, skillName);
+      const skillDocPath = pathImpl.join(skillPath, "SKILL.md");
+      const readmePath = pathImpl.join(skillPath, "README.md");
+
+      const docPath = fsImpl.existsSync(skillDocPath)
+        ? skillDocPath
+        : fsImpl.existsSync(readmePath)
+          ? readmePath
+          : null;
+
+      if (!docPath) return null;
+
+      let description = "Local repo skill";
+      try {
+        const rawDoc = fsImpl.readFileSync(docPath, "utf-8");
+        description = extractSkillDescription(rawDoc);
+      } catch {}
+
+      return {
+        name: skillName,
+        description,
+        source: "local-skill" as const,
+        path: pathImpl.relative(baseDir, skillPath),
+      };
+    })
+    .filter((skill): skill is LocalSkillItem => skill !== null)
+    .sort((a, b) => a.name.localeCompare(b.name));
+
+  return skills;
+}
+
 export function registerCoreRoutes(routes: RouteTable, deps: CoreRouteDeps): void {
   const {
     ensureClient,
@@ -65,6 +128,15 @@ export function registerCoreRoutes(routes: RouteTable, deps: CoreRouteDeps): voi
     } catch (err) {
       log("WARN", "tools.list not available:", (err as Error).message);
       jsonRes(res, 200, { ok: true, tools: [], fallback: true, error: (err as Error).message });
+    }
+  };
+
+  routes["POST /api/skills/local"] = async (_req, res) => {
+    try {
+      const skills = listLocalSkills(process.cwd(), fs, path);
+      jsonRes(res, 200, { ok: true, skills });
+    } catch (err) {
+      jsonRes(res, 200, { ok: true, skills: [], error: (err as Error).message });
     }
   };
 

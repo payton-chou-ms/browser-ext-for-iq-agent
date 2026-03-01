@@ -19,21 +19,6 @@
             <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
           </svg>
         </button>
-        <button class="nav-btn" data-panel="context" title="Context">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/>
-          </svg>
-        </button>
-        <button class="nav-btn" data-panel="usage" title="Usage">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>
-          </svg>
-        </button>
-        <button class="nav-btn" data-panel="tasks" title="Tasks">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/>
-          </svg>
-        </button>
         <button class="nav-btn" data-panel="skills" title="Skills">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>
@@ -55,6 +40,16 @@
         <button class="nav-btn" data-panel="achievements" title="Achievements">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <circle cx="12" cy="8" r="6"/><path d="M15.477 12.89L17 22l-5-3-5 3 1.523-9.11"/>
+          </svg>
+        </button>
+        <button class="nav-btn" data-panel="context" title="Context">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/>
+          </svg>
+        </button>
+        <button class="nav-btn" data-panel="usage" title="Usage">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>
           </svg>
         </button>
         <button class="nav-btn" data-panel="config" title="Config">
@@ -129,6 +124,9 @@
           <div class="chat-input-wrapper">
             <button class="input-action-btn" id="btn-attach" title="附加檔案">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>
+            </button>
+            <button class="input-action-btn" id="btn-screenshot" title="截圖目前頁面">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
             </button>
             <button class="input-action-btn" id="btn-command-menu" title="命令選單">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 12h16M4 18h10"/></svg>
@@ -320,57 +318,6 @@
               <div class="bar-row"><span class="bar-label">Chat</span><div class="bar-track"><div class="bar-fill" id="bar-chat" style="width:0%"></div></div><span class="bar-count" id="bar-chat-count">0</span></div>
               <div class="bar-row"><span class="bar-label">Context</span><div class="bar-track"><div class="bar-fill" id="bar-context" style="width:0%"></div></div><span class="bar-count" id="bar-context-count">0</span></div>
               <div class="bar-row"><span class="bar-label">Tasks</span><div class="bar-track"><div class="bar-fill" id="bar-tasks" style="width:0%"></div></div><span class="bar-count" id="bar-tasks-count">0</span></div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Panel: Tasks -->
-      <div class="panel" id="panel-tasks">
-        <div class="panel-scroll">
-          <!-- Overall Progress -->
-          <div class="glass-card" id="tasks-summary-card">
-            <div class="card-header">
-              <span class="card-icon">⚡</span><h3>Copilot Tasks</h3>
-              <span class="tasks-counter" id="tasks-counter">0 / 0</span>
-            </div>
-            <div class="tasks-progress-bar">
-              <div class="tasks-progress-fill" id="tasks-progress-fill"></div>
-            </div>
-            <div class="tasks-status-row" id="tasks-status-row">
-              <span class="tasks-stat" id="tasks-running">🔄 0 running</span>
-              <span class="tasks-stat" id="tasks-done">✅ 0 done</span>
-              <span class="tasks-stat" id="tasks-elapsed" title="Elapsed time">⏱ 0.0s</span>
-            </div>
-          </div>
-
-          <!-- Parallel Tasks List -->
-          <div class="glass-card">
-            <div class="card-header">
-              <span class="card-icon">🔀</span><h3>Parallel Execution</h3>
-            </div>
-            <div id="parallel-task-list" class="parallel-task-list">
-              <div class="empty-state" id="parallel-tasks-empty">
-                <span class="empty-icon">⏳</span>
-                <p>等待 Copilot CLI 任務…</p>
-                <p class="text-muted" style="font-size:11px;margin-top:4px">Send a message to see parallel tasks here</p>
-              </div>
-            </div>
-          </div>
-
-          <!-- Timeline -->
-          <div class="glass-card">
-            <div class="card-header">
-              <span class="card-icon">📊</span><h3>Timeline</h3>
-              <button class="icon-btn" id="btn-clear-tasks" title="Clear">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-              </button>
-            </div>
-            <div id="tasks-timeline" class="tasks-timeline">
-              <div class="empty-state">
-                <span class="empty-icon">📊</span>
-                <p>No events yet</p>
-              </div>
             </div>
           </div>
         </div>
@@ -841,7 +788,6 @@
   <script src="lib/panels/history.js"></script>
   <script src="lib/panels/usage.js"></script>
   <script src="lib/panels/mcp.js"></script>
-  <script src="lib/panels/tasks.js"></script>
   <script src="lib/panels/skills.js"></script>
   <script src="lib/panels/proactive-state.js"></script>
   <script src="lib/panels/proactive-render.js"></script>

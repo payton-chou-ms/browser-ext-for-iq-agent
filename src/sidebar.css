@@ -1892,6 +1892,28 @@ kbd {
   white-space: nowrap;
 }
 
+.skill-source-badge {
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1;
+  padding: 4px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--bg-primary);
+  color: var(--text-muted);
+  flex: 0 0 auto;
+}
+
+.skill-source-badge.source-cli {
+  border-color: var(--border-light);
+  color: var(--text-secondary);
+}
+
+.skill-source-badge.source-local {
+  border-color: var(--accent-start);
+  color: var(--accent-start);
+}
+
 .skill-delete-btn {
   border: 1px solid var(--border);
   background: transparent;
@@ -3022,13 +3044,24 @@ kbd {
   border-radius: 6px;
   padding: 4px 8px;
   font-family: var(--font-mono);
+  cursor: pointer;
+  user-select: none;
 }
 
 .tool-calls-summary.visible {
   display: block;
 }
 
+.tool-calls-summary:hover {
+  border-color: var(--border-light);
+  color: var(--text-secondary);
+}
+
 .tool-call-card.is-hidden {
+  display: none;
+}
+
+.tool-call-card.is-history-hidden {
   display: none;
 }
 
@@ -3099,14 +3132,17 @@ kbd {
 /* ===== Proactive Agent / Notification Panel ===== */
 
 #panel-notifications {
+  position: relative;
   min-height: 0;
+  overflow: hidden;
 }
 
 #panel-notifications .panel-scroll {
-  height: 100%;
+  position: absolute;
+  inset: 0;
   min-height: 0;
-  overflow-y: auto;
-  overflow-x: hidden;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
   padding-bottom: 20px;

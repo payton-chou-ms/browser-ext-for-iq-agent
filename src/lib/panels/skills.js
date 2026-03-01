@@ -9,7 +9,7 @@
   function localizeRuntimeMessage(m) { return (i18n.localizeRuntimeMessage || ((x) => x))(m); }
   function isConnected() { return root.connection?.isConnected?.() || false; }
 
-  async function loadSkillsFromCli() {
+  async function loadSkillsFromCli(forceFresh = false) {
     const grid = document.getElementById("skills-grid");
     const label = document.getElementById("skills-source-label");
     const chatState = root.chat?.getState?.() || {};
@@ -24,9 +24,21 @@
     if (label) label.textContent = localizeRuntimeMessage("正在載入...");
 
     try {
-      const tools = await utils.cachedSendToBackground?.("tools", { type: "LIST_TOOLS", model: currentModel });
-      utils.debugLog?.("SKILL", `Loaded ${Array.isArray(tools) ? tools.length : 0} tools from CLI`);
-      renderSkillsFromData(tools);
+      const tools = forceFresh
+        ? await utils.sendToBackground?.({ type: "LIST_TOOLS", model: currentModel })
+        : await utils.cachedSendToBackground?.("tools", { type: "LIST_TOOLS", model: currentModel });
+      const localSkills = forceFresh
+        ? await utils.sendToBackground?.({ type: "LIST_LOCAL_SKILLS" })
+        : await utils.cachedSendToBackground?.("local-skills", { type: "LIST_LOCAL_SKILLS" });
+      const mergedSkills = mergeSkills(tools, localSkills);
+      utils.debugLog?.(
+        "SKILL",
+        `Loaded ${Array.isArray(tools) ? tools.length : 0} tools from CLI + ${Array.isArray(localSkills) ? localSkills.length : 0} local skills`
+      );
+      renderSkillsFromData(mergedSkills, {
+        cliCount: Array.isArray(tools) ? tools.length : 0,
+        localCount: Array.isArray(localSkills) ? localSkills.length : 0,
+      });
     } catch (err) {
       utils.debugLog?.("ERR", "loadSkillsFromCli error:", err.message);
       if (grid) grid.innerHTML = `<div class="empty-state"><span class="empty-icon">⚠️</span><p>${localizeRuntimeMessage("載入失敗")}: ${escapeHtml(err.message)}</p></div>`;
@@ -34,7 +46,38 @@
     }
   }
 
-  function renderSkillsFromData(tools) {
+  function mergeSkills(cliTools, localSkills) {
+    const merged = [];
+    const seen = new Set();
+
+    if (Array.isArray(cliTools)) {
+      for (const tool of cliTools) {
+        const key = String(tool?.name || "").toLowerCase();
+        if (!key || seen.has(key)) continue;
+        seen.add(key);
+        merged.push({ ...tool, source: tool?.source || "cli" });
+      }
+    }
+
+    if (Array.isArray(localSkills)) {
+      for (const skill of localSkills) {
+        const name = String(skill?.name || "").trim();
+        const key = name.toLowerCase();
+        if (!key || seen.has(key)) continue;
+        seen.add(key);
+        merged.push({
+          name,
+          description: String(skill?.description || "Local repo skill"),
+          source: "local-skill",
+          namespacedName: skill?.path ? `local/${skill.path}` : `local/${name}`,
+        });
+      }
+    }
+
+    return merged;
+  }
+
+  function renderSkillsFromData(tools, stats = null) {
     const grid = document.getElementById("skills-grid");
     const label = document.getElementById("skills-source-label");
 
@@ -47,7 +90,13 @@
     }
 
     renderSkillsGrid(tools);
-    if (label) label.textContent = `CLI ${tools.length} items`;
+    if (label) {
+      if (stats && typeof stats.cliCount === "number" && typeof stats.localCount === "number") {
+        label.textContent = `CLI ${stats.cliCount} + Local ${stats.localCount} = ${tools.length} items`;
+      } else {
+        label.textContent = `${tools.length} items`;
+      }
+    }
   }
 
   function renderSkillsGrid(tools) {
@@ -85,6 +134,9 @@
     const name = tool.name || "unknown";
     const desc = tool.description || "";
     const lineDesc = desc.trim() || "—";
+    const sourceRaw = String(tool.source || "cli").toLowerCase();
+    const sourceLabel = sourceRaw === "local-skill" ? "Local" : "CLI";
+    const sourceClass = sourceRaw === "local-skill" ? "source-local" : "source-cli";
 
     return `<div class="skill-card" title="${escapeHtml(desc)}" data-tool-name="${escapeHtml(name)}">
       <div class="skill-line">
@@ -92,12 +144,13 @@
         <span class="skill-sep">:</span>
         <span class="skill-desc-inline">${escapeHtml(lineDesc)}</span>
       </div>
+      <span class="skill-source-badge ${sourceClass}">${escapeHtml(sourceLabel)}</span>
     </div>`;
   }
 
   function bindEvents() {
     document.getElementById("btn-refresh-skills")?.addEventListener("click", () => {
-      loadSkillsFromCli();
+      loadSkillsFromCli(true);
       utils.showToast?.(localizeRuntimeMessage("Skills 重新載入中..."));
     });
 

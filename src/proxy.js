@@ -8,16 +8,39 @@ const args = process.argv.slice(2);
 const noBuild = args.includes("--no-build");
 
 const distProxyPath = path.resolve("dist/proxy.js");
-const sourceProxyPath = path.resolve("src/proxy.ts");
+const sourceRootPath = path.resolve("src");
+
+function getNewestSourceMtimeMs(dirPath) {
+  if (!fs.existsSync(dirPath)) return 0;
+
+  let newest = 0;
+  const entries = fs.readdirSync(dirPath, { withFileTypes: true });
+
+  for (const entry of entries) {
+    const fullPath = path.join(dirPath, entry.name);
+    if (entry.isDirectory()) {
+      newest = Math.max(newest, getNewestSourceMtimeMs(fullPath));
+      continue;
+    }
+
+    if (!entry.isFile()) continue;
+    if (!entry.name.endsWith(".ts") && !entry.name.endsWith(".tsx")) continue;
+
+    newest = Math.max(newest, fs.statSync(fullPath).mtimeMs);
+  }
+
+  return newest;
+}
 
 function shouldBuild() {
   if (noBuild) return false;
 
   if (!fs.existsSync(distProxyPath)) return true;
-  if (!fs.existsSync(sourceProxyPath)) return true;
 
   const distMtimeMs = fs.statSync(distProxyPath).mtimeMs;
-  const sourceMtimeMs = fs.statSync(sourceProxyPath).mtimeMs;
+  const sourceMtimeMs = getNewestSourceMtimeMs(sourceRootPath);
+
+  if (sourceMtimeMs === 0) return true;
 
   return distMtimeMs < sourceMtimeMs;
 }

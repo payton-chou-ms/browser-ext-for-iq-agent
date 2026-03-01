@@ -22,12 +22,13 @@
   let currentTitle = "";
   let currentUrl = "";
   let currentType = "webpage";
+  let currentPageText = "";
   let availableModels = [];
   let toolCalls = [];
   let sessionData = null;
 
   function getState() {
-    return { currentSessionId, currentModel, chatHistory, stats, tokenDetails, currentTitle, currentUrl, currentType, availableModels, toolCalls, sessionData };
+    return { currentSessionId, currentModel, chatHistory, stats, tokenDetails, currentTitle, currentUrl, currentType, currentPageText, availableModels, toolCalls, sessionData };
   }
 
   // ── ChatTabs Integration Helpers ──
@@ -109,6 +110,7 @@
       if (!tab) return;
       currentUrl = tab.url || "";
       currentTitle = tab.title || "";
+      currentPageText = "";
       const t = root.i18n?.t || ((p, f) => f);
       if (currentUrl.endsWith(".pdf") || currentUrl.includes("pdf")) {
         currentType = t("messages.pdfDoc", "PDF 文件");
@@ -116,6 +118,17 @@
         currentType = t("messages.browserPage", "瀏覽器頁面");
       } else {
         currentType = t("messages.webPage", "網頁");
+      }
+
+      if (tab.id && currentType !== t("messages.browserPage", "瀏覽器頁面")) {
+        try {
+          const pageInfo = await chrome.tabs.sendMessage(tab.id, { type: "GET_PAGE_INFO" });
+          if (pageInfo?.extractedText && typeof pageInfo.extractedText === "string") {
+            currentPageText = pageInfo.extractedText;
+          }
+        } catch {
+          // Ignore when content script is unavailable on this page
+        }
       }
     } catch { /* ignore */ }
   }
@@ -125,6 +138,10 @@
     if (currentUrl) parts.push(`URL: ${currentUrl}`);
     if (currentTitle) parts.push(`Title: ${currentTitle}`);
     if (currentType) parts.push(`Type: ${currentType}`);
+    if (currentPageText) {
+      parts.push("PageContentSource: rendered_dom");
+      parts.push(`PageContent:\n${currentPageText.slice(0, 4000)}`);
+    }
     return parts.length > 0 ? parts.join("\n") : "";
   }
 
@@ -142,7 +159,7 @@
     "IMPORTANT: When the user asks for web content, weather, news, or anything requiring live data, USE the web_fetch tool to fetch it. Do NOT say you cannot access the internet.",
     "For weather queries: use web_fetch with the Open-Meteo API (free, no key needed). Example: https://api.open-meteo.com/v1/forecast?latitude=25.033&longitude=121.565&current_weather=true for Taipei. Look up coordinates for other cities. Parse the JSON response and present it in a friendly format with temperature, wind, and conditions.",
     "If a web_fetch call fails or times out, try an alternative URL or use the bash tool with curl as a fallback. Do NOT give up after one failed attempt.",
-    "When the user says 'summary this page' or 'summarize this page', use web_fetch to fetch the URL from the <browser_context> and summarize the content.",
+    "When the user says 'summary this page' or 'summarize this page', first use PageContent in <browser_context> if present (it comes from rendered DOM). If missing or insufficient, then use web_fetch with the URL from <browser_context>.",
     "When the user attaches a file, analyze its content directly — it is provided inline in the message.",
     "The user's current browser tab context is provided in <browser_context> tags with each message.",
   ].join(" ");
@@ -433,9 +450,6 @@
       card.__timerId = timerId;
     }
 
-    root.panels?.tasks?.startTaskTimer?.();
-    root.panels?.tasks?.renderTasksList?.();
-
     return card;
   }
 
@@ -454,6 +468,7 @@
     if (!container) {
       container = document.createElement("div");
       container.className = "tool-calls-container compact-mode";
+      container.dataset.historyExpanded = "0";
       parentEl.appendChild(container);
     }
     return container;
@@ -482,7 +497,16 @@
       summaryEl.classList.remove("visible");
       return;
     }
-    summaryEl.textContent = `🔧 ${parts.join(" · ")}`;
+    const container = summaryEl.parentElement;
+    const isExpanded = container?.dataset?.historyExpanded === "1";
+    const actionHint = stats.hidden > 0
+      ? localizeRuntimeMessage("點擊展開")
+      : (stats.success > 0 || stats.error > 0) && isExpanded
+        ? localizeRuntimeMessage("點擊收合")
+        : "";
+    summaryEl.textContent = actionHint
+      ? `🔧 ${parts.join(" · ")} · ${actionHint}`
+      : `🔧 ${parts.join(" · ")}`;
     summaryEl.classList.add("visible");
   }
 
@@ -494,6 +518,16 @@
       card.classList.toggle("is-hidden", shouldHide);
     });
     return runningCards.filter((card) => card.classList.contains("is-hidden")).length;
+  }
+
+  function enforceHistoryVisibility(container) {
+    if (!container) return 0;
+    const isExpanded = container.dataset.historyExpanded === "1";
+    const historyCards = Array.from(container.querySelectorAll(".tool-call-card.is-history-entry"));
+    historyCards.forEach((card) => {
+      card.classList.toggle("is-history-hidden", !isExpanded);
+    });
+    return isExpanded ? 0 : historyCards.length;
   }
 
   function updateToolCallCard(card, status, result) {
@@ -514,6 +548,7 @@
     }
     card.classList.remove("running", "success", "error");
     card.classList.add(status === "success" ? "success" : status === "error" ? "error" : "running");
+    card.classList.toggle("is-history-entry", status !== "running");
 
     if (result != null) {
       const resultEl = card.querySelector(".tool-call-result");
@@ -533,10 +568,6 @@
       toolCalls[idx].result = result;
       toolCalls[idx].endedAt = Date.now();
 
-      const allDone = toolCalls.every((tc) => tc.status !== "running");
-      if (allDone) root.panels?.tasks?.stopTaskTimer?.();
-
-      root.panels?.tasks?.renderTasksList?.();
     }
   }
 
@@ -682,6 +713,14 @@
           }
           if (!toolSummaryEl) {
             toolSummaryEl = ensureToolCallsSummary(toolsContainerEl);
+            toolSummaryEl.addEventListener("click", () => {
+              if (!toolsContainerEl) return;
+              const expanded = toolsContainerEl.dataset.historyExpanded === "1";
+              toolsContainerEl.dataset.historyExpanded = expanded ? "0" : "1";
+              toolCallStats.hidden = enforceVisibleRunningCards(toolsContainerEl, 2) + enforceHistoryVisibility(toolsContainerEl);
+              updateToolCallsSummary(toolSummaryEl, toolCallStats);
+              utils.scrollToBottom?.();
+            });
           }
 
           const evt = msg.data || {};
@@ -752,12 +791,11 @@
             } else {
               updateToolCallCard(card, "success", evtData.result || evtData.output || t("tasks.done", "完成"));
               if (toolName) activeToolNames.delete(toolName);
-              setTimeout(() => card?.remove(), 140);
             }
 
             toolCallStats.running = Math.max(0, toolCallStats.running - 1);
             toolCallStats.success += 1;
-            toolCallStats.hidden = enforceVisibleRunningCards(toolsContainerEl, 2);
+            toolCallStats.hidden = enforceVisibleRunningCards(toolsContainerEl, 2) + enforceHistoryVisibility(toolsContainerEl);
             updateToolCallsSummary(toolSummaryEl, toolCallStats);
 
             currentToolCard = null;
@@ -775,7 +813,7 @@
             }
             toolCallStats.running = Math.max(0, toolCallStats.running - 1);
             toolCallStats.error += 1;
-            toolCallStats.hidden = enforceVisibleRunningCards(toolsContainerEl, 2);
+            toolCallStats.hidden = enforceVisibleRunningCards(toolsContainerEl, 2) + enforceHistoryVisibility(toolsContainerEl);
             updateToolCallsSummary(toolSummaryEl, toolCallStats);
             currentToolCard = null;
             showIntentBar(localizeRuntimeMessage("發生錯誤"), "⚠️");
@@ -787,7 +825,7 @@
             if (currentToolCard) updateToolCallCard(currentToolCard, "error", errMsg);
             toolCallStats.error += 1;
             toolCallStats.running = Math.max(0, toolCallStats.running - 1);
-            toolCallStats.hidden = enforceVisibleRunningCards(toolsContainerEl, 2);
+            toolCallStats.hidden = enforceVisibleRunningCards(toolsContainerEl, 2) + enforceHistoryVisibility(toolsContainerEl);
             updateToolCallsSummary(toolSummaryEl, toolCallStats);
             showIntentBar(localizeRuntimeMessage("發生錯誤"), "⚠️");
           }
@@ -813,14 +851,16 @@
         if (msg.type === "STREAM_DONE") {
           streamDone = true;
 
+          const finalContent = content || msg.data?.content || msg.data?.text || "";
+
           // Update tab state (always, even if not active)
           if (streamingTabId) {
             root.chatTabs?.setTabStatus?.(streamingTabId, "idle");
             root.chatTabs?.setTabStreamingPort?.(streamingTabId, null);
             root.chatTabs?.setTabStreamingContent?.(streamingTabId, null);
-            // Push final message to tab's chat history
-            const finalContent = content || msg.data?.content || msg.data?.text || "";
-            if (finalContent) {
+            // For background tabs, persist final message here.
+            // For active tab, pushChatHistory below will sync once to tab history.
+            if (finalContent && !isActiveTab()) {
               root.chatTabs?.pushChatMessage?.(streamingTabId, { role: "bot", content: formatNewsResponse(finalContent) });
             }
           }
@@ -828,7 +868,6 @@
           // Only update DOM if this is still the active tab
           if (isActiveTab()) {
             removeTyping();
-            root.panels?.tasks?.stopTaskTimer?.();
             toolCalls.forEach((tc) => { if (tc.status === "running") { tc.status = "success"; tc.endedAt = Date.now(); } });
             activeToolCards.forEach((card) => updateToolCallCard(card, "success", t("tasks.done", "完成")));
             activeToolCards.clear();
@@ -836,7 +875,6 @@
             toolCallStats.running = 0;
             toolCallStats.hidden = 0;
             updateToolCallsSummary(toolSummaryEl, toolCallStats);
-            root.panels?.tasks?.renderTasksList?.();
             if (!bubble) bubble = createStreamingBotMessage();
             if (!content) {
               const final = msg.data?.content || msg.data?.text || "";
@@ -873,7 +911,6 @@
           // Only update DOM if this is still the active tab
           if (isActiveTab()) {
             removeTyping();
-            root.panels?.tasks?.stopTaskTimer?.();
             toolCalls.forEach((tc) => { if (tc.status === "running") { tc.status = "error"; tc.endedAt = Date.now(); } });
             activeToolCards.forEach((card) => updateToolCallCard(card, "error", localizeRuntimeMessage("串流錯誤")));
             activeToolCards.clear();
@@ -882,7 +919,6 @@
             toolCallStats.error += 1;
             toolCallStats.hidden = 0;
             updateToolCallsSummary(toolSummaryEl, toolCallStats);
-            root.panels?.tasks?.renderTasksList?.();
             if (!bubble) bubble = createStreamingBotMessage();
             const errText = msg.error || msg.message || localizeRuntimeMessage("串流錯誤");
             bubble.innerHTML = `<span style="color:var(--error)">⚠ ${escapeHtml(errText)}</span>`;

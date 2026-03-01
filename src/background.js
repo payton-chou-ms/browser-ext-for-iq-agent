@@ -71,6 +71,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 async function handleMessage(msg) {
   console.log(`[BG] handleMessage: ${msg.type}`, msg);
   switch (msg.type) {
+    case "CAPTURE_VISIBLE_TAB":
+      return await captureVisibleTabScreenshot();
+
     // Connection
     case "CHECK_CONNECTION":
       return await checkAndUpdateConnection(msg.source || "manual");
@@ -135,6 +138,9 @@ async function handleMessage(msg) {
     // Tools (Skills)
     case "LIST_TOOLS":
       return await COPILOT_RPC.listTools(msg.model);
+
+    case "LIST_LOCAL_SKILLS":
+      return await COPILOT_RPC.listLocalSkills();
 
     case "EXECUTE_SKILL":
       return await COPILOT_RPC.executeSkill(msg.skillName, msg.command, msg.payload || {});
@@ -262,6 +268,41 @@ async function handleMessage(msg) {
 
     default:
       return { error: `Unknown message type: ${msg.type}` };
+  }
+}
+
+function isRestrictedCaptureUrl(url) {
+  if (typeof url !== "string" || !url) return false;
+  return /^(chrome:|chrome-extension:|edge:|about:|devtools:|view-source:)/i.test(url);
+}
+
+async function captureVisibleTabScreenshot() {
+  try {
+    const tabs = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+    const activeTab = tabs?.[0];
+
+    if (!activeTab || typeof activeTab.windowId !== "number") {
+      return { ok: false, error: "找不到目前瀏覽分頁" };
+    }
+
+    if (isRestrictedCaptureUrl(activeTab.url)) {
+      return { ok: false, error: "此頁面不支援截圖（受瀏覽器保護）" };
+    }
+
+    const dataUrl = await chrome.tabs.captureVisibleTab(activeTab.windowId, { format: "png" });
+    if (!dataUrl) {
+      return { ok: false, error: "截圖失敗，未取得影像資料" };
+    }
+
+    return {
+      ok: true,
+      dataUrl,
+      title: activeTab.title || "",
+      url: activeTab.url || "",
+      ts: Date.now(),
+    };
+  } catch (err) {
+    return { ok: false, error: `截圖失敗: ${err?.message || "Unknown error"}` };
   }
 }
 

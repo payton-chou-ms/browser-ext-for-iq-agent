@@ -26,6 +26,7 @@
   const chatMessages = document.getElementById("chat-messages");
   const chatInput    = document.getElementById("chat-input");
   const btnSend      = document.getElementById("btn-send");
+  const btnScreenshot = document.getElementById("btn-screenshot");
   const btnCommandMenu = document.getElementById("btn-command-menu");
   const commandMenu  = document.getElementById("command-menu");
   const btnNewChat   = document.getElementById("btn-new-chat");
@@ -177,7 +178,6 @@
         if (CHAT_TABS.switchTab?.(tabId)) {
           renderChatTabs();
           renderChatForActiveTab();
-          PANELS.tasks?.renderTasksList?.();
         }
       }
     });
@@ -241,6 +241,7 @@
           "- `/help` 顯示命令說明",
           "- `/skills list` 讀取技能",
           "- `/skills refresh` 刷新技能",
+          "- `/foundry_agent_skills <query>` 使用 Foundry skill 查詢",
           "- `/model list` 列出模型",
           "- `/model refresh` 刷新模型",
           "- `/model use <model-id>` 切換模型",
@@ -258,11 +259,37 @@
           if (!CONN.isConnected?.()) return "目前未連線 Copilot CLI，請先連線後再查詢 skills。";
           const currentModel = CHAT.getState?.().currentModel;
           const tools = await UTILS.cachedSendToBackground?.("tools", { type: "LIST_TOOLS", model: currentModel });
-          if (!Array.isArray(tools) || tools.length === 0) return "CLI 未回傳任何技能。";
+          const localSkills = await UTILS.cachedSendToBackground?.("local-skills", { type: "LIST_LOCAL_SKILLS" });
+
+          const merged = [];
+          const seen = new Set();
+          if (Array.isArray(tools)) {
+            for (const tool of tools) {
+              const name = String(tool?.name || "").trim();
+              const key = name.toLowerCase();
+              if (!key || seen.has(key)) continue;
+              seen.add(key);
+              merged.push({ name, source: "cli" });
+            }
+          }
+          if (Array.isArray(localSkills)) {
+            for (const skill of localSkills) {
+              const name = String(skill?.name || "").trim();
+              const key = name.toLowerCase();
+              if (!key || seen.has(key)) continue;
+              seen.add(key);
+              merged.push({ name, source: "local" });
+            }
+          }
+
+          if (merged.length === 0) return "CLI 與本地 Skills 皆未回傳資料。";
+
           return [
-            `**Skills (${tools.length})**`,
-            ...tools.slice(0, 20).map((tool) => `- ${tool.name || "unknown"}`),
-            ...(tools.length > 20 ? [`- ... 還有 ${tools.length - 20} 個`] : []),
+            `**Skills (${merged.length})**`,
+            `- CLI: ${Array.isArray(tools) ? tools.length : 0}`,
+            `- Local: ${Array.isArray(localSkills) ? localSkills.length : 0}`,
+            ...merged.slice(0, 20).map((tool) => `- (${tool.source}) \`${tool.name || "unknown"}\``),
+            ...(merged.length > 20 ? [`- ... 還有 ${merged.length - 20} 個`] : []),
           ].join("\n");
         },
       },
@@ -274,9 +301,21 @@
         command: "/skills refresh",
         run: async () => {
           switchPanel("skills");
-          await PANELS.skills?.loadSkillsFromCli?.();
+          await PANELS.skills?.loadSkillsFromCli?.(true);
           return "已刷新 Skills。";
         },
+      },
+      {
+        id: "foundry-agent-skills",
+        group: "skills",
+        title: "Foundry Agent Skills 查詢",
+        description: "用法：/foundry_agent_skills <query>",
+        command: "/foundry_agent_skills",
+        run: async () => [
+          "**Foundry Agent Skills**",
+          "用法：`/foundry_agent_skills <query>`",
+          "範例：`/foundry_agent_skills How do I fix projector screen flickering?`",
+        ].join("\n"),
       },
       {
         id: "model-list",
@@ -449,6 +488,56 @@
   async function handleSlashCommand(text) {
     const commandText = String(text || "").trim();
     if (!commandText.startsWith("/")) return false;
+
+    const foundryMatch = commandText.match(/^\/(foundry_agent_skills?|foundryagentskills?|foundry_agent_skill|foundryagentskill)(?:\s+([\s\S]+))?$/i);
+    if (foundryMatch) {
+      const query = String(foundryMatch[2] || "").trim();
+      CHAT.addUserMessage?.(commandText);
+
+      if (!query) {
+        CHAT.addBotMessage?.([
+          "**Foundry Agent Skills**",
+          "用法：`/foundry_agent_skills <query>`",
+          "範例：`/foundry_agent_skills How do I fix projector screen flickering?`",
+        ].join("\n"));
+        PANELS.usage?.updateStats?.();
+        return true;
+      }
+
+      if (!CONN.isConnected?.()) {
+        CHAT.addBotMessage?.("目前未連線 Copilot CLI，請先連線後再使用 `/foundry_agent_skills`。");
+        PANELS.usage?.updateStats?.();
+        return true;
+      }
+
+      try {
+        const response = await UTILS.sendToBackground?.({
+          type: "EXECUTE_SKILL",
+          skillName: "foundry_agent_skill",
+          command: "invoke",
+          payload: { message: query, source: "slash-command" },
+        });
+
+        if (response?.ok && response?.mode !== "mock") {
+          const result = response.result || {};
+          const textResult = result.response_text || result.output?.response_text || result.output?.message || result.summary;
+          CHAT.addBotMessage?.(typeof textResult === "string" && textResult.trim()
+            ? textResult
+            : `\`\`\`json\n${escapeHtml(JSON.stringify(result.output || result, null, 2))}\n\`\`\``);
+        } else {
+          if (response?.mode === "mock") {
+            UTILS.showToast?.("目前是 MVP mock skill，已改用一般查詢模式");
+          }
+          await CHAT.sendMessageStreaming?.(query, []);
+        }
+      } catch (err) {
+        CHAT.addBotMessage?.(`⚠ ${localizeRuntimeMessage("命令執行失敗")}: ${err?.message || String(err)}`);
+      }
+
+      PANELS.usage?.updateStats?.();
+      return true;
+    }
+
     const item = getCommandItems().find((entry) => entry.command === commandText);
     if (!item) return false;
     await executeCommandItem(item, { addEcho: true });
@@ -478,6 +567,15 @@
     // Track panel view for achievements
     if (typeof AchievementEngine !== "undefined" && AchievementEngine.getProfile) {
       AchievementEngine.track("panel_viewed", { panel: id });
+    }
+    if (id === "notifications") {
+      const notificationsPanel = document.getElementById("panel-notifications");
+      const notificationsScroll = document.querySelector("#panel-notifications .panel-scroll");
+      if (notificationsPanel && notificationsScroll) {
+        notificationsScroll.style.overflowY = "auto";
+        notificationsScroll.style.overflowX = "hidden";
+        notificationsScroll.style.maxHeight = `${notificationsPanel.clientHeight}px`;
+      }
     }
     if (id === "achievements") PANELS.achievements?.renderAchievementPanel?.();
     if (id === "context")      PANELS.context?.fetchCliContext?.();
@@ -810,10 +908,59 @@
     }
   }
 
+  function dataUrlToFile(dataUrl, fileName) {
+    if (typeof dataUrl !== "string" || !dataUrl.startsWith("data:")) {
+      throw new Error("Invalid screenshot payload");
+    }
+
+    const commaIndex = dataUrl.indexOf(",");
+    if (commaIndex < 0) {
+      throw new Error("Invalid screenshot payload");
+    }
+
+    const header = dataUrl.slice(0, commaIndex);
+    const base64 = dataUrl.slice(commaIndex + 1);
+    const mimeMatch = header.match(/^data:([^;]+);base64$/i);
+    const mimeType = mimeMatch?.[1] || "image/png";
+    const binary = atob(base64);
+    const bytes = new Uint8Array(binary.length);
+
+    for (let index = 0; index < binary.length; index += 1) {
+      bytes[index] = binary.charCodeAt(index);
+    }
+
+    return new File([bytes], fileName, { type: mimeType });
+  }
+
+  function buildScreenshotName() {
+    const now = new Date();
+    const pad = (v) => String(v).padStart(2, "0");
+    const stamp = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
+    return `screenshot-${stamp}.png`;
+  }
+
+  async function captureCurrentPageScreenshot() {
+    try {
+      const res = await UTILS.sendToBackground?.({ type: "CAPTURE_VISIBLE_TAB" });
+      if (!res || res.ok !== true || !res.dataUrl) {
+        const reason = localizeRuntimeMessage(res?.error || "截圖失敗");
+        UTILS.showToast?.(reason, "error");
+        return;
+      }
+
+      const screenshotFile = dataUrlToFile(res.dataUrl, buildScreenshotName());
+      await FILE_UP.addFiles?.([screenshotFile]);
+      UTILS.showToast?.(localizeRuntimeMessage("已加入目前頁面截圖"), "success");
+    } catch (err) {
+      UTILS.showToast?.(localizeRuntimeMessage("截圖失敗: ") + (err?.message || "Unknown error"), "error");
+    }
+  }
+
   // Expose sendMessage bridge for panels (proactive, etc.)
   root._sendMessage = sendMessage;
 
   // ── Chat Event Listeners ──
+  btnScreenshot?.addEventListener("click", captureCurrentPageScreenshot);
   btnSend?.addEventListener("click", sendMessage);
   let isChatInputComposing = false;
   chatInput?.addEventListener("compositionstart", () => { isChatInputComposing = true; });
@@ -1207,7 +1354,6 @@
     FILE_UP.bindEvents?.();
     PANELS.context?.bindEvents?.();
     PANELS.history?.bindEvents?.();
-    PANELS.tasks?.bindEvents?.();
     PANELS.skills?.bindEvents?.();
     PANELS.proactive?.bindEvents?.();
     PANELS.achievements?.bindEvents?.();
