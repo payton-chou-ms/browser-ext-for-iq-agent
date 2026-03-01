@@ -11,6 +11,7 @@
     function escapeHtml(s) { return (utils.escapeHtml || ((x) => x))(s); }
 
     const AUTO_SCAN_MIN_INTERVAL_MS = 5 * 60 * 1000;
+    const SUMMARY_PREVIEW_MAX_CHARS = 72;
     let proactiveScheduleCards = [];
 
     const AGENT_OPTIONS = [
@@ -44,6 +45,8 @@
         id: typeof card?.id === "string" ? card.id : `card-${Date.now()}`,
         name: typeof card?.name === "string" && card.name.trim() ? card.name.trim() : "新查詢卡",
         agent: AGENT_OPTIONS.some((o) => o.value === card?.agent) ? card.agent : "briefing",
+        prompt: typeof card?.prompt === "string" ? card.prompt : "",
+        lastSummary: typeof card?.lastSummary === "string" ? card.lastSummary : "",
         enabled: card?.enabled !== false,
         schedule: {
           mode: SCHEDULE_MODE_OPTIONS.some((o) => o.value === schedule.mode) ? schedule.mode : "interval",
@@ -69,12 +72,39 @@
       return `${statusMap[card.lastStatus] || "尚未執行"} · ${runTime}`;
     }
 
+    function formatScheduleSummary(card) {
+      const schedule = card.schedule || {};
+      const mode = schedule.mode || "interval";
+      if (mode === "interval") {
+        return `每 ${Number(schedule.intervalMinutes || 60)} 分鐘`;
+      }
+      const hh = String(Number(schedule.hour || 0)).padStart(2, "0");
+      const mm = String(Number(schedule.minute || 0)).padStart(2, "0");
+      if (mode === "daily") {
+        return `每日 ${hh}:${mm}`;
+      }
+      const weekdayLabelMap = { 0: "日", 1: "一", 2: "二", 3: "三", 4: "四", 5: "五", 6: "六" };
+      const weekdays = (schedule.weekdays || [1, 2, 3, 4, 5])
+        .map((v) => Number(v))
+        .filter((v) => Number.isInteger(v) && v >= 0 && v <= 6)
+        .map((v) => weekdayLabelMap[v])
+        .join("/");
+      return `每週(${weekdays || "一/二/三/四/五"}) ${hh}:${mm}`;
+    }
+
     function buildHourOptions(selectedHour) {
       return Array.from({ length: 24 }, (_, idx) => `<option value="${idx}" ${idx === selectedHour ? "selected" : ""}>${String(idx).padStart(2, "0")}</option>`).join("");
     }
 
     function buildMinuteOptions(selectedMinute) {
       return Array.from({ length: 60 }, (_, idx) => `<option value="${idx}" ${idx === selectedMinute ? "selected" : ""}>${String(idx).padStart(2, "0")}</option>`).join("");
+    }
+
+    function getScheduleSummaryPreview(summaryText) {
+      if (typeof summaryText !== "string") return "";
+      const trimmed = summaryText.trim();
+      if (trimmed.length <= SUMMARY_PREVIEW_MAX_CHARS) return trimmed;
+      return `${trimmed.slice(0, SUMMARY_PREVIEW_MAX_CHARS)}…`;
     }
 
     function renderScheduleCards(cards) {
@@ -94,17 +124,40 @@
         const schedule = card.schedule || {};
         const mode = schedule.mode || "interval";
         const weekdays = new Set(schedule.weekdays || [1, 2, 3, 4, 5]);
+        const summaryRaw = (card.lastSummary || "").trim();
+        const summaryText = summaryRaw || "尚無查詢結果";
+        const summaryPreview = getScheduleSummaryPreview(summaryText);
+        const showToggle = summaryText.length > SUMMARY_PREVIEW_MAX_CHARS;
 
         return `<div class="proactive-schedule-card" data-card-id="${escapeHtml(card.id)}">
           <div class="proactive-schedule-card-header">
-            <div class="proactive-schedule-card-title">${escapeHtml(card.name)}</div>
+            <div class="proactive-schedule-card-main">
+              <div class="proactive-schedule-card-title">${escapeHtml(card.name)}</div>
+              <div class="proactive-schedule-card-summary">${escapeHtml(AGENT_OPTIONS.find((option) => option.value === card.agent)?.label || card.agent)} · ${escapeHtml(formatScheduleSummary(card))} · ${card.enabled ? "啟用" : "停用"}${card.prompt?.trim() ? " · 已設定 Prompt" : ""}</div>
+            </div>
             <span class="proactive-schedule-card-status">${escapeHtml(formatScheduleCardStatus(card))}</span>
+            <div class="proactive-schedule-card-header-actions">
+              <button class="action-btn" data-action="toggle-edit-card">編輯</button>
+              <button class="action-btn primary" data-action="refresh-apply-card">Refresh 套用</button>
+            </div>
           </div>
 
+          <div class="proactive-schedule-card-last-summary" data-expanded="false" data-preview="${escapeHtml(summaryPreview)}" data-full="${escapeHtml(summaryText)}">
+            <span class="proactive-schedule-card-last-summary-label">最近摘要：</span>
+            <span class="proactive-schedule-card-last-summary-text">${escapeHtml(summaryPreview)}</span>
+            ${showToggle ? "<button class=\"proactive-schedule-summary-toggle\" data-action=\"toggle-summary\">展開</button>" : ""}
+          </div>
+
+          <div class="proactive-schedule-editor" data-editor>
           <div class="proactive-schedule-grid">
             <div class="proactive-schedule-field wide">
               <label>卡片名稱</label>
               <input type="text" data-field="name" value="${escapeHtml(card.name)}" />
+            </div>
+
+            <div class="proactive-schedule-field wide">
+              <label>Prompt（此小卡專用）</label>
+              <textarea data-field="prompt" class="form-textarea" rows="3" placeholder="例如：只關注 Foundry 相關郵件與會議，並給我 3 個可執行下一步。">${escapeHtml(card.prompt || "")}</textarea>
             </div>
 
             <div class="proactive-schedule-field">
@@ -150,8 +203,8 @@
 
           <div class="proactive-schedule-actions">
             <button class="action-btn" data-action="save-card">儲存</button>
-            <button class="action-btn primary" data-action="refresh-apply-card">Refresh 套用</button>
             <button class="action-btn" data-action="delete-card">刪除</button>
+          </div>
           </div>
         </div>`;
       }).join("");
@@ -171,11 +224,41 @@
       });
     }
 
+    function setScheduleCardEditorExpanded(cardEl, expanded) {
+      if (expanded) {
+        cardEl.classList.add("editing");
+      } else {
+        cardEl.classList.remove("editing");
+      }
+    }
+
+    function toggleScheduleCardSummary(cardEl) {
+      const summaryEl = cardEl.querySelector(".proactive-schedule-card-last-summary");
+      if (!(summaryEl instanceof HTMLElement)) return;
+
+      const textEl = summaryEl.querySelector(".proactive-schedule-card-last-summary-text");
+      const toggleBtn = summaryEl.querySelector(".proactive-schedule-summary-toggle");
+      if (!(textEl instanceof HTMLElement) || !(toggleBtn instanceof HTMLElement)) return;
+
+      const expanded = summaryEl.dataset.expanded === "true";
+      if (expanded) {
+        textEl.textContent = summaryEl.dataset.preview || "";
+        summaryEl.dataset.expanded = "false";
+        toggleBtn.textContent = "展開";
+        return;
+      }
+
+      textEl.textContent = summaryEl.dataset.full || "";
+      summaryEl.dataset.expanded = "true";
+      toggleBtn.textContent = "收合";
+    }
+
     function readScheduleCardFromElement(cardEl) {
       const cardId = cardEl.dataset.cardId || "";
       const name = cardEl.querySelector("input[data-field='name']")?.value || "新查詢卡";
       const agent = cardEl.querySelector("select[data-field='agent']")?.value || "briefing";
       const mode = cardEl.querySelector("select[data-field='mode']")?.value || "interval";
+      const prompt = cardEl.querySelector("textarea[data-field='prompt']")?.value || "";
       const intervalMinutes = Number(cardEl.querySelector("input[data-field='intervalMinutes']")?.value || 60);
       const hour = Number(cardEl.querySelector("select[data-field='hour']")?.value || 9);
       const minute = Number(cardEl.querySelector("select[data-field='minute']")?.value || 0);
@@ -190,6 +273,7 @@
         id: cardId,
         name,
         agent,
+        prompt,
         enabled,
         schedule: {
           mode,
@@ -212,11 +296,24 @@
 
     async function addProactiveScheduleCard() {
       try {
+        utils.showToast?.("正在新增小卡...");
         const res = await utils.sendToBackground?.({ type: "ADD_PROACTIVE_SCHEDULE_CARD" });
+        if (!res?.ok) {
+          throw new Error(res?.error || "新增失敗");
+        }
         renderScheduleCards(res?.cards || []);
         utils.showToast?.("已新增查詢排程小卡");
+        const newCardId = res?.card?.id;
+        if (newCardId) {
+          const safeCardId = String(newCardId).replace(/"/g, "\\\"");
+          const newCardEl = document.querySelector(`.proactive-schedule-card[data-card-id="${safeCardId}"]`);
+          if (newCardEl instanceof HTMLElement) {
+            setScheduleCardEditorExpanded(newCardEl, true);
+            newCardEl.scrollIntoView({ block: "nearest", behavior: "smooth" });
+          }
+        }
       } catch (err) {
-        utils.showToast?.("新增失敗: " + err.message);
+        utils.showToast?.("新增失敗: " + (err?.message || "unknown"));
       }
     }
 
@@ -290,6 +387,13 @@
       }
     }
 
+    function updateLastScanLabel(scannedAt) {
+      const label = document.getElementById("notif-last-scan");
+      if (!label) return;
+      const time = new Date(scannedAt).toLocaleTimeString("zh-TW", { hour: "2-digit", minute: "2-digit" });
+      label.textContent = `上次掃描: ${time}`;
+    }
+
     async function runAgentProactiveScan(agent) {
       if (!isConnected()) {
         utils.showToast?.("請先連接 Copilot CLI");
@@ -332,6 +436,7 @@
           return;
         }
         utils.showToast?.(`${sectionLabel} 更新未取得資料`);
+        if (statusLabel) statusLabel.textContent = localizeRuntimeMessage(`${sectionLabel} 更新完成 · 無資料`);
       } catch (err) {
         utils.debugLog?.("ERR", `Proactive agent scan error (${agent}):`, err?.message || err);
         utils.showToast?.(`${sectionLabel} 更新失敗: ${err.message}`);
@@ -374,10 +479,7 @@
       renderApi.renderTopPriority();
 
       const label = document.getElementById("notif-last-scan");
-      if (label) {
-        const time = new Date(scannedAt).toLocaleTimeString("zh-TW", { hour: "2-digit", minute: "2-digit" });
-        label.textContent = `上次掃描: ${time}`;
-      }
+      if (label) updateLastScanLabel(scannedAt);
       // P2-10: Use batched storage write
       utils.batchStorageWrite?.("proactiveState", { ...proactiveState }) ??
         chrome.storage.local.set({ proactiveState: { ...proactiveState } });
@@ -411,40 +513,14 @@
       stateApi.normalizeProactiveReadState();
       stateApi.updateNotificationBadge();
       renderApi.renderTopPriority();
+      updateLastScanLabel(ts);
       // P2-10: Use batched storage write
       utils.batchStorageWrite?.("proactiveState", { ...proactiveState }) ??
         chrome.storage.local.set({ proactiveState: { ...proactiveState } });
     }
 
-    function updatePromptStatusCard(prompt) {
-      const card = document.getElementById("proactive-prompt-status-card");
-      const text = document.getElementById("proactive-prompt-status-text");
-      const runBtn = document.getElementById("btn-run-proactive-prompt-query");
-      if (!card || !text || !runBtn) return;
-
-      const trimmedPrompt = typeof prompt === "string" ? prompt.trim() : "";
-      if (!trimmedPrompt) {
-        card.style.display = "none";
-        return;
-      }
-
-      card.style.display = "block";
-      text.textContent = `目前已套用 Prompt：${trimmedPrompt}`;
-      runBtn.disabled = false;
-    }
-
     async function loadProactiveConfig() {
-      try {
-        const res = await utils.sendToBackground?.({ type: "GET_PROACTIVE_CONFIG" });
-        const prompt = typeof res?.config?.workiqPrompt === "string" ? res.config.workiqPrompt : "";
-        stateApi.proactiveState.workiqPrompt = prompt;
-        const promptEl = document.getElementById("proactive-workiq-prompt");
-        if (promptEl) promptEl.value = prompt;
-        updatePromptStatusCard(prompt);
-        await loadProactiveScheduleCards();
-      } catch (err) {
-        utils.debugLog?.("ERR", "loadProactiveConfig error:", err.message);
-      }
+      await loadProactiveScheduleCards();
     }
 
     function restoreProactiveState() {
@@ -470,11 +546,7 @@
           if (s.meetingPrep) { proactiveState.meetingPrep = s.meetingPrep; renderApi.renderMeetingPrep(s.meetingPrep); }
           if (s.lastScan) {
             proactiveState.lastScan = s.lastScan;
-            const label = document.getElementById("notif-last-scan");
-            if (label) {
-              const time = new Date(s.lastScan).toLocaleTimeString("zh-TW", { hour: "2-digit", minute: "2-digit" });
-              label.textContent = `上次掃描: ${time}`;
-            }
+            updateLastScanLabel(s.lastScan);
           }
           if (Array.isArray(s.readKeys)) {
             proactiveState.readKeys = [...new Set(s.readKeys.filter((key) => typeof key === "string" && key.trim().length > 0))];
@@ -519,8 +591,17 @@
         if (!(cardEl instanceof HTMLElement)) return;
 
         try {
+          if (action === "toggle-summary") {
+            toggleScheduleCardSummary(cardEl);
+            return;
+          }
+          if (action === "toggle-edit-card") {
+            setScheduleCardEditorExpanded(cardEl, !cardEl.classList.contains("editing"));
+            return;
+          }
           if (action === "save-card") {
             await saveProactiveScheduleCard(cardEl);
+            setScheduleCardEditorExpanded(cardEl, false);
             return;
           }
           if (action === "refresh-apply-card") {
@@ -549,35 +630,6 @@
         stateApi.markAllProactiveAsRead();
       });
 
-      document.getElementById("btn-save-proactive-config")?.addEventListener("click", async () => {
-        const prompt = document.getElementById("proactive-workiq-prompt")?.value || "";
-        try {
-          await utils.sendToBackground?.({ type: "SET_PROACTIVE_CONFIG", workiqPrompt: prompt });
-          stateApi.proactiveState.workiqPrompt = prompt;
-          updatePromptStatusCard(prompt);
-          utils.showToast?.("Proactive Prompt 已儲存");
-          await runFullProactiveScan({ source: "manual" });
-        } catch (err) {
-          utils.showToast?.("儲存失敗: " + err.message);
-        }
-      });
-
-      document.getElementById("btn-clear-proactive-config")?.addEventListener("click", async () => {
-        try {
-          await utils.sendToBackground?.({ type: "SET_PROACTIVE_CONFIG", workiqPrompt: "" });
-          stateApi.proactiveState.workiqPrompt = "";
-          const promptEl = document.getElementById("proactive-workiq-prompt");
-          if (promptEl) promptEl.value = "";
-          updatePromptStatusCard("");
-          utils.showToast?.("Proactive Prompt 已清除");
-        } catch (err) {
-          utils.showToast?.("清除失敗: " + err.message);
-        }
-      });
-
-      document.getElementById("btn-run-proactive-prompt-query")?.addEventListener("click", async () => {
-        await runFullProactiveScan({ source: "manual" });
-      });
     }
 
     return {

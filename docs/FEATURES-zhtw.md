@@ -15,13 +15,13 @@ IQ Copilot 是一款**瀏覽器側欄 AI 助手**，將 GitHub Copilot 的強大
 1. **Multi-Tab + Multi-Session 對話**：同時處理多任務，且每個對話 session 完全獨立。
 2. **Foundry Agent 直連 Fabric IQ / Foundry IQ**：透過 `foundry_agent_skill` 整合 `um-semantic-agent`、`pkm-semantic-agent`、`fabric-specs-agent`。
 3. **Microsoft Foundry Model 整合**：可接模型能力（例如 `gen_img`）滿足內容生成情境。
-4. **Work IQ 客製 Prompt**：可依企業流程定義輸出格式，讓 AI 回覆可直接落地使用。
+4. **Proactive + Work IQ 工作流**：主動掃描搭配客製 Prompt，讓 AI 回覆可直接落地使用。
 5. **Quick Custom Prompt**：可建立常用 prompt 範本，一鍵套用。
 6. **Attach File 問答**：可上傳檔案後直接請 Copilot 分析與回答。
 7. **Web Page Context 問答**：可讀取目前網頁內容後，交給 Copilot 進行摘要與回覆。
 8. **頁面截圖附加（含登入頁）**：可一鍵擷取目前瀏覽頁面可視區，直接附加到對話。
 
-完整腳本請見：[`DEMO.md`](../DEMO.md)
+完整腳本請見：[`DEMO-zhtw.md`](./DEMO-zhtw.md)
 
 ---
 
@@ -35,6 +35,7 @@ IQ Copilot 是一款**瀏覽器側欄 AI 助手**，將 GitHub Copilot 的強大
 - **網頁摘要**：一鍵總結當前頁面重點
 - **多語言翻譯**：瀏覽外文網頁不再是障礙
 - **檔案分析**：上傳文件（PDF、圖片、程式碼）直接分析
+- **快速指令操作**：可用指令快速切換模型、查看技能、切換 Skills/MCP 面板
 - **一鍵頁面截圖**：在聊天輸入區點擊相機按鈕，擷取目前頁面並加入附件
 - **Quick Prompt 套用**：把常用提問模板儲存成快速指令，一鍵帶入
 - **網頁上下文回答**：直接基於目前分頁內容回答問題
@@ -57,7 +58,7 @@ IQ Copilot 是一款**瀏覽器側欄 AI 助手**，將 GitHub Copilot 的強大
 
 ---
 
-### 📋 Proactive 智慧掃描
+### 📋 Proactive 智慧掃描 + Work IQ 工作流
 
 **商業價值：避免遺漏重要事項，減少 80% 的「忘記回覆」風險**
 
@@ -70,22 +71,9 @@ IQ Copilot 是一款**瀏覽器側欄 AI 助手**，將 GitHub Copilot 的強大
 | 📅 **會議準備** | 自動整理相關文件、歷史信件 | 會議前準備時間減半 |
 | 👻 **未回覆偵測** | 找出超過 72 小時未回的重要郵件 | 維護專業形象 |
 
+搭配 Work IQ 客製 Prompt，可把掃描結果直接輸出成「摘要 / 風險 / 下一步 / Teams 更新」等企業固定格式。
+
 > 💡 **使用情境**：早上打開 IQ Copilot，一張卡片告訴您今天有 3 個會議、2 封需要回覆的重要郵件、1 個即將到期的專案。
-
----
-
-### ⚡ Copilot Tasks 即時追蹤
-
-**商業價值：透明化 AI 工作過程，建立信任感**
-
-當 AI 助手執行複雜任務時，您可以即時看到：
-
-- **平行任務監控**：多個工具同時執行，即時顯示進度
-- **執行時間軸**：清楚看到每個步驟的耗時
-- **結果預覽**：快速檢視工具執行結果
-- **錯誤追蹤**：當有問題時，立即知道原因
-
-> 💡 **使用情境**：請 AI 幫您分析 5 個網站的資料，即時看到它正在同時處理哪些網站、已完成哪些、各花了多少時間。
 
 ---
 
@@ -166,51 +154,3 @@ IQ Copilot 是一款**瀏覽器側欄 AI 助手**，將 GitHub Copilot 的強大
 | 漏回郵件風險 | **降低 80%** |
 | 新功能採用率 | **提升 40%** |
 | 每週節省時間 | **3-5 小時** |
-
----
-
-## 🚀 快速開始
-
-1. **安裝擴充功能**：從 Chrome 載入 IQ Copilot
-2. **登入帳號**：完成 WorkIQ + GitHub 認證
-3. **開始對話**：在側欄輸入您的第一個問題
-
-**歡迎使用 IQ Copilot，讓 AI 成為您最可靠的工作夥伴！**
-
----
-
-## 🇺🇸 English Summary
-
-### Product Positioning
-
-IQ Copilot is a browser side-panel AI assistant that brings GitHub Copilot capabilities into daily work scenarios such as email handling, meeting preparation, and project follow-up.
-
-### Key Highlights
-
-- **Multi-Tab + Multi-Session Chat**: Up to 10 parallel chats with isolated context.
-- **Foundry Agent Integration**: Connect Fabric IQ and Foundry IQ through `foundry_agent_skill` with `um-semantic-agent`, `pkm-semantic-agent`, and `fabric-specs-agent`.
-- **Foundry Model Integration**: Integrate model capabilities such as `gen_img`.
-- **Work IQ Custom Prompts**: Standardize output formats for enterprise workflows.
-- **Quick Custom Prompt**: Save reusable prompt templates and apply them in one click.
-- **Attach File Q&A**: Upload files (PDF/image/code) and ask Copilot to analyze them.
-- **Screenshot Attach for Auth Pages**: Capture the currently visible browser page (including signed-in pages) and attach it to chat in one click.
-- **Webpage Context Q&A**: Let Copilot answer based on the active browser page.
-
-### Full Feature Coverage
-
-- Intelligent chat assistant (Q&A, summarization, translation, file analysis)
-- Proactive smart scan (daily briefing, deadline tracking, meeting prep, unreplied detection)
-- Copilot tasks real-time tracking (parallel progress, timeline, previews, error visibility)
-- Skills & MCP integration
-- Achievement system (XP, levels, badges)
-- Usage analytics (messages, tokens, tools, estimated time saved)
-- Conversation history (search, restore, export)
-- Security & privacy (local-first architecture, enterprise auth, permission boundaries)
-
-### ROI Snapshot
-
-- Information search time: **-50%**
-- Meeting preparation time: **-40%**
-- Missed email response risk: **-80%**
-- New feature adoption: **+40%**
-- Weekly time saved: **3–5 hours**

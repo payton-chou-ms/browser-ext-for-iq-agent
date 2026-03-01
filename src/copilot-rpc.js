@@ -277,20 +277,20 @@ const COPILOT_RPC = (() => {
   }
 
   // ── Proactive Agent APIs ──
-  async function proactiveBriefing() {
-    return await apiCall("/api/proactive/briefing");
+  async function proactiveBriefing(prompt = "") {
+    return await apiCall("/api/proactive/briefing", { prompt });
   }
 
-  async function proactiveDeadlines() {
-    return await apiCall("/api/proactive/deadlines");
+  async function proactiveDeadlines(prompt = "") {
+    return await apiCall("/api/proactive/deadlines", { prompt });
   }
 
-  async function proactiveGhosts() {
-    return await apiCall("/api/proactive/ghosts");
+  async function proactiveGhosts(prompt = "") {
+    return await apiCall("/api/proactive/ghosts", { prompt });
   }
 
-  async function proactiveMeetingPrep() {
-    return await apiCall("/api/proactive/meeting-prep");
+  async function proactiveMeetingPrep(prompt = "") {
+    return await apiCall("/api/proactive/meeting-prep", { prompt });
   }
 
   async function proactiveScanAll(source = "manual") {

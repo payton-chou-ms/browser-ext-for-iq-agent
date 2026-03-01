@@ -17,7 +17,7 @@ function createJsonResponder(captured: CapturedResponse) {
 }
 
 describe("routes", () => {
-  test("proactive scan-all is throttled for repeated calls", async () => {
+  test("proactive scan-all throttles non-manual calls but allows manual refresh", async () => {
     const routes: RouteTable = {};
     const captured: CapturedResponse = {};
 
@@ -31,9 +31,11 @@ describe("routes", () => {
       runMeetingPrep: vi.fn(async () => ({ ok: true, data: { section: "meeting" } })),
     };
 
+    const readJsonBody = vi.fn(async () => ({ source: "alarm" }));
+
     registerProactiveRoutes(routes, {
       jsonRes: createJsonResponder(captured),
-      readJsonBody: vi.fn(async () => ({ source: "manual" })),
+      readJsonBody,
       log: vi.fn(),
       proactive,
     });
@@ -52,7 +54,7 @@ describe("routes", () => {
     const firstBody = captured.body as { ok: boolean; throttled?: boolean; source?: string };
     expect(firstBody.ok).toBe(true);
     expect(firstBody.throttled).not.toBe(true);
-    expect(firstBody.source).toBe("manual");
+    expect(firstBody.source).toBe("alarm");
 
     await handler!({} as never, {} as never);
 
@@ -66,6 +68,19 @@ describe("routes", () => {
     expect(secondBody.throttled).toBe(true);
     expect(typeof secondBody.retryAfterMs).toBe("number");
     expect((secondBody.retryAfterMs ?? 0) > 0).toBe(true);
+
+    readJsonBody.mockResolvedValueOnce({ source: "manual" });
+    await handler!({} as never, {} as never);
+
+    expect(proactive.runBriefing).toHaveBeenCalledTimes(2);
+    expect(proactive.runDeadlines).toHaveBeenCalledTimes(2);
+    expect(proactive.runGhosts).toHaveBeenCalledTimes(2);
+    expect(proactive.runMeetingPrep).toHaveBeenCalledTimes(2);
+
+    const manualBody = captured.body as { ok: boolean; throttled?: boolean; source?: string };
+    expect(manualBody.ok).toBe(true);
+    expect(manualBody.source).toBe("manual");
+    expect(manualBody.throttled).not.toBe(true);
   });
 
   test("session sendAndWait returns 404 when session is missing", async () => {

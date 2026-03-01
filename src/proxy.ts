@@ -294,6 +294,12 @@ function withWorkIqPrompt(lines: string[]): string[] {
   return [...lines, `Additional user guidance for WorkIQ: ${customPrompt}`];
 }
 
+function withPromptOverride(lines: string[], promptOverride?: string): string[] {
+  const overridePrompt = (promptOverride || "").trim();
+  if (!overridePrompt) return lines;
+  return [...lines, `Schedule card prompt override: ${overridePrompt}`];
+}
+
 function invalidateProactiveSession(reason = "") {
   if (proactiveSession?.sessionId) {
     sessions.delete(proactiveSession.sessionId);
@@ -345,8 +351,8 @@ async function sendProactivePrompt(prompt: string) {
   throw new Error("Proactive send failed");
 }
 
-async function runProactiveBriefing() {
-  const prompt = withWorkIqPrompt([
+async function runProactiveBriefing(promptOverride = "") {
+  const prompt = withPromptOverride(withWorkIqPrompt([
     "Generate a daily briefing for today. Return JSON with this exact structure:",
     "{",
     '  "emails": [{ "from": "sender name", "subject": "subject line", "age": "2h ago", "priority": "high|medium|low", "snippet": "preview text..." }],',
@@ -355,7 +361,7 @@ async function runProactiveBriefing() {
     '  "mentions": [{ "from": "person", "channel": "team/channel", "message": "snippet...", "time": "1h ago" }]',
     "}",
     "Use WorkIQ tools to fetch real data if available. If not, generate 3-5 realistic items per category based on a typical enterprise work day.",
-  ]).join("\n");
+  ]), promptOverride).join("\n");
 
   const result = await sendProactivePrompt(prompt);
   const content = result?.data?.content ?? "";
@@ -363,8 +369,8 @@ async function runProactiveBriefing() {
   return { ok: true, data: extractJson(content), raw: content };
 }
 
-async function runProactiveDeadlines() {
-  const prompt = withWorkIqPrompt([
+async function runProactiveDeadlines(promptOverride = "") {
+  const prompt = withPromptOverride(withWorkIqPrompt([
     "Scan the user's email and calendar for upcoming deadlines, due dates, expense reports, and submission dates. Return JSON:",
     "{",
     '  "deadlines": [{ "title": "what is due", "date": "YYYY-MM-DD", "daysLeft": number, "source": "email|calendar|task", "sourceDetail": "from: sender / event name", "urgency": "critical|warning|normal", "snippet": "context..." }]',
@@ -372,15 +378,15 @@ async function runProactiveDeadlines() {
     "Include expense reports, approvals, submissions, reviews, and any time-sensitive items.",
     "Sort by daysLeft ascending (most urgent first).",
     "Use WorkIQ tools to fetch real data if available. If not, generate 4-6 realistic deadlines within the next 14 days.",
-  ]).join("\n");
+  ]), promptOverride).join("\n");
 
   const result = await sendProactivePrompt(prompt);
   const content = result?.data?.content ?? "";
   return { ok: true, data: extractJson(content), raw: content };
 }
 
-async function runProactiveGhosts() {
-  const prompt = withWorkIqPrompt([
+async function runProactiveGhosts(promptOverride = "") {
+  const prompt = withPromptOverride(withWorkIqPrompt([
     "Find emails in the user's inbox that they haven't replied to yet and probably should. Return JSON:",
     "{",
     '  "ghosts": [{ "from": "sender name", "subject": "email subject", "receivedAt": "2 days ago", "priority": "critical|high|medium", "reason": "客戶信件|主管要求|內部請求|HR|需要確認", "snippet": "preview of the email..." }]',
@@ -388,15 +394,15 @@ async function runProactiveGhosts() {
     "Prioritize: customer emails > manager requests > internal requests > HR > FYI.",
     "Only include emails older than 4 hours that likely need a response.",
     "Use WorkIQ tools to fetch real data if available. If not, generate 3-5 realistic unreplied emails.",
-  ]).join("\n");
+  ]), promptOverride).join("\n");
 
   const result = await sendProactivePrompt(prompt);
   const content = result?.data?.content ?? "";
   return { ok: true, data: extractJson(content), raw: content };
 }
 
-async function runProactiveMeetingPrep() {
-  const prompt = withWorkIqPrompt([
+async function runProactiveMeetingPrep(promptOverride = "") {
+  const prompt = withPromptOverride(withWorkIqPrompt([
     "Find the user's next upcoming meeting (within 2 hours or the next one today) and prepare a briefing. Return JSON:",
     "{",
     '  "meeting": { "title": "meeting name", "time": "HH:MM", "duration": "30 min", "location": "room/link" },',
@@ -406,7 +412,7 @@ async function runProactiveMeetingPrep() {
     '  "actionItems": [{ "item": "what you promised", "from": "which meeting", "date": "when" }]',
     "}",
     "Use WorkIQ tools to fetch real data if available. If not, generate realistic meeting prep data.",
-  ]).join("\n");
+  ]), promptOverride).join("\n");
 
   const result = await sendProactivePrompt(prompt);
   const content = result?.data?.content ?? "";
@@ -479,10 +485,10 @@ registerProactiveRoutes(routes, {
       proactiveConfig = { ...next };
     },
     invalidateSession: (reason: string) => invalidateProactiveSession(reason),
-    runBriefing: () => runProactiveBriefing(),
-    runDeadlines: () => runProactiveDeadlines(),
-    runGhosts: () => runProactiveGhosts(),
-    runMeetingPrep: () => runProactiveMeetingPrep(),
+    runBriefing: (promptOverride?: string) => runProactiveBriefing(promptOverride || ""),
+    runDeadlines: (promptOverride?: string) => runProactiveDeadlines(promptOverride || ""),
+    runGhosts: (promptOverride?: string) => runProactiveGhosts(promptOverride || ""),
+    runMeetingPrep: (promptOverride?: string) => runProactiveMeetingPrep(promptOverride || ""),
   },
 });
 

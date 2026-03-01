@@ -231,10 +231,10 @@ export interface ProactiveModule {
   getConfig: () => ProactiveConfig;
   setConfig: (next: ProactiveConfig) => void;
   invalidateSession: (reason: string) => void;
-  runBriefing: () => Promise<{ ok: boolean; data?: Record<string, unknown>; raw?: string; error?: string }>;
-  runDeadlines: () => Promise<{ ok: boolean; data?: Record<string, unknown>; raw?: string; error?: string }>;
-  runGhosts: () => Promise<{ ok: boolean; data?: Record<string, unknown>; raw?: string; error?: string }>;
-  runMeetingPrep: () => Promise<{ ok: boolean; data?: Record<string, unknown>; raw?: string; error?: string }>;
+  runBriefing: (promptOverride?: string) => Promise<{ ok: boolean; data?: Record<string, unknown>; raw?: string; error?: string }>;
+  runDeadlines: (promptOverride?: string) => Promise<{ ok: boolean; data?: Record<string, unknown>; raw?: string; error?: string }>;
+  runGhosts: (promptOverride?: string) => Promise<{ ok: boolean; data?: Record<string, unknown>; raw?: string; error?: string }>;
+  runMeetingPrep: (promptOverride?: string) => Promise<{ ok: boolean; data?: Record<string, unknown>; raw?: string; error?: string }>;
 }
 
 export interface ProactiveRouteDeps {

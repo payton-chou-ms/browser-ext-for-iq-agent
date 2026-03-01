@@ -31,6 +31,8 @@ function createDefaultProactiveScheduleCards() {
       id: "default-briefing",
       name: "每日晨報",
       agent: "briefing",
+      prompt: "",
+      lastSummary: "",
       enabled: true,
       schedule: { mode: "daily", hour: 8, minute: 0, intervalMinutes: 60, weekdays: [1, 2, 3, 4, 5] },
       lastRun: null,
@@ -40,6 +42,8 @@ function createDefaultProactiveScheduleCards() {
       id: "default-deadlines",
       name: "截止日追蹤",
       agent: "deadlines",
+      prompt: "",
+      lastSummary: "",
       enabled: true,
       schedule: { mode: "interval", hour: 9, minute: 0, intervalMinutes: 720, weekdays: [1, 2, 3, 4, 5] },
       lastRun: null,
@@ -49,6 +53,8 @@ function createDefaultProactiveScheduleCards() {
       id: "default-ghosts",
       name: "未回覆偵測",
       agent: "ghosts",
+      prompt: "",
+      lastSummary: "",
       enabled: true,
       schedule: { mode: "interval", hour: 9, minute: 0, intervalMinutes: 240, weekdays: [1, 2, 3, 4, 5] },
       lastRun: null,
@@ -58,6 +64,8 @@ function createDefaultProactiveScheduleCards() {
       id: "default-meeting-prep",
       name: "會議準備",
       agent: "meeting-prep",
+      prompt: "",
+      lastSummary: "",
       enabled: true,
       schedule: { mode: "interval", hour: 9, minute: 0, intervalMinutes: 30, weekdays: [1, 2, 3, 4, 5] },
       lastRun: null,
@@ -91,6 +99,8 @@ function normalizeProactiveScheduleCard(raw) {
     id,
     name: typeof raw?.name === "string" && raw.name.trim() ? raw.name.trim() : "新查詢卡",
     agent,
+    prompt: typeof raw?.prompt === "string" ? raw.prompt : "",
+    lastSummary: typeof raw?.lastSummary === "string" ? raw.lastSummary : "",
     enabled: raw?.enabled !== false,
     schedule: {
       mode,
@@ -142,7 +152,12 @@ function shouldRunScheduleCardNow(card, now = new Date()) {
 }
 
 async function saveProactiveScheduleCards(cards) {
-  proactiveScheduleCards = cards.map((card) => ({ ...card, schedule: { ...card.schedule } }));
+  proactiveScheduleCards = cards.map((card) => ({
+    ...card,
+    schedule: { ...card.schedule },
+    prompt: typeof card?.prompt === "string" ? card.prompt : "",
+    lastSummary: typeof card?.lastSummary === "string" ? card.lastSummary : "",
+  }));
   await chrome.storage.local.set({ [PROACTIVE_SCHEDULES_KEY]: proactiveScheduleCards });
 }
 
@@ -183,25 +198,60 @@ function getProactiveScheduleCardById(cardId) {
   return proactiveScheduleCards.find((card) => card.id === cardId) || null;
 }
 
-async function executeProactiveAgent(agent) {
+async function executeProactiveAgent(agent, prompt = "") {
   switch (agent) {
     case "briefing":
-      return await COPILOT_RPC.proactiveBriefing();
+      return await COPILOT_RPC.proactiveBriefing(prompt);
     case "deadlines":
-      return await COPILOT_RPC.proactiveDeadlines();
+      return await COPILOT_RPC.proactiveDeadlines(prompt);
     case "ghosts":
-      return await COPILOT_RPC.proactiveGhosts();
+      return await COPILOT_RPC.proactiveGhosts(prompt);
     case "meeting-prep":
-      return await COPILOT_RPC.proactiveMeetingPrep();
+      return await COPILOT_RPC.proactiveMeetingPrep(prompt);
     default:
       throw new Error(`Unknown proactive agent: ${agent}`);
   }
 }
 
-async function updateScheduleCardRunState(cardId, nextStatus, scannedAt) {
+function summarizeScheduleResult(agent, result) {
+  const payload = result?.data || result?.results || {};
+
+  if (agent === "briefing") {
+    const emails = Array.isArray(payload.emails) ? payload.emails.length : 0;
+    const meetings = Array.isArray(payload.meetings) ? payload.meetings.length : 0;
+    const tasks = Array.isArray(payload.tasks) ? payload.tasks.length : 0;
+    const mentions = Array.isArray(payload.mentions) ? payload.mentions.length : 0;
+    return `晨報：信件 ${emails}、會議 ${meetings}、待辦 ${tasks}、@mention ${mentions}`;
+  }
+
+  if (agent === "deadlines") {
+    const count = Array.isArray(payload.deadlines) ? payload.deadlines.length : 0;
+    return `截止日：共 ${count} 筆`;
+  }
+
+  if (agent === "ghosts") {
+    const count = Array.isArray(payload.ghosts) ? payload.ghosts.length : 0;
+    return `未回覆：共 ${count} 封`;
+  }
+
+  if (agent === "meeting-prep") {
+    const title = typeof payload?.meeting?.title === "string" ? payload.meeting.title : "未找到近期會議";
+    const attendees = Array.isArray(payload.attendees) ? payload.attendees.length : 0;
+    return `會議準備：${title}（參與者 ${attendees}）`;
+  }
+
+  return "查詢完成";
+}
+
+async function updateScheduleCardRunState(cardId, nextStatus, scannedAt, lastSummary = "") {
   const updated = proactiveScheduleCards.map((card) => (
     card.id === cardId
-      ? { ...card, lastStatus: nextStatus, lastRun: scannedAt || card.lastRun }
+      ? {
+        ...card,
+        lastStatus: nextStatus,
+        lastRun: scannedAt || card.lastRun,
+        lastSummary: typeof lastSummary === "string" ? lastSummary : card.lastSummary,
+      }
       : card
   ));
   await saveProactiveScheduleCards(updated);
@@ -213,9 +263,12 @@ async function runScheduleCardNow(cardId, reason = "manual") {
   if (!card.enabled) return { ok: false, error: "排程卡已停用" };
 
   try {
-    const result = await executeProactiveAgent(card.agent);
+    const result = await executeProactiveAgent(card.agent, card.prompt || "");
     const scannedAt = new Date().toISOString();
-    await updateScheduleCardRunState(card.id, result?.ok ? "ok" : "error", scannedAt);
+    const nextSummary = result?.ok
+      ? summarizeScheduleResult(card.agent, result)
+      : `查詢失敗：${result?.error || "未取得資料"}`;
+    await updateScheduleCardRunState(card.id, result?.ok ? "ok" : "error", scannedAt, nextSummary);
     if (result?.ok) {
       chrome.runtime.sendMessage({
         type: "PROACTIVE_UPDATE",
@@ -227,7 +280,12 @@ async function runScheduleCardNow(cardId, reason = "manual") {
     }
     return { ok: !!result?.ok, result, scannedAt };
   } catch (err) {
-    await updateScheduleCardRunState(card.id, "error", new Date().toISOString());
+    await updateScheduleCardRunState(
+      card.id,
+      "error",
+      new Date().toISOString(),
+      `查詢失敗：${err?.message || "執行失敗"}`,
+    );
     return { ok: false, error: err?.message || "執行失敗" };
   }
 }
@@ -384,16 +442,16 @@ async function handleMessage(msg) {
 
     // Proactive Agent
     case "PROACTIVE_BRIEFING":
-      return await COPILOT_RPC.proactiveBriefing();
+      return await COPILOT_RPC.proactiveBriefing(msg?.prompt || "");
 
     case "PROACTIVE_DEADLINES":
-      return await COPILOT_RPC.proactiveDeadlines();
+      return await COPILOT_RPC.proactiveDeadlines(msg?.prompt || "");
 
     case "PROACTIVE_GHOSTS":
-      return await COPILOT_RPC.proactiveGhosts();
+      return await COPILOT_RPC.proactiveGhosts(msg?.prompt || "");
 
     case "PROACTIVE_MEETING_PREP":
-      return await COPILOT_RPC.proactiveMeetingPrep();
+      return await COPILOT_RPC.proactiveMeetingPrep(msg?.prompt || "");
 
     case "PROACTIVE_SCAN_ALL":
       return await COPILOT_RPC.proactiveScanAll(msg.source || "manual");
@@ -437,6 +495,7 @@ async function handleMessage(msg) {
         id: `card-${Date.now()}`,
         name: msg?.name || "新查詢卡",
         agent: msg?.agent || "briefing",
+        prompt: typeof msg?.prompt === "string" ? msg.prompt : "",
         enabled: true,
         schedule: {
           mode: "interval",
@@ -446,7 +505,7 @@ async function handleMessage(msg) {
           weekdays: [1, 2, 3, 4, 5],
         },
       });
-      const cards = [...proactiveScheduleCards, next];
+      const cards = [next, ...proactiveScheduleCards];
       await saveProactiveScheduleCards(cards);
       await applyProactiveScheduleAlarms();
       return { ok: true, card: next, cards: proactiveScheduleCards };

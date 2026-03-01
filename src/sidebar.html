@@ -362,7 +362,6 @@
               <h3>Proactive Agent</h3>
               <span class="agent-badge" id="notif-total-count">0</span>
               <button class="action-btn" id="btn-mark-all-read" style="margin-left:8px">全部已讀</button>
-              <button class="icon-btn" id="btn-add-schedule-card" title="新增查詢排程小卡" style="margin-left:8px">+</button>
               <button class="icon-btn" id="btn-refresh-proactive" title="立即掃描" style="margin-left:auto">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
               </button>
@@ -374,6 +373,7 @@
             <div class="card-header">
               <span class="card-icon">🗂️</span>
               <h3>查詢排程小卡</h3>
+              <button class="action-btn primary" id="btn-add-schedule-card">+ 新增小卡</button>
             </div>
             <div id="proactive-schedule-cards-list" class="proactive-schedule-cards-list"></div>
             <div class="empty-state" id="proactive-schedule-cards-empty">
@@ -393,32 +393,6 @@
                 <span class="empty-icon">🫧</span>
                 <p>目前沒有高優先事項</p>
               </div>
-            </div>
-          </div>
-
-          <div class="glass-card" id="proactive-config-card">
-            <div class="card-header">
-              <span class="card-icon">🧠</span>
-              <h3>WorkIQ Prompt</h3>
-            </div>
-            <div class="form-group">
-              <label for="proactive-workiq-prompt">自訂 Proactive Agent 指示</label>
-              <textarea id="proactive-workiq-prompt" class="form-textarea" rows="4" placeholder="例如：優先找出今天最重要的 1 件事，並給我可直接執行的下一步。"></textarea>
-            </div>
-            <div class="action-row" style="margin-top:8px;">
-              <button class="action-btn primary" id="btn-save-proactive-config">儲存 Prompt</button>
-              <button class="action-btn" id="btn-clear-proactive-config">清除 Prompt</button>
-            </div>
-          </div>
-
-          <div class="glass-card" id="proactive-prompt-status-card" style="display:none;">
-            <div class="card-header">
-              <span class="card-icon">✨</span>
-              <h3>Prompt 套用狀態</h3>
-            </div>
-            <p id="proactive-prompt-status-text" class="text-muted" style="font-size:12px;margin:6px 0 8px;">尚未套用 Prompt</p>
-            <div class="action-row">
-              <button class="action-btn" id="btn-run-proactive-prompt-query">立即套用並查詢</button>
             </div>
           </div>
 

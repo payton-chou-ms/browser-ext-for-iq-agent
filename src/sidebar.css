@@ -3546,6 +3546,10 @@ kbd {
 }
 
 /* Proactive schedule cards */
+#proactive-schedule-cards-card {
+  order: 999;
+}
+
 .proactive-schedule-cards-list {
   display: flex;
   flex-direction: column;
@@ -3561,9 +3565,15 @@ kbd {
 
 .proactive-schedule-card-header {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
+  flex-wrap: wrap;
   gap: 8px;
   margin-bottom: 8px;
+}
+
+.proactive-schedule-card-main {
+  flex: 1 1 240px;
+  min-width: 0;
 }
 
 .proactive-schedule-card-title {
@@ -3572,10 +3582,64 @@ kbd {
   font-weight: 600;
 }
 
-.proactive-schedule-card-status {
-  margin-left: auto;
+.proactive-schedule-card-summary {
   font-size: 10px;
   color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.proactive-schedule-card-status {
+  margin-left: auto;
+  flex: 0 0 auto;
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+.proactive-schedule-card-header-actions {
+  display: flex;
+  gap: 6px;
+  margin-left: auto;
+  flex: 0 0 auto;
+}
+
+.proactive-schedule-card-last-summary {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--text-secondary);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 8px;
+  margin-bottom: 8px;
+  line-height: 1.45;
+}
+
+.proactive-schedule-card-last-summary-label {
+  color: var(--text-muted);
+  flex: 0 0 auto;
+}
+
+.proactive-schedule-card-last-summary-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  white-space: normal;
+  word-break: break-word;
+}
+
+.proactive-schedule-summary-toggle {
+  flex: 0 0 auto;
+  border: none;
+  background: transparent;
+  color: var(--accent-start);
+  font-size: 11px;
+  padding: 0;
+  cursor: pointer;
+}
+
+.proactive-schedule-summary-toggle:hover {
+  text-decoration: underline;
 }
 
 .proactive-schedule-grid {
@@ -3636,6 +3700,39 @@ kbd {
   flex: 1;
   padding: 6px 8px;
   font-size: 11px;
+}
+
+.proactive-schedule-card .proactive-schedule-card-header .action-btn {
+  flex: 0 0 auto;
+  min-width: 84px;
+  padding: 5px 8px;
+  font-size: 11px;
+}
+
+.proactive-schedule-card .action-btn.primary {
+  width: auto;
+  margin-top: 0;
+}
+
+.proactive-schedule-editor {
+  display: none;
+  margin-top: 8px;
+  border-top: 1px solid var(--border);
+  padding-top: 8px;
+}
+
+.proactive-schedule-card.editing .proactive-schedule-editor {
+  display: block;
+}
+
+#btn-add-schedule-card {
+  flex: 0 0 auto !important;
+  width: auto !important;
+  margin-top: 0 !important;
+  min-width: 0;
+  padding: 5px 14px;
+  font-size: 12px;
+  white-space: nowrap;
 }
 
 /* ── Inline-style elimination (P1) ── */

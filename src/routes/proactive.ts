@@ -16,6 +16,8 @@ function normalizeScanSource(value: unknown): "cold-start" | "reconnect" | "alar
 export function registerProactiveRoutes(routes: RouteTable, deps: ProactiveRouteDeps): void {
   const { jsonRes, readJsonBody, log, proactive } = deps;
 
+  const getPromptOverride = (value: unknown): string => (typeof value === "string" ? value : "");
+
   routes["GET /api/proactive/config"] = async (_req, res) => {
     jsonRes(res, 200, { ok: true, config: proactive.getConfig() });
   };
@@ -39,10 +41,12 @@ export function registerProactiveRoutes(routes: RouteTable, deps: ProactiveRoute
     jsonRes(res, 200, { ok: true, config: proactive.getConfig() });
   };
 
-  routes["POST /api/proactive/briefing"] = async (_req, res) => {
+  routes["POST /api/proactive/briefing"] = async (req, res) => {
+    const body = await readJsonBody(req, res, { allowEmpty: true }) as { prompt?: unknown } | null;
+    if (!body) return;
     log("PROACTIVE", "Generating daily briefing...");
     try {
-      const result = await proactive.runBriefing();
+      const result = await proactive.runBriefing(getPromptOverride(body.prompt));
       jsonRes(res, 200, result);
     } catch (err) {
       log("ERROR", "Briefing error:", (err as Error).message);
@@ -50,10 +54,12 @@ export function registerProactiveRoutes(routes: RouteTable, deps: ProactiveRoute
     }
   };
 
-  routes["POST /api/proactive/deadlines"] = async (_req, res) => {
+  routes["POST /api/proactive/deadlines"] = async (req, res) => {
+    const body = await readJsonBody(req, res, { allowEmpty: true }) as { prompt?: unknown } | null;
+    if (!body) return;
     log("PROACTIVE", "Scanning for deadlines...");
     try {
-      const result = await proactive.runDeadlines();
+      const result = await proactive.runDeadlines(getPromptOverride(body.prompt));
       jsonRes(res, 200, result);
     } catch (err) {
       log("ERROR", "Deadlines error:", (err as Error).message);
@@ -61,10 +67,12 @@ export function registerProactiveRoutes(routes: RouteTable, deps: ProactiveRoute
     }
   };
 
-  routes["POST /api/proactive/ghosts"] = async (_req, res) => {
+  routes["POST /api/proactive/ghosts"] = async (req, res) => {
+    const body = await readJsonBody(req, res, { allowEmpty: true }) as { prompt?: unknown } | null;
+    if (!body) return;
     log("PROACTIVE", "Detecting unreplied emails...");
     try {
-      const result = await proactive.runGhosts();
+      const result = await proactive.runGhosts(getPromptOverride(body.prompt));
       jsonRes(res, 200, result);
     } catch (err) {
       log("ERROR", "Ghosts error:", (err as Error).message);
@@ -72,10 +80,12 @@ export function registerProactiveRoutes(routes: RouteTable, deps: ProactiveRoute
     }
   };
 
-  routes["POST /api/proactive/meeting-prep"] = async (_req, res) => {
+  routes["POST /api/proactive/meeting-prep"] = async (req, res) => {
+    const body = await readJsonBody(req, res, { allowEmpty: true }) as { prompt?: unknown } | null;
+    if (!body) return;
     log("PROACTIVE", "Preparing meeting context...");
     try {
-      const result = await proactive.runMeetingPrep();
+      const result = await proactive.runMeetingPrep(getPromptOverride(body.prompt));
       jsonRes(res, 200, result);
     } catch (err) {
       log("ERROR", "Meeting prep error:", (err as Error).message);
@@ -91,8 +101,9 @@ export function registerProactiveRoutes(routes: RouteTable, deps: ProactiveRoute
     const now = Date.now();
     const elapsed = now - lastScanAllTimestamp;
 
-    // Throttle: skip if called too frequently
-    if (elapsed < SCAN_ALL_THROTTLE_MS) {
+    // Throttle: skip if called too frequently for non-manual triggers.
+    // Manual refresh from notification panel should always run immediately.
+    if (source !== "manual" && elapsed < SCAN_ALL_THROTTLE_MS) {
       const retryAfterMs = SCAN_ALL_THROTTLE_MS - elapsed;
       const remainingSec = Math.ceil(retryAfterMs / 1000);
       log("PROACTIVE", `scan-all throttled — skip (${remainingSec}s remaining, source=${source})`);

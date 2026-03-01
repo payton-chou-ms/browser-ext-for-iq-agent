@@ -44,7 +44,7 @@ flowchart LR
 📚 **[Full Documentation →](./docs/README.md)**
 
 - [Features](./docs/FEATURES.md)
-- [Demo Script](./DEMO.md)
+- [Demo Script](./docs/DEMO.md)
 - [Architecture](./docs/architecture.md)
 - [CI/CD Flow](./doc/cicd_flow.md)
 - [RAI Notes](./docs/README.md#-responsible-ai-rai-notes)
