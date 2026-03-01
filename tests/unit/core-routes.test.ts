@@ -96,4 +96,52 @@ describe("core routes", () => {
       })
     );
   });
+
+  test("lists local skills from .github/skills", async () => {
+    const routes: RouteTable = {};
+    const captured: Captured = {};
+
+    const deps = createCoreDeps(captured, async () => ({}));
+    deps.fs = {
+      existsSync: vi.fn((targetPath: string) => {
+        if (targetPath.endsWith(".github/skills")) return true;
+        if (targetPath.endsWith("foundry_agent_skill/SKILL.md")) return true;
+        if (targetPath.endsWith("plain_skill/SKILL.md")) return false;
+        if (targetPath.endsWith("plain_skill/README.md")) return true;
+        return false;
+      }),
+      readdirSync: vi.fn(() => [
+        { name: "foundry_agent_skill", isDirectory: () => true },
+        { name: "plain_skill", isDirectory: () => true },
+      ]),
+      readFileSync: vi.fn((targetPath: string) => {
+        if (targetPath.endsWith("foundry_agent_skill/SKILL.md")) {
+          return "# Foundry Agent Skill\n\nFoundry local skill description.";
+        }
+        return "# Plain Skill\n\nSimple local skill.";
+      }),
+      mkdirSync: vi.fn(),
+      writeFileSync: vi.fn(),
+    } as never;
+    deps.path = {
+      join: vi.fn((...parts: string[]) => parts.join("/")),
+      relative: vi.fn((_from: string, to: string) => to.replace(`${process.cwd()}/`, "")),
+      dirname: vi.fn(() => "/tmp"),
+    } as never;
+
+    registerCoreRoutes(routes, deps);
+
+    await routes["POST /api/skills/local"]!({} as never, {} as never);
+
+    expect(captured.status).toBe(200);
+    expect(captured.body).toEqual(
+      expect.objectContaining({
+        ok: true,
+        skills: expect.arrayContaining([
+          expect.objectContaining({ name: "foundry_agent_skill", source: "local-skill" }),
+          expect.objectContaining({ name: "plain_skill", source: "local-skill" }),
+        ]),
+      })
+    );
+  });
 });
