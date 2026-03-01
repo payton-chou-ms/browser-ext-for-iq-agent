@@ -393,7 +393,7 @@
         case "allProactiveAgentsActive":
           return Boolean(_state.counters.allProactiveUsed);
         case "allPanelsVisited": {
-          const required = ["chat", "context", "agent", "history", "usage", "tasks", "mcp", "config"];
+          const required = ["chat", "context", "agent", "history", "usage", "tasks", "skills", "mcp", "config"];
           const visited = _state.counters.panelsVisited;
           return required.every((p) => visited.includes(p));
         }

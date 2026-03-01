@@ -91,7 +91,11 @@
   }
 
   function removePendingFile(index) {
-    pendingFiles.splice(index, 1);
+    if (index >= 0 && index < pendingFiles.length) {
+      const filtered = pendingFiles.filter((_, i) => i !== index);
+      pendingFiles.length = 0;
+      pendingFiles.push(...filtered);
+    }
     renderFilePreview();
   }
 

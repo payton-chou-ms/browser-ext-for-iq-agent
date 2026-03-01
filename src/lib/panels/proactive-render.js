@@ -300,16 +300,45 @@
       const agentLabel = { briefing: "晨報", deadlines: "截止日", ghosts: "未回覆", "meeting-prep": "會議準備" }[agent] || agent;
       let itemsHtml = "";
 
+      const buildResultSection = (title, items) => {
+        if (!Array.isArray(items) || items.length === 0) return "";
+        return `<div class="meeting-prep-subsection"><div class="meeting-prep-subtitle">${escapeHtml(title)} (${items.length})</div>${items.join("")}</div>`;
+      };
+
+      const getPlainTextResult = () => {
+        if (typeof resultData === "string" && resultData.trim()) return resultData.trim();
+        if (typeof resultData?._raw === "string" && resultData._raw.trim()) return resultData._raw.trim();
+        if (typeof resultData?.text === "string" && resultData.text.trim()) return resultData.text.trim();
+        if (typeof resultData?.summary === "string" && resultData.summary.trim()) return resultData.summary.trim();
+        if (typeof resultData?.answer === "string" && resultData.answer.trim()) return resultData.answer.trim();
+        if (typeof resultData?.message === "string" && resultData.message.trim()) return resultData.message.trim();
+        if (resultData && typeof resultData === "object") {
+          const keys = Object.keys(resultData).filter((key) => key !== "_raw" && key !== "_parseError");
+          if (keys.length > 0) {
+            try {
+              return JSON.stringify(resultData, null, 2);
+            } catch {
+              return "";
+            }
+          }
+        }
+        return "";
+      };
+
       if (agent === "briefing") {
         const emails = resultData.emails || [];
         const meetings = resultData.meetings || [];
         const tasks = resultData.tasks || [];
         const mentions = resultData.mentions || [];
+        const emailItems = emails.map((e) => `<div class="insight-item"><div class="insight-item-header"><span class="insight-item-from">${escapeHtml(e.from)}</span><span class="insight-item-age">${escapeHtml(e.age || "")}</span></div><div class="insight-item-subject">${escapeHtml(e.subject)}</div><div class="insight-item-snippet">${escapeHtml(e.snippet || "")}</div></div>`);
+        const meetingItems = meetings.map((m) => `<div class="insight-item"><div class="insight-item-header"><span class="insight-item-time">${escapeHtml(m.time)}</span><span class="insight-item-location">${escapeHtml(m.location || "")}</span></div><div class="insight-item-subject">${escapeHtml(m.title)}</div></div>`);
+        const taskItems = tasks.map((t) => `<div class="insight-item"><div class="insight-item-header"><span class="insight-item-from">${escapeHtml(t.source || "To-Do")}</span><span class="insight-item-age">${escapeHtml(t.due || "")}</span></div><div class="insight-item-subject">${escapeHtml(t.title)}</div></div>`);
+        const mentionItems = mentions.map((m) => `<div class="insight-item"><div class="insight-item-header"><span class="insight-item-from">${escapeHtml(m.from)}</span></div><div class="insight-item-subject">${escapeHtml(m.channel || "")}</div><div class="insight-item-snippet">${escapeHtml(m.message || "")}</div></div>`);
         itemsHtml = [
-          ...emails.map((e) => `<div class="insight-item"><div class="insight-item-header"><span class="insight-item-from">${escapeHtml(e.from)}</span><span class="insight-item-age">${escapeHtml(e.age || "")}</span></div><div class="insight-item-subject">${escapeHtml(e.subject)}</div><div class="insight-item-snippet">${escapeHtml(e.snippet || "")}</div></div>`),
-          ...meetings.map((m) => `<div class="insight-item"><div class="insight-item-header"><span class="insight-item-time">${escapeHtml(m.time)}</span><span class="insight-item-location">${escapeHtml(m.location || "")}</span></div><div class="insight-item-subject">${escapeHtml(m.title)}</div></div>`),
-          ...tasks.map((t) => `<div class="insight-item"><div class="insight-item-header"><span class="insight-item-from">${escapeHtml(t.source || "To-Do")}</span><span class="insight-item-age">${escapeHtml(t.due || "")}</span></div><div class="insight-item-subject">${escapeHtml(t.title)}</div></div>`),
-          ...mentions.map((m) => `<div class="insight-item"><div class="insight-item-header"><span class="insight-item-from">${escapeHtml(m.from)}</span></div><div class="insight-item-subject">${escapeHtml(m.channel || "")}</div><div class="insight-item-snippet">${escapeHtml(m.message || "")}</div></div>`),
+          buildResultSection("📬 信件", emailItems),
+          buildResultSection("📅 會議", meetingItems),
+          buildResultSection("✅ 待辦", taskItems),
+          buildResultSection("⚠️ @mention", mentionItems),
         ].join("");
       } else if (agent === "deadlines") {
         const deadlines = resultData.deadlines || [];
@@ -334,7 +363,13 @@
       }
 
       if (!itemsHtml) {
-        itemsHtml = `<div class="empty-state"><span class="empty-icon">📭</span><p>此次查詢無資料</p></div>`;
+        const plainTextResult = getPlainTextResult();
+        if (plainTextResult) {
+          const textHtml = escapeHtml(plainTextResult).replace(/\n/g, "<br>");
+          itemsHtml = `<div class="insight-item"><div class="insight-item-snippet">${textHtml}</div></div>`;
+        } else {
+          itemsHtml = `<div class="empty-state"><span class="empty-icon">📭</span><p>此次查詢無資料</p></div>`;
+        }
       }
 
       resultContainer.innerHTML = `

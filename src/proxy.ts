@@ -297,7 +297,64 @@ function withWorkIqPrompt(lines: string[]): string[] {
 function withPromptOverride(lines: string[], promptOverride?: string): string[] {
   const overridePrompt = (promptOverride || "").trim();
   if (!overridePrompt) return lines;
-  return [...lines, `Schedule card prompt override: ${overridePrompt}`];
+  return [
+    ...lines,
+    "",
+    "[Schedule Card Focus - MUST FOLLOW]",
+    `User query focus: ${overridePrompt}`,
+    "Only return items directly related to the query focus above.",
+    "If no related items are found, return valid JSON with empty arrays/objects following the required schema.",
+    "Do NOT fill unrelated generic items just to satisfy list length.",
+  ];
+}
+
+function tokenizePromptQuery(promptOverride = ""): string[] {
+  const stopWords = new Set([
+    "give", "me", "the", "a", "an", "and", "or", "to", "for", "of", "in", "on", "at", "is", "are",
+    "please", "show", "list", "find", "with", "about", "just", "only",
+  ]);
+  return (promptOverride || "")
+    .toLowerCase()
+    .split(/[^a-z0-9\u4e00-\u9fff_-]+/)
+    .map((token) => token.trim())
+    .filter((token) => token.length >= 2 && !stopWords.has(token));
+}
+
+function includesAnyQueryToken(value: unknown, tokens: string[]): boolean {
+  if (!Array.isArray(tokens) || tokens.length === 0) return true;
+  const text = String(value ?? "").toLowerCase();
+  return tokens.some((token) => text.includes(token));
+}
+
+function filterBriefingByPrompt(data: Record<string, unknown>, promptOverride = ""): Record<string, unknown> {
+  const tokens = tokenizePromptQuery(promptOverride);
+  if (tokens.length === 0) return data;
+
+  const filterItems = (items: unknown[]): unknown[] =>
+    items.filter((item) => includesAnyQueryToken(JSON.stringify(item), tokens));
+
+  const emails = filterItems(Array.isArray(data.emails) ? data.emails : []);
+  const meetings = filterItems(Array.isArray(data.meetings) ? data.meetings : []);
+  const tasks = filterItems(Array.isArray(data.tasks) ? data.tasks : []);
+  const mentions = filterItems(Array.isArray(data.mentions) ? data.mentions : []);
+
+  if (emails.length || meetings.length || tasks.length || mentions.length) {
+    return {
+      ...data,
+      emails,
+      meetings,
+      tasks,
+      mentions,
+    };
+  }
+
+  return {
+    emails: [],
+    meetings: [],
+    tasks: [],
+    mentions: [],
+    text: `No relevant briefing items found for query: ${promptOverride}`,
+  };
 }
 
 function invalidateProactiveSession(reason = "") {
@@ -352,6 +409,10 @@ async function sendProactivePrompt(prompt: string) {
 }
 
 async function runProactiveBriefing(promptOverride = "") {
+  const hasPromptOverride = (promptOverride || "").trim().length > 0;
+  if (hasPromptOverride) {
+    invalidateProactiveSession("schedule card prompt override");
+  }
   const prompt = withPromptOverride(withWorkIqPrompt([
     "Generate a daily briefing for today. Return JSON with this exact structure:",
     "{",
@@ -360,13 +421,17 @@ async function runProactiveBriefing(promptOverride = "") {
     '  "tasks": [{ "title": "task name", "due": "today|tomorrow|3 days", "status": "pending|overdue", "source": "Planner|To-Do" }],',
     '  "mentions": [{ "from": "person", "channel": "team/channel", "message": "snippet...", "time": "1h ago" }]',
     "}",
-    "Use WorkIQ tools to fetch real data if available. If not, generate 3-5 realistic items per category based on a typical enterprise work day.",
+    hasPromptOverride
+      ? "If schedule-card query focus is provided, return only query-relevant items. If none are relevant, return empty arrays and set a short text field explaining no match."
+      : "Use WorkIQ tools to fetch real data if available. If not, generate 3-5 realistic items per category based on a typical enterprise work day.",
   ]), promptOverride).join("\n");
 
   const result = await sendProactivePrompt(prompt);
   const content = result?.data?.content ?? "";
   log("PROACTIVE", `Briefing response: ${content.slice(0, 200)}...`);
-  return { ok: true, data: extractJson(content), raw: content };
+  const parsed = extractJson(content);
+  const normalized = hasPromptOverride ? filterBriefingByPrompt(parsed, promptOverride) : parsed;
+  return { ok: true, data: normalized, raw: content };
 }
 
 async function runProactiveDeadlines(promptOverride = "") {

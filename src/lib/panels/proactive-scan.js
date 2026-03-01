@@ -13,6 +13,7 @@
     const AUTO_SCAN_MIN_INTERVAL_MS = 5 * 60 * 1000;
     const SUMMARY_PREVIEW_MAX_CHARS = 72;
     let proactiveScheduleCards = [];
+    const scheduleCardProgressState = new Map();
 
     const AGENT_OPTIONS = [
       { value: "briefing", label: "每日晨報" },
@@ -108,6 +109,20 @@
       return `${trimmed.slice(0, SUMMARY_PREVIEW_MAX_CHARS)}…`;
     }
 
+    function setScheduleCardProgress(cardId, status, text = "") {
+      if (!cardId) return;
+      if (!status || status === "idle") {
+        scheduleCardProgressState.delete(cardId);
+      } else {
+        scheduleCardProgressState.set(cardId, {
+          status,
+          text: typeof text === "string" ? text : "",
+          updatedAt: Date.now(),
+        });
+      }
+      renderScheduleCards(proactiveScheduleCards);
+    }
+
     function renderScheduleCards(cards) {
       proactiveScheduleCards = (Array.isArray(cards) ? cards : []).map(normalizeScheduleCard);
       const listEl = document.getElementById("proactive-schedule-cards-list");
@@ -123,6 +138,9 @@
       emptyEl.style.display = "none";
       const cardsWithResults = proactiveScheduleCards.filter((c) => c.lastResult != null);
       listEl.innerHTML = proactiveScheduleCards.map((card) => {
+        const progress = scheduleCardProgressState.get(card.id);
+        const isRunning = progress?.status === "running";
+        const progressClass = progress ? ` proactive-progress-${progress.status}` : "";
         const schedule = card.schedule || {};
         const mode = schedule.mode || "interval";
         const weekdays = new Set(schedule.weekdays || [1, 2, 3, 4, 5]);
@@ -140,9 +158,11 @@
             <span class="proactive-schedule-card-status">${escapeHtml(formatScheduleCardStatus(card))}</span>
             <div class="proactive-schedule-card-header-actions">
               <button class="action-btn" data-action="toggle-edit-card">編輯</button>
-              <button class="action-btn primary" data-action="refresh-apply-card">Refresh 套用</button>
+              <button class="action-btn primary" data-action="refresh-apply-card" ${isRunning ? "disabled" : ""}>${isRunning ? "Running..." : "Refresh"}</button>
             </div>
           </div>
+
+          ${progress ? `<div class="proactive-schedule-progress${progressClass}"><span class="proactive-schedule-progress-dot"></span><span class="proactive-schedule-progress-text">${escapeHtml(progress.text || "處理中...")}</span></div>` : ""}
 
           <div class="proactive-schedule-card-last-summary" data-expanded="false" data-preview="${escapeHtml(summaryPreview)}" data-full="${escapeHtml(summaryText)}">
             <span class="proactive-schedule-card-last-summary-label">最近摘要：</span>
@@ -337,26 +357,42 @@
     }
 
     async function refreshApplyProactiveScheduleCard(cardEl) {
-      const card = await saveProactiveScheduleCard(cardEl);
-      const res = await utils.sendToBackground?.({
-        type: "APPLY_PROACTIVE_SCHEDULE_CARD",
-        cardId: card.id,
-        runNow: true,
-      });
-      renderScheduleCards(res?.cards || []);
-      if (res?.ok) {
-        utils.showToast?.("已套用排程並立即查詢");
-        // Render the full result on the card if available
-        const updatedCard = (res.cards || []).find((c) => c.id === card.id);
-        if (updatedCard?.lastResult) {
-          const safeId = String(card.id).replace(/"/g, "\\\"");
-          const newCardEl = document.querySelector(`.proactive-schedule-card[data-card-id="${safeId}"]`);
-          if (newCardEl instanceof HTMLElement) {
-            renderApi.renderScheduleCardResult(newCardEl, updatedCard.agent, updatedCard.lastResult);
+      const cardId = cardEl?.dataset?.cardId || "";
+      if (!cardId) return;
+
+      try {
+        setScheduleCardProgress(cardId, "running", "Saving schedule...");
+        const card = await saveProactiveScheduleCard(cardEl);
+
+        setScheduleCardProgress(card.id, "running", "Querying Copilot / WorkIQ...");
+        const res = await utils.sendToBackground?.({
+          type: "APPLY_PROACTIVE_SCHEDULE_CARD",
+          cardId: card.id,
+          runNow: true,
+        });
+
+        renderScheduleCards(res?.cards || []);
+        if (res?.ok) {
+          setScheduleCardProgress(card.id, "success", "Completed");
+          utils.showToast?.("已套用排程並立即查詢");
+          const updatedCard = (res.cards || []).find((c) => c.id === card.id);
+          if (updatedCard?.lastResult) {
+            const safeId = String(card.id).replace(/"/g, "\\\"");
+            const newCardEl = document.querySelector(`.proactive-schedule-card[data-card-id="${safeId}"]`);
+            if (newCardEl instanceof HTMLElement) {
+              renderApi.renderScheduleCardResult(newCardEl, updatedCard.agent, updatedCard.lastResult);
+            }
           }
+          setTimeout(() => setScheduleCardProgress(card.id, "idle"), 1600);
+        } else {
+          const errorText = res?.runResult?.error || "unknown";
+          setScheduleCardProgress(card.id, "error", `Failed: ${errorText}`);
+          utils.showToast?.("套用失敗: " + errorText);
         }
-      } else {
-        utils.showToast?.("套用失敗: " + (res?.runResult?.error || "unknown"));
+      } catch (err) {
+        const message = err?.message || "unknown";
+        setScheduleCardProgress(cardId, "error", `Failed: ${message}`);
+        utils.showToast?.("套用失敗: " + message);
       }
     }
 

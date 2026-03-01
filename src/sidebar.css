@@ -3779,6 +3779,46 @@ kbd {
   margin-top: 0;
 }
 
+.proactive-schedule-progress {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.proactive-schedule-progress-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent-start);
+  flex: 0 0 auto;
+}
+
+.proactive-progress-running .proactive-schedule-progress-dot {
+  border: 2px solid var(--border);
+  border-top-color: var(--accent-start);
+  background: transparent;
+  animation: sectionSpin 0.8s linear infinite;
+}
+
+.proactive-progress-success {
+  color: var(--success);
+}
+
+.proactive-progress-success .proactive-schedule-progress-dot {
+  background: var(--success);
+}
+
+.proactive-progress-error {
+  color: var(--error);
+}
+
+.proactive-progress-error .proactive-schedule-progress-dot {
+  background: var(--error);
+}
+
 .proactive-schedule-editor {
   display: none;
   margin-top: 8px;
@@ -3913,3 +3953,34 @@ kbd {
 
 /* Level-up toast icon */
 .ach-toast-icon--level-up { font-size: 28px; }
+
+/* ── Skeleton Placeholder (P3-12) ── */
+.skeleton-placeholder {
+  display: flex;
+  gap: 10px;
+  padding: 16px;
+  animation: skeleton-pulse 1.2s ease-in-out infinite;
+}
+.skeleton-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.06);
+  flex-shrink: 0;
+}
+.skeleton-lines {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 4px;
+}
+.skeleton-line {
+  height: 12px;
+  border-radius: 4px;
+  background: rgba(255,255,255,0.06);
+}
+@keyframes skeleton-pulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.4; }
+}

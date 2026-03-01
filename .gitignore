@@ -22,6 +22,8 @@ Thumbs.db
 # Build output
 dist/
 build/
+src/achievement-engine.js
+src/achievement-engine.js.map
 
 # Test artifacts
 playwright-report/
