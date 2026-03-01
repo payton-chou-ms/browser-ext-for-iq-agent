@@ -396,14 +396,40 @@
         return true;
       }
 
-      // Use the workiq MCP tool to query Microsoft 365 data
-      // This is more reliable than skill invocation for ensuring correct tool usage
-      const workiqPrompt = `Use the workiq MCP tool (workiq-ask_work_iq) to answer this question about Microsoft 365 data. Do NOT use foundry_agent_skill. Query: ${query}`;
-      
+      // Route through background.js WORKIQ_QUERY → proxy /api/workiq/query first.
+      // If the server-side workiq-ask_work_iq tool is unavailable, fall back to
+      // regular streaming with a Work IQ context prefix so Copilot can still answer.
       try {
-        await CHAT.sendMessageStreaming?.(workiqPrompt);
+        const response = await UTILS.sendToBackground?.({
+          type: "WORKIQ_QUERY",
+          query,
+        });
+
+        // Detect when backend "succeeds" but the model reports tool unavailability
+        const toolUnavailable = response?.content &&
+          /command\s*not\s*found|tool\s*(is\s*)?(not\s*)?(available|found|installed|exposed)|cannot\s*(be\s*)?retrie/i
+            .test(response.content);
+
+        if (response?.ok && response?.content && !toolUnavailable) {
+          CHAT.addBotMessage?.(response.content);
+        } else {
+          // Tool not available or query failed — fall back to streaming
+          const workiqPrompt = [
+            "[Work IQ Query]",
+            "Please answer the following question about the user's Microsoft 365 data",
+            "(emails, calendar, Teams, OneDrive) to the best of your ability.",
+            "",
+            `Question: ${query}`,
+          ].join("\n");
+          await CHAT.sendMessageStreaming?.(workiqPrompt);
+        }
       } catch (err) {
-        CHAT.addBotMessage?.(`⚠ ${localizeRuntimeMessage("命令執行失敗")}: ${err?.message || String(err)}`);
+        // Network / timeout error — also fall back to streaming
+        try {
+          await CHAT.sendMessageStreaming?.(`[Work IQ Query] ${query}`);
+        } catch (streamErr) {
+          CHAT.addBotMessage?.(`⚠ ${localizeRuntimeMessage("命令執行失敗")}: ${streamErr?.message || String(streamErr)}`);
+        }
       }
 
       PANELS.usage?.updateStats?.();

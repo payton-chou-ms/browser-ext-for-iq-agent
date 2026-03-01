@@ -289,12 +289,29 @@ export function registerSessionRoutes(routes: RouteTable, deps: SessionRouteDeps
       res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
     };
 
+    // HTTP port for image proxy URLs (default 8321)
+    const httpPort = parseInt(process.env.HTTP_PORT || "8321", 10);
+
     let finished = false;
 
-    const unsubscribe = session.on((event: { type: string }) => {
+    const unsubscribe = session.on((event: { type: string; data?: { content?: string } }) => {
       if (finished) return;
       log("SSE", `[${body.sessionId.slice(0, 8)}] event: ${event.type}`);
-      sendSSE(event.type, event);
+      
+      // Transform image paths in assistant messages
+      let eventToSend = event;
+      if (event.type === "assistant.message" && event.data?.content) {
+        const transformedContent = transformImagePaths(event.data.content, httpPort);
+        if (transformedContent !== event.data.content) {
+          eventToSend = {
+            ...event,
+            data: { ...event.data, content: transformedContent },
+          };
+          log("SSE", `[${body.sessionId.slice(0, 8)}] transformed image path in response`);
+        }
+      }
+      
+      sendSSE(event.type, eventToSend);
 
       if (event.type === "session.idle") {
         finished = true;

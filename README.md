@@ -1,131 +1,275 @@
-# IQ Copilot Browser Extension
+# IQ Copilot Edge Extension
 
-> Chrome 側邊欄 AI 助手 — 整合 GitHub Copilot、Foundry IQ、Work IQ、Fabric IQ
-
-[![CI](https://github.com/payton-chou-ms/browser-ext-for-iq-agent/actions/workflows/ci.yml/badge.svg)](https://github.com/payton-chou-ms/browser-ext-for-iq-agent/actions)
+> Edge sidebar AI assistant integrating GitHub Copilot, Foundry IQ, Work IQ, and Fabric IQ.
 
 ---
 
-## 🎯 What is IQ Copilot?
+## Table of Contents
 
-IQ Copilot 是一款**瀏覽器原生側邊欄 AI 助手**（Chrome MV3），透過本地 HTTP Proxy 橋接 GitHub Copilot CLI，並整合三大企業 IQ 平台：
-
-| IQ 平台 | 能力 |
-|---------|------|
-| **Foundry IQ** | 企業知識 Agent — 產品手冊查詢、售後排障（um / pkm / fabric agent） |
-| **Work IQ** | M365 資料查詢 — 郵件、行事曆、Teams、OneDrive |
-| **Fabric IQ** | 結構化規格庫 — 產品規格比對與篩選 |
+- [IQ Copilot Edge Extension](#iq-copilot-edge-extension)
+  - [Table of Contents](#table-of-contents)
+  - [Product Overview](#product-overview)
+  - [Architecture](#architecture)
+  - [Copilot SDK Flow](#copilot-sdk-flow)
+  - [Business Impact and Core Capabilities](#business-impact-and-core-capabilities)
+    - [Business outcomes](#business-outcomes)
+    - [Core capabilities (detailed)](#core-capabilities-detailed)
+  - [Bring-Your-Own Prerequisites](#bring-your-own-prerequisites)
+    - [Foundry / WorkIQ / Fabric IQ preparation](#foundry--workiq--fabric-iq-preparation)
+  - [Quick Start Local](#quick-start-local)
+  - [How to Use the Edge Extension](#how-to-use-the-edge-extension)
+  - [Fast Local Environment for Testing](#fast-local-environment-for-testing)
+    - [A) Quick smoke validation](#a-quick-smoke-validation)
+    - [B) Full E2E flow](#b-full-e2e-flow)
+    - [Stability flags](#stability-flags)
+  - [Project Structure](#project-structure)
+  - [Development Commands](#development-commands)
+  - [Documentation](#documentation)
+  - [Security and Responsible AI](#security-and-responsible-ai)
+  - [License](#license)
 
 ---
 
-## 📈 Business Impact
+## Product Overview
 
-| 指標 | 效益 |
-|------|------|
-| 資訊搜尋時間 | **-50%** |
-| 會議準備時間 | **-40%** |
-| 漏回郵件風險 | **-80%** |
-| 系統切換次數 | **-70%** |
-| 報價/諮詢效率 | **3×** |
+IQ Copilot is an **Edge MV3 sidebar assistant** that connects a local HTTP proxy to GitHub Copilot CLI and enterprise AI services.
+
+| IQ Platform | Core Capability |
+|-------------|-----------------|
+| **Foundry IQ** | Enterprise knowledge agents for manuals, troubleshooting, and spec Q&A |
+| **Work IQ** | Microsoft 365 data access for Mail, Calendar, Teams, and OneDrive |
+| **Fabric IQ** | Structured specification filtering and comparison |
+
+It uses **`@github/copilot-sdk`** as a first-class runtime dependency for session lifecycle and streaming orchestration.
 
 ---
 
-## 🏗️ Architecture
+## Architecture
 
 ```mermaid
 flowchart LR
-  A[Chrome Sidebar] -->|runtime msg / stream port| B[background.js]
-  B -->|HTTP / SSE| C[proxy.ts :8321]
-  C -->|@github/copilot-sdk| D[Copilot CLI :4321]
-  C -->|child_process| E[Foundry Agent Skills]
-  C -->|via Copilot session| F[Work IQ · M365]
-  C <-->|read/write| G[MCP Config]
+   subgraph Extension["Edge Extension · MV3"]
+      SP["Sidebar UI"]
+      BG["Service Worker"]
+      CS["Content Script"]
+   end
+
+   subgraph Proxy["Local Proxy · :8321"]
+      RT["Route Engine<br/>core · session · foundry<br/>proactive · workiq"]
+   end
+
+   subgraph External["External Services"]
+      SDK["@github/copilot-sdk"]
+      CLI["Copilot CLI · :4321"]
+      FD["Foundry Agent Service"]
+      WIQ["WorkIQ · M365"]
+      MCP["MCP Config"]
+      SK["Skills CLI<br/>Python + Shell"]
+   end
+
+   CS -- page context --> BG
+   SP -- runtime msg / stream port --> BG
+   BG -- HTTP / SSE --> RT
+   RT --> SDK --> CLI
+   RT --> FD
+   RT -- via Copilot session --> WIQ
+   RT <--> MCP
+   RT -- child_process --> SK
 ```
 
 ---
 
-## 🚀 Quick Start
+## Copilot SDK Flow
+
+```mermaid
+sequenceDiagram
+   participant UI as Sidebar UI
+   participant BG as background.js
+   participant PX as proxy.ts
+   participant SDK as @github/copilot-sdk
+   participant CLI as Copilot CLI
+
+   UI->>BG: create/resume/send message
+   BG->>PX: HTTP /api/session/*
+   PX->>SDK: CopilotClient.createSession/resumeSession
+   SDK->>CLI: RPC via cliUrl (:4321)
+   CLI-->>SDK: model/tool response
+   SDK-->>PX: session events / data
+   PX-->>BG: JSON or SSE
+   BG-->>UI: render chat updates
+```
+
+Key implementation points:
+
+- `src/proxy.ts` creates and manages `CopilotClient`.
+- `src/routes/session.ts` uses SDK session APIs (`createSession`, `resumeSession`, streaming).
+- `src/shared/types.ts` and route modules use SDK types (`CopilotSession`, `CopilotClient`).
+
+---
+
+## Business Impact and Core Capabilities
+
+### Business outcomes
+
+| Metric | Expected Improvement |
+|--------|----------------------|
+| Information lookup time | **-50%** |
+| Meeting preparation time | **-40%** |
+| Missed-reply risk | **-80%** |
+| Context-switching between tools | **-70%** |
+| Pre-sales/spec consulting efficiency | **3×** |
+
+### Core capabilities (detailed)
+
+| Capability | What It Does | Practical Value |
+|------------|---------------|-----------------|
+| **Smart Chat + Page Context** | Uses page context, files, and prompts for summaries, analysis, translation, and drafting | Faster understanding and response preparation |
+| **Multi-Tab Sessions** | Runs up to 10 isolated chats with per-tab model and skill context | Parallel task handling without cross-talk |
+| **Foundry Agent Skills** | Invokes domain agents (`um`, `pkm`, `fabric`) via slash commands | Reliable enterprise answers for manuals and specs |
+| **WorkIQ + Proactive Scan** | Queries Microsoft 365 and generates proactive briefings/reminders | Better execution on meetings, deadlines, and follow-ups |
+| **MCP Integrations** | Connects external tool servers (for example Docs and SDK references) | Single UI for internal + external intelligence |
+| **Quick Prompts / Usage / Achievements / History** | Standardizes prompts, tracks usage, and preserves session history | Better adoption, traceability, and repeatability |
+
+---
+
+## Bring-Your-Own Prerequisites
+
+Prepare the following before running the project:
+
+- **Node.js 20+**
+- **Microsoft Edge 90+** (MV3 support)
+- **GitHub Copilot CLI**, authenticated: `copilot auth login`
+- **Azure CLI**, authenticated: `az login` (required for Foundry Agent and image-generation skills)
+- Recommended for E2E: `npx playwright install chromium`
+
+### Foundry / WorkIQ / Fabric IQ preparation
+
+- Provision and validate Foundry agents (for example `um-semantic-agent`, `pkm-semantic-agent`, `fabric-specs-agent`).
+- Configure Foundry endpoint and authentication (API key or Azure identity).
+- Create `.github/skills/foundry_agent_skill/.env` from `.env.example` when using local skill scripts.
+- Ensure enterprise WorkIQ/Fabric IQ data sources are accessible to the configured agents.
+
+---
+
+## Quick Start Local
 
 ```bash
-# 1. Install dependencies
+# 1) Install dependencies
 npm install
 
-# 2. Start proxy + Copilot CLI
+# 2) Install Playwright browser (first run)
+npx playwright install chromium
+
+# 3) Start Copilot CLI + local proxy
 ./start.sh
 
-# 3. Load extension
-#    chrome://extensions → Developer mode → Load unpacked → select this directory
-
-# 4. Open sidebar and start chatting!
+# 4) Verify health
+curl http://127.0.0.1:8321/api/ping
 ```
 
-### Prerequisites
-
-- **Node.js** 20+, **Chrome** 90+
-- **Copilot CLI** installed & authenticated (`copilot auth login`)
-- **az login** completed (for Foundry Agent skills)
+The local proxy is expected at `http://127.0.0.1:8321`.
 
 ---
 
-## 📦 Project Structure
+## How to Use the Edge Extension
+
+1. Open `edge://extensions`.
+2. Enable **Developer mode**.
+3. Click **Load unpacked** and select the repository root.
+4. Open any webpage and launch the Edge side panel.
+5. Use chat and slash commands:
+    - `/help`
+    - `/workiq <query>`
+    - `/foundry_agent_skills <agent-name> to check <query>`
+    - `/model list` and `/model use <model-id>`
+
+---
+
+## Fast Local Environment for Testing
+
+### A) Quick smoke validation
+
+```bash
+./start.sh
+npm run lint
+npm run typecheck
+npm run test:unit
+```
+
+### B) Full E2E flow
+
+```bash
+# keep proxy running in another terminal
+./start.sh
+
+# run all Playwright tests
+npx playwright test
+
+# run a single spec
+npx playwright test tests/extension.spec.js
+```
+
+### Stability flags
+
+```bash
+npx playwright test --workers=1 --timeout=180000 --reporter=list
+```
+
+---
+
+## Project Structure
 
 ```
 ├── src/
 │   ├── sidebar.*          # Extension UI (HTML/CSS/JS)
-│   ├── background.js      # MV3 Service Worker (message routing)
-│   ├── content_script.js   # Page context capture
-│   ├── proxy.ts           # Local HTTP Proxy (main entry)
-│   ├── lib/               # Frontend modules (chat, state, i18n, utils…)
-│   │   └── panels/        # UI panel modules (proactive, achievements…)
-│   ├── routes/            # Proxy API routes (core, session, foundry, proactive, workiq)
-│   ├── shared/            # Shared types & contracts
-│   └── scripts/           # Build & dev scripts
-├── docs/                  # Full documentation
-├── tests/                 # Unit (Vitest) & E2E (Playwright)
-├── .github/skills/        # Extensible skill scripts (foundry_agent, gen-img)
-├── AGENTS.md              # AI Agent capabilities description
-└── plan/                  # Implementation plans & archive
+│   ├── background.js      # MV3 Service Worker
+│   ├── content_script.js  # Page context capture
+│   ├── proxy.ts           # Local HTTP Proxy entry
+│   ├── lib/               # Frontend modules
+│   ├── routes/            # core / session / foundry / proactive / workiq
+│   └── shared/            # Shared contracts and types
+├── tests/                 # Playwright + Vitest
+├── docs/                  # Additional docs and archive
+└── .github/skills/        # Local skill scripts
 ```
 
 ---
 
-## 🧪 Development
+## Development Commands
 
 | Command | Description |
 |---------|-------------|
-| `./start.sh` | Start proxy + health check |
+| `./start.sh` | Start Copilot CLI + proxy |
 | `npm run lint` | ESLint |
+| `npm run typecheck` | TypeScript type check |
 | `npm run test:unit` | Vitest unit tests |
 | `npm test` | Full test suite |
 | `npm run build` | Build proxy bundle |
-| `npm run build:watch` | Watch mode |
 
 ---
 
-## 📚 Documentation
+## Documentation
 
 | Document | Description |
 |----------|-------------|
-| [Features & Business Impact](./docs/FEATURES.md) | 功能亮點、三大 IQ 協同、ROI |
-| [Demo Script](./docs/DEMO.md) | Demo 腳本與可直接貼上的 Prompt |
-| [Architecture](./docs/architecture.md) | 系統架構深入解析（Mermaid 圖表） |
-| [CI/CD Flow](./docs/cicd_flow.md) | CI/CD 流程與打包說明 |
-| [E2E Testing](./docs/E2E-TESTING.md) | Playwright E2E 測試指南 |
-| [Archive](./docs/archive/) | 歷史文件 |
+| [TECH.md](./TECH.md) | Consolidated technical guide (Architecture + CI/CD + E2E) |
+| [Demo Script](./docs/DEMO.md) | Demo prompts and scenario flow |
 
 ---
 
-## 🛡️ Security & Responsible AI
+## Security and Responsible AI
 
-- **本地優先**：Proxy 僅監聽 localhost，敏感資料不離開使用者電腦
-- **最小權限**：Extension 僅請求 `activeTab`、`sidePanel`、`tabs`、`storage`、`alarms`
-- **輸入驗證**：所有 Proxy 路由經 Zod schema 驗證 + body size 限制
-- **日誌遮罩**：API key / token 等敏感值自動 redact
-- **AI 透明度**：所有工具執行狀態即時顯示、token 消耗可追蹤
-- **限制聲明**：AI 回應可能不準確，使用者應驗證重要資訊
+- **Local-first network boundary**: proxy listens only on `localhost`.
+- **Least privilege extension model**: only required MV3 permissions are enabled (`activeTab`, `sidePanel`, `tabs`, `storage`, `alarms`).
+- **Input and payload protection**: Zod validation + request body size limits.
+- **Sensitive data handling**: key/token redaction in logs and runtime-scoped storage strategy.
+- **Enterprise protection with Foundry Agent Service**:
+   - Foundry agent workloads are routed through Microsoft-managed service boundaries.
+   - Foundry control plane governance can be applied for policy, RBAC, and operational controls.
+   - Security monitoring can be integrated with Microsoft Defender for Cloud and Microsoft Defender for Office 365 (M365) in enterprise environments.
+- **Responsible AI transparency**: tool execution state and token usage are visible to users.
+- **Human verification required**: AI outputs should be validated before high-impact use.
 
----
-
-## 📄 License
+## License
 
 MIT
