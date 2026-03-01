@@ -87,11 +87,16 @@ def main():
         with open(args.output, "wb") as f:
             f.write(image_bytes)
 
-        print(f"✅ 圖片已儲存至: {args.output}")
+        # Get absolute path for the output file
+        abs_path = Path(args.output).resolve()
         
-        # Output markdown image with data URL for browser display
-        # This allows the browser extension to render the image inline
-        print(f"\n![Generated Image](data:image/png;base64,{b64_json})")
+        print(f"✅ 圖片已儲存至: {abs_path}")
+        
+        # Output markdown image with proxy URL
+        # The proxy serves images from output directory via /api/image?path=
+        from urllib.parse import quote
+        proxy_url = f"http://127.0.0.1:8321/api/image?path={quote(str(abs_path))}"
+        print(f"\n![Generated Image]({proxy_url})")
 
     except Exception as e:
         print(f"❌ 錯誤: {e}", file=sys.stderr)
