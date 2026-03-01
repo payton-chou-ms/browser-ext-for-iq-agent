@@ -158,8 +158,11 @@ const COPILOT_RPC = (() => {
     return res.tools || [];
   }
 
+  // Skill execution can take a while (e.g., image generation, external API calls)
+  const SKILL_EXECUTE_TIMEOUT_MS = 180000; // 3 minutes
+
   async function executeSkill(skillName, command = "status", payload = {}) {
-    return await apiCall("/api/skills/execute", { skillName, command, payload });
+    return await apiCall("/api/skills/execute", { skillName, command, payload }, SKILL_EXECUTE_TIMEOUT_MS);
   }
 
   async function listLocalSkills() {
@@ -167,8 +170,11 @@ const COPILOT_RPC = (() => {
     return res.skills || [];
   }
 
+  // WorkIQ queries can be slow due to M365 data access
+  const WORKIQ_TIMEOUT_MS = 180000; // 3 minutes
+
   async function workiqQuery(query, sessionId) {
-    return await apiCall("/api/workiq/query", { query, sessionId });
+    return await apiCall("/api/workiq/query", { query, sessionId }, WORKIQ_TIMEOUT_MS);
   }
 
   async function getQuota() {
@@ -192,8 +198,11 @@ const COPILOT_RPC = (() => {
     return sendMessageStream(sessionId, prompt, attachments);
   }
 
+  // Longer timeout for sendAndWait since tool executions can take a while (e.g., image generation)
+  const SEND_AND_WAIT_TIMEOUT_MS = 180000; // 3 minutes
+
   async function sendAndWait(sessionId, prompt, attachments) {
-    return await apiCall("/api/session/sendAndWait", { sessionId, prompt, attachments });
+    return await apiCall("/api/session/sendAndWait", { sessionId, prompt, attachments }, SEND_AND_WAIT_TIMEOUT_MS);
   }
 
   async function listSessions() {

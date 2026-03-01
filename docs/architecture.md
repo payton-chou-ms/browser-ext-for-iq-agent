@@ -142,39 +142,73 @@ flowchart LR
 ## 5) 資料流（關鍵情境）
 
 ### 5.1 聊天串流流程
-1. 使用者從側邊欄送出訊息。
-2. `sidebar.js` 委派到 `chat.sendMessageStreaming`。
-3. UI 開啟到背景層的 `copilot-stream` port。
-4. 背景層轉發至 Proxy 的 `/api/session/send`。
-5. Proxy 訂閱 session 事件並輸出 SSE。
-6. 背景層轉譯為 `STREAM_EVENT` / `STREAM_DONE` / `STREAM_ERROR`。
-7. Chat 模組更新：
-   - assistant delta
-   - tool 卡片（狀態 + 計時 + 摘要）
-   - intent bar
+
+```mermaid
+sequenceDiagram
+  participant U as 使用者
+  participant SB as sidebar.js
+  participant BG as background.js
+  participant PX as Proxy
+  participant SDK as Copilot SDK
+
+  U->>SB: 送出訊息
+  SB->>BG: copilot-stream port
+  BG->>PX: POST /api/session/send
+  PX->>SDK: session 事件訂閱
+  SDK-->>PX: SSE 串流
+  PX-->>BG: SSE 事件
+  BG-->>SB: STREAM_EVENT / STREAM_DONE / STREAM_ERROR
+  SB-->>U: 更新 assistant delta / tool 卡片 / intent bar
+```
 
 ### 5.2 連線初始化流程
-1. Sidebar 冷啟動觸發 `checkConnection("cold-start")`。
-2. 背景層解析狀態並僅在變更時廣播。
-3. `lib/connection.js` 依來源執行：
-   - 冷啟動：完整初始化
-   - 重連 / alarm / 手動：輕量同步
-4. Context / models / tools / sessions / quota 分發到各面板。
+
+```mermaid
+flowchart TD
+  A[Sidebar 冷啟動] -->|checkConnection| B{背景層解析狀態}
+  B -->|狀態有變更| C[廣播新狀態]
+  B -->|無變更| D[略過]
+  C --> E{來源判斷}
+  E -->|cold-start| F[完整初始化]
+  E -->|重連 / alarm / 手動| G[輕量同步]
+  F --> H[分發到各面板\ncontext / models / tools / sessions / quota]
+  G --> H
+```
 
 ### 5.3 Proactive 掃描流程
-1. 由 sidebar（手動）或 alarm（背景）觸發掃描。
-2. 背景層呼叫 Proxy proactive 端點。
-3. Proxy 以節流 + 平行子呼叫執行 scan-all。
-4. Sidebar 接收更新並分區塊渲染。
-5. 重新計算通知 badge 與已讀狀態。
+
+```mermaid
+sequenceDiagram
+  participant T as 觸發源<br/>sidebar / alarm
+  participant BG as background.js
+  participant PX as Proxy
+
+  T->>BG: 觸發掃描
+  BG->>PX: POST /api/proactive/scan-all
+  PX->>PX: 節流 + 平行子呼叫<br/>(briefing / deadlines / ghosts / meeting-prep)
+  PX-->>BG: 掃描結果
+  BG-->>T: 更新通知
+  Note over T: 分區塊渲染 + 重算 badge 已讀狀態
+```
 
 ### 5.4 Foundry 設定流程
-1. UI 儲存 endpoint / auth method。
-2. 背景層儲存：
-   - endpoint / auth method 至 `chrome.storage.local`
-   - api key（legacy 模式）至 `chrome.storage.session`
-3. 背景層嘗試同步 Proxy 設定。
-4. 測試按鈕呼叫 Proxy Foundry 測試端點。
+
+```mermaid
+sequenceDiagram
+  participant UI as 側邊欄 UI
+  participant BG as background.js
+  participant CS as chrome.storage
+  participant PX as Proxy
+
+  UI->>BG: 儲存 endpoint / auth method
+  BG->>CS: local: endpoint + auth method
+  BG->>CS: session: api key（legacy 模式）
+  BG->>PX: 同步 Foundry 設定
+  UI->>BG: 測試連線
+  BG->>PX: POST /api/foundry/test
+  PX-->>BG: 測試結果
+  BG-->>UI: 顯示結果
+```
 
 ---
 

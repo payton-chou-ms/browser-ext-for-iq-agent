@@ -73,7 +73,7 @@ Open the **Proactive** panel from the left nav and review the listed features.
 ### 4-1 Work IQ Skill
 
 ```text
-/workiq check latest microsoft foundry deck
+/workiq check latest azure speech deck
 ```
 
 ### 4-2 Microsoft Docs
