@@ -3171,6 +3171,12 @@ kbd {
   padding-bottom: 20px;
 }
 
+/* Notification header inline-style replacements */
+.notif-mark-all-btn { margin-left: 8px; }
+.notif-refresh-btn { margin-left: auto; }
+.notif-last-scan-text { font-size: 11px; margin-top: 4px; color: var(--text-muted); }
+.notif-hint { font-size: 11px; }
+
 /* Notification badge on nav button */
 .notification-badge {
   position: absolute;
@@ -3197,6 +3203,49 @@ kbd {
   50% { transform: scale(1.1); }
 }
 
+/* Section loading & error states */
+.section-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 16px 8px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.section-loading::before {
+  content: "";
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent-start);
+  border-radius: 50%;
+  animation: sectionSpin 0.8s linear infinite;
+}
+
+@keyframes sectionSpin {
+  to { transform: rotate(360deg); }
+}
+
+.section-error {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 8px;
+  font-size: 12px;
+  color: var(--error);
+  background: rgba(239, 68, 68, 0.06);
+  border-radius: 6px;
+  margin-bottom: 6px;
+}
+
+.section-error .section-retry-btn {
+  font-size: 11px;
+  padding: 3px 10px;
+}
+
 /* Insight sections */
 .insight-section {
   overflow: hidden;
@@ -3210,6 +3259,10 @@ kbd {
   user-select: none;
 }
 
+.insight-section-header .section-refresh-btn {
+  margin-left: 8px;
+}
+
 .insight-section-header .section-chevron {
   margin-left: auto;
   transition: transform 0.2s ease;
@@ -3220,15 +3273,15 @@ kbd {
   transform: rotate(-90deg);
 }
 
+/* Section collapse animation */
 .insight-section-body {
-  max-height: 2000px;
   overflow: hidden;
-  transition: max-height 0.3s ease, opacity 0.3s ease;
   opacity: 1;
+  transition: opacity 0.25s ease;
 }
 
 .insight-section.collapsed .insight-section-body {
-  max-height: 0;
+  display: none;
   opacity: 0;
 }
 
@@ -3309,18 +3362,11 @@ kbd {
   text-decoration: line-through;
 }
 
-/* Priority borders */
-.insight-item.priority-high {
-  border-left: 3px solid var(--error);
-}
-
-.insight-item.priority-medium {
-  border-left: 3px solid var(--warning);
-}
-
-.insight-item.priority-low {
-  border-left: 3px solid var(--success);
-}
+/* Priority borders (using custom property for color) */
+.insight-item.priority-high { --priority-color: var(--error); }
+.insight-item.priority-medium { --priority-color: var(--warning); }
+.insight-item.priority-low { --priority-color: var(--success); }
+.insight-item[class*="priority-"] { border-left: 3px solid var(--priority-color); }
 
 .insight-item-header {
   display: flex;
@@ -3546,9 +3592,6 @@ kbd {
 }
 
 /* Proactive schedule cards */
-#proactive-schedule-cards-card {
-  order: 999;
-}
 
 .proactive-schedule-cards-list {
   display: flex;
@@ -3723,6 +3766,46 @@ kbd {
 
 .proactive-schedule-card.editing .proactive-schedule-editor {
   display: block;
+}
+
+/* Schedule card query result display */
+.proactive-schedule-card-result {
+  margin-top: 8px;
+  border-top: 1px solid var(--border);
+  padding-top: 8px;
+}
+
+.proactive-schedule-card-result .insight-items {
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.proactive-schedule-card-result-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+  font-weight: 500;
+}
+
+.proactive-schedule-card-result-toggle {
+  border: none;
+  background: transparent;
+  color: var(--accent-start);
+  font-size: 11px;
+  padding: 0;
+  cursor: pointer;
+  margin-left: auto;
+}
+
+.proactive-schedule-card-result-toggle:hover {
+  text-decoration: underline;
+}
+
+.proactive-schedule-card-result.collapsed .insight-items {
+  display: none;
 }
 
 #btn-add-schedule-card {

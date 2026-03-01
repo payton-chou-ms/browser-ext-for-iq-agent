@@ -11,6 +11,31 @@
     function localizeRuntimeMessage(m) { return (i18n.localizeRuntimeMessage || ((x) => x))(m); }
     function tp(path, fallback) { return stateApi.tp(path, fallback); }
 
+    // ── Loading / Error state helpers ──
+    function showSectionLoading(sectionId) {
+      const loading = document.getElementById(`${sectionId}-loading`);
+      const error = document.getElementById(`${sectionId}-error`);
+      if (loading) loading.style.display = "flex";
+      if (error) error.style.display = "none";
+    }
+
+    function hideSectionLoading(sectionId) {
+      const loading = document.getElementById(`${sectionId}-loading`);
+      if (loading) loading.style.display = "none";
+    }
+
+    function showSectionError(sectionId) {
+      const loading = document.getElementById(`${sectionId}-loading`);
+      const error = document.getElementById(`${sectionId}-error`);
+      if (loading) loading.style.display = "none";
+      if (error) error.style.display = "flex";
+    }
+
+    function hideSectionError(sectionId) {
+      const error = document.getElementById(`${sectionId}-error`);
+      if (error) error.style.display = "none";
+    }
+
     function renderMarkReadButton(readKey, isRead) {
       return helpers.renderActionButton?.({
         label: isRead ? localizeRuntimeMessage("✅ 已完成") : localizeRuntimeMessage("已讀"),
@@ -40,14 +65,12 @@
       `;
     }
 
+    // ── Unified item renderer (replaceChildren for safety) ──
     function renderInsightItems(containerId, items, renderFn) {
       const container = document.getElementById(containerId);
       if (!container) return;
       if (!items || items.length === 0) { container.innerHTML = ""; return; }
       container.innerHTML = items.map(renderFn).join("");
-      container.querySelectorAll(".insight-action-btn").forEach((btn) => {
-        btn.addEventListener("click", (e) => { e.stopPropagation(); handleInsightAction(btn); });
-      });
     }
 
     function updateSubCount(id, items) {
@@ -61,6 +84,8 @@
     }
 
     function renderBriefing(data) {
+      hideSectionLoading("briefing");
+      hideSectionError("briefing");
       const empty = document.getElementById("briefing-empty");
       const hasData = (data.emails?.length || 0) + (data.meetings?.length || 0) + (data.tasks?.length || 0) + (data.mentions?.length || 0) > 0;
       if (empty) empty.style.display = hasData ? "none" : "block";
@@ -129,6 +154,8 @@
     }
 
     function renderDeadlines(data) {
+      hideSectionLoading("deadline");
+      hideSectionError("deadline");
       const empty = document.getElementById("deadline-empty");
       const items = data.deadlines || [];
       if (empty) empty.style.display = items.length > 0 ? "none" : "block";
@@ -159,6 +186,8 @@
     }
 
     function renderGhosts(data) {
+      hideSectionLoading("ghost");
+      hideSectionError("ghost");
       const empty = document.getElementById("ghost-empty");
       const items = data.ghosts || [];
       if (empty) empty.style.display = items.length > 0 ? "none" : "block";
@@ -184,6 +213,8 @@
     }
 
     function renderMeetingPrep(data) {
+      hideSectionLoading("meeting-prep");
+      hideSectionError("meeting-prep");
       const empty = document.getElementById("meeting-prep-empty");
       const container = document.getElementById("meeting-prep-list");
       const hasMeeting = data.meeting && data.meeting.title;
@@ -252,22 +283,74 @@
       }
 
       container.innerHTML = html;
-      container.querySelectorAll(".insight-action-btn").forEach((btn) => {
-        btn.addEventListener("click", (e) => { e.stopPropagation(); handleInsightAction(btn); });
-      });
       updateSectionCount("meeting-prep-count", 1);
+    }
+
+    // ── Render schedule card query results (Phase 4) ──
+    function renderScheduleCardResult(cardEl, agent, resultData) {
+      if (!cardEl || !resultData) return;
+
+      // Remove previous result container if any
+      const prev = cardEl.querySelector(".proactive-schedule-card-result");
+      if (prev) prev.remove();
+
+      const resultContainer = document.createElement("div");
+      resultContainer.className = "proactive-schedule-card-result";
+
+      const agentLabel = { briefing: "晨報", deadlines: "截止日", ghosts: "未回覆", "meeting-prep": "會議準備" }[agent] || agent;
+      let itemsHtml = "";
+
+      if (agent === "briefing") {
+        const emails = resultData.emails || [];
+        const meetings = resultData.meetings || [];
+        const tasks = resultData.tasks || [];
+        const mentions = resultData.mentions || [];
+        itemsHtml = [
+          ...emails.map((e) => `<div class="insight-item"><div class="insight-item-header"><span class="insight-item-from">${escapeHtml(e.from)}</span><span class="insight-item-age">${escapeHtml(e.age || "")}</span></div><div class="insight-item-subject">${escapeHtml(e.subject)}</div><div class="insight-item-snippet">${escapeHtml(e.snippet || "")}</div></div>`),
+          ...meetings.map((m) => `<div class="insight-item"><div class="insight-item-header"><span class="insight-item-time">${escapeHtml(m.time)}</span><span class="insight-item-location">${escapeHtml(m.location || "")}</span></div><div class="insight-item-subject">${escapeHtml(m.title)}</div></div>`),
+          ...tasks.map((t) => `<div class="insight-item"><div class="insight-item-header"><span class="insight-item-from">${escapeHtml(t.source || "To-Do")}</span><span class="insight-item-age">${escapeHtml(t.due || "")}</span></div><div class="insight-item-subject">${escapeHtml(t.title)}</div></div>`),
+          ...mentions.map((m) => `<div class="insight-item"><div class="insight-item-header"><span class="insight-item-from">${escapeHtml(m.from)}</span></div><div class="insight-item-subject">${escapeHtml(m.channel || "")}</div><div class="insight-item-snippet">${escapeHtml(m.message || "")}</div></div>`),
+        ].join("");
+      } else if (agent === "deadlines") {
+        const deadlines = resultData.deadlines || [];
+        itemsHtml = deadlines.map((d) => {
+          const urgencyClass = d.urgency === "critical" ? "priority-high" : d.urgency === "warning" ? "priority-medium" : "priority-low";
+          return `<div class="insight-item ${urgencyClass}"><div class="insight-item-header"><span class="insight-item-from">${escapeHtml(d.source || "Email")}</span><span class="deadline-countdown ${urgencyClass}">${escapeHtml(String(d.daysLeft ?? ""))} 天</span></div><div class="insight-item-subject">${escapeHtml(d.title)}</div><div class="insight-item-snippet">${escapeHtml(d.snippet || d.sourceDetail || "")}</div></div>`;
+        }).join("");
+      } else if (agent === "ghosts") {
+        const ghosts = resultData.ghosts || [];
+        itemsHtml = ghosts.map((g) => {
+          const pClass = (g.priority === "critical" || g.priority === "high") ? "priority-high" : g.priority === "medium" ? "priority-medium" : "priority-low";
+          return `<div class="insight-item ${pClass}"><div class="insight-item-header"><span class="insight-item-from">${escapeHtml(g.from)}</span><span class="insight-item-age">${escapeHtml(g.receivedAt || "")}</span></div><div class="insight-item-subject">${escapeHtml(g.subject)}</div><div class="insight-item-snippet">${escapeHtml(g.snippet || "")}</div></div>`;
+        }).join("");
+      } else if (agent === "meeting-prep") {
+        const meeting = resultData.meeting;
+        if (meeting) {
+          itemsHtml = `<div class="insight-item meeting-header-item"><div class="insight-item-header"><span class="insight-item-time">${escapeHtml(meeting.time || "")}</span><span class="insight-item-age">${escapeHtml(meeting.duration || "")}</span></div><div class="insight-item-subject">${escapeHtml(meeting.title)}</div><div class="insight-item-meta">📍 ${escapeHtml(meeting.location || "TBD")}</div></div>`;
+          if (Array.isArray(resultData.attendees) && resultData.attendees.length > 0) {
+            itemsHtml += resultData.attendees.map((a) => `<div class="insight-item"><div class="insight-item-subject">${escapeHtml(a.name)}</div><div class="insight-item-snippet">${escapeHtml(a.role || "")}</div></div>`).join("");
+          }
+        }
+      }
+
+      if (!itemsHtml) {
+        itemsHtml = `<div class="empty-state"><span class="empty-icon">📭</span><p>此次查詢無資料</p></div>`;
+      }
+
+      resultContainer.innerHTML = `
+        <div class="proactive-schedule-card-result-header">
+          <span>📊 查詢結果 (${agentLabel})</span>
+          <button class="proactive-schedule-card-result-toggle" data-action="toggle-card-result">收合</button>
+        </div>
+        <div class="insight-items">${itemsHtml}</div>
+      `;
+
+      cardEl.appendChild(resultContainer);
     }
 
     function handleInsightAction(btn) {
       const action = btn.dataset.action;
       const readKey = btn.dataset.readKey || "";
-
-      // Helper to safely track achievements
-      const trackAchievement = (event, meta) => {
-        if (typeof AchievementEngine !== "undefined" && AchievementEngine.track) {
-          AchievementEngine.track(event, meta);
-        }
-      };
 
       switch (action) {
         case "mark-read": {
@@ -275,9 +358,8 @@
           btn.textContent = localizeRuntimeMessage("✅ 已完成");
           btn.disabled = true;
           btn.closest(".insight-item")?.classList.add("completed");
-          // Track deadline avoided if this is a deadline item
           if (readKey && readKey.startsWith("deadline")) {
-            trackAchievement("deadline_avoided", { readKey });
+            stateApi.trackAchievement("deadline_avoided", { readKey });
           }
           break;
         }
@@ -286,15 +368,60 @@
       }
     }
 
-    function bindInsightSectionToggles() {
-      document.querySelectorAll(".insight-section-header").forEach((header) => {
-        header.addEventListener("click", () => {
+    // ── Delegated event binding (single listener on panel) ──
+    function bindDelegatedEvents() {
+      const panel = document.getElementById("panel-notifications");
+      if (!panel) return;
+
+      panel.addEventListener("click", (e) => {
+        const target = e.target;
+        if (!(target instanceof HTMLElement)) return;
+
+        // Insight action buttons (delegated)
+        const actionBtn = target.closest(".insight-action-btn");
+        if (actionBtn instanceof HTMLElement) {
+          e.stopPropagation();
+          handleInsightAction(actionBtn);
+          return;
+        }
+
+        // Section collapse toggles (delegated)
+        const header = target.closest(".insight-section-header");
+        if (header instanceof HTMLElement) {
           const targetId = header.dataset.toggle;
           const body = document.getElementById(targetId);
           const section = header.closest(".insight-section");
           if (body && section) section.classList.toggle("collapsed");
-        });
+          return;
+        }
+
+        // Retry buttons
+        const retryBtn = target.closest(".section-retry-btn");
+        if (retryBtn instanceof HTMLElement) {
+          const agent = retryBtn.dataset.agent;
+          if (agent) {
+            const refreshBtn = document.querySelector(`.section-refresh-btn[data-agent="${agent}"]`);
+            if (refreshBtn instanceof HTMLElement) refreshBtn.click();
+          }
+          return;
+        }
+
+        // Schedule card result toggle
+        const resultToggle = target.closest("[data-action='toggle-card-result']");
+        if (resultToggle instanceof HTMLElement) {
+          const resultContainer = resultToggle.closest(".proactive-schedule-card-result");
+          if (resultContainer) {
+            resultContainer.classList.toggle("collapsed");
+            resultToggle.textContent = resultContainer.classList.contains("collapsed") ? "展開" : "收合";
+          }
+          return;
+        }
       });
+    }
+
+    function bindInsightSectionToggles() {
+      // Now handled by delegated events — this is kept for backward compat
+      // bindDelegatedEvents is called once from scanApi.bindEvents
     }
 
     return {
@@ -303,8 +430,14 @@
       renderDeadlines,
       renderGhosts,
       renderMeetingPrep,
+      renderScheduleCardResult,
       handleInsightAction,
       bindInsightSectionToggles,
+      bindDelegatedEvents,
+      showSectionLoading,
+      hideSectionLoading,
+      showSectionError,
+      hideSectionError,
     };
   };
 })(window);

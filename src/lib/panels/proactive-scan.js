@@ -47,6 +47,7 @@
         agent: AGENT_OPTIONS.some((o) => o.value === card?.agent) ? card.agent : "briefing",
         prompt: typeof card?.prompt === "string" ? card.prompt : "",
         lastSummary: typeof card?.lastSummary === "string" ? card.lastSummary : "",
+        lastResult: card?.lastResult != null ? card.lastResult : null,
         enabled: card?.enabled !== false,
         schedule: {
           mode: SCHEDULE_MODE_OPTIONS.some((o) => o.value === schedule.mode) ? schedule.mode : "interval",
@@ -120,6 +121,7 @@
       }
 
       emptyEl.style.display = "none";
+      const cardsWithResults = proactiveScheduleCards.filter((c) => c.lastResult != null);
       listEl.innerHTML = proactiveScheduleCards.map((card) => {
         const schedule = card.schedule || {};
         const mode = schedule.mode || "interval";
@@ -208,6 +210,15 @@
           </div>
         </div>`;
       }).join("");
+
+      // After rendering cards, attach any stored results
+      for (const card of cardsWithResults) {
+        const safeId = String(card.id).replace(/"/g, "\\\"");
+        const cardEl = listEl.querySelector(`.proactive-schedule-card[data-card-id="${safeId}"]`);
+        if (cardEl instanceof HTMLElement) {
+          renderApi.renderScheduleCardResult(cardEl, card.agent, card.lastResult);
+        }
+      }
     }
 
     function updateScheduleCardModeRows(cardEl) {
@@ -335,6 +346,15 @@
       renderScheduleCards(res?.cards || []);
       if (res?.ok) {
         utils.showToast?.("已套用排程並立即查詢");
+        // Render the full result on the card if available
+        const updatedCard = (res.cards || []).find((c) => c.id === card.id);
+        if (updatedCard?.lastResult) {
+          const safeId = String(card.id).replace(/"/g, "\\\"");
+          const newCardEl = document.querySelector(`.proactive-schedule-card[data-card-id="${safeId}"]`);
+          if (newCardEl instanceof HTMLElement) {
+            renderApi.renderScheduleCardResult(newCardEl, updatedCard.agent, updatedCard.lastResult);
+          }
+        }
       } else {
         utils.showToast?.("套用失敗: " + (res?.runResult?.error || "unknown"));
       }
@@ -421,11 +441,15 @@
       }
 
       const sectionLabel = labelByAgent[agent] || agent;
+      const sectionIdByAgent = { briefing: "briefing", deadlines: "deadline", ghosts: "ghost", "meeting-prep": "meeting-prep" };
+      const sectionId = sectionIdByAgent[agent];
       const statusLabel = document.getElementById("notif-last-scan");
       if (statusLabel) statusLabel.textContent = localizeRuntimeMessage(`更新中: ${sectionLabel}`);
+      if (sectionId) renderApi.showSectionLoading(sectionId);
 
       try {
         const res = await utils.sendToBackground?.({ type: messageType });
+        if (sectionId) renderApi.hideSectionLoading(sectionId);
         if (res?.ok && res.data) {
           handleProactiveUpdate({
             agent,
@@ -439,6 +463,7 @@
         if (statusLabel) statusLabel.textContent = localizeRuntimeMessage(`${sectionLabel} 更新完成 · 無資料`);
       } catch (err) {
         utils.debugLog?.("ERR", `Proactive agent scan error (${agent}):`, err?.message || err);
+        if (sectionId) renderApi.showSectionError(sectionId);
         utils.showToast?.(`${sectionLabel} 更新失敗: ${err.message}`);
         if (statusLabel) statusLabel.textContent = localizeRuntimeMessage("載入失敗");
       }
@@ -447,18 +472,10 @@
     function processProactiveResults(results, scannedAt) {
       const proactiveState = stateApi.proactiveState;
 
-      // Helper to safely track achievements
-      const trackAchievement = (event, meta) => {
-        if (typeof AchievementEngine !== "undefined" && AchievementEngine.track) {
-          AchievementEngine.track(event, meta);
-        }
-      };
-
       if (results.briefing?.ok && results.briefing.data) {
         proactiveState.briefing = results.briefing.data;
         renderApi.renderBriefing(results.briefing.data);
-        // Track briefing view achievement
-        trackAchievement("briefing_view", { source: "scan" });
+        stateApi.trackAchievement("briefing_view", { source: "scan" });
       }
       if (results.deadlines?.ok && results.deadlines.data) {
         proactiveState.deadlines = results.deadlines.data;
@@ -480,9 +497,7 @@
 
       const label = document.getElementById("notif-last-scan");
       if (label) updateLastScanLabel(scannedAt);
-      // P2-10: Use batched storage write
-      utils.batchStorageWrite?.("proactiveState", { ...proactiveState }) ??
-        chrome.storage.local.set({ proactiveState: { ...proactiveState } });
+      stateApi.persistState();
     }
 
     function handleProactiveUpdate(msg) {
@@ -491,18 +506,11 @@
       const data = msg.data;
       const ts = msg.scannedAt || new Date().toISOString();
 
-      // Helper to safely track achievements
-      const trackAchievement = (event, meta) => {
-        if (typeof AchievementEngine !== "undefined" && AchievementEngine.track) {
-          AchievementEngine.track(event, meta);
-        }
-      };
-
       switch (msg.agent) {
         case "briefing":
           proactiveState.briefing = data;
           renderApi.renderBriefing(data);
-          trackAchievement("briefing_view", { source: "push" });
+          stateApi.trackAchievement("briefing_view", { source: "push" });
           break;
         case "deadlines": proactiveState.deadlines = data; renderApi.renderDeadlines(data); break;
         case "ghosts": proactiveState.ghosts = data; renderApi.renderGhosts(data); break;
@@ -514,9 +522,7 @@
       stateApi.updateNotificationBadge();
       renderApi.renderTopPriority();
       updateLastScanLabel(ts);
-      // P2-10: Use batched storage write
-      utils.batchStorageWrite?.("proactiveState", { ...proactiveState }) ??
-        chrome.storage.local.set({ proactiveState: { ...proactiveState } });
+      stateApi.persistState();
     }
 
     async function loadProactiveConfig() {
@@ -524,13 +530,6 @@
     }
 
     function restoreProactiveState() {
-      // Helper to safely track achievements
-      const trackAchievement = (event, meta) => {
-        if (typeof AchievementEngine !== "undefined" && AchievementEngine.track) {
-          AchievementEngine.track(event, meta);
-        }
-      };
-
       chrome.storage.local.get("proactiveState", (data) => {
         const proactiveState = stateApi.proactiveState;
         if (data.proactiveState) {
@@ -538,8 +537,7 @@
           if (s.briefing) {
             proactiveState.briefing = s.briefing;
             renderApi.renderBriefing(s.briefing);
-            // Track briefing view when restored (user re-opened sidebar)
-            trackAchievement("briefing_view", { source: "restore" });
+            stateApi.trackAchievement("briefing_view", { source: "restore" });
           }
           if (s.deadlines) { proactiveState.deadlines = s.deadlines; renderApi.renderDeadlines(s.deadlines); }
           if (s.ghosts) { proactiveState.ghosts = s.ghosts; renderApi.renderGhosts(s.ghosts); }
@@ -559,7 +557,7 @@
     }
 
     function bindEvents() {
-      renderApi.bindInsightSectionToggles();
+      renderApi.bindDelegatedEvents();
 
       document.getElementById("btn-refresh-proactive")?.addEventListener("click", async () => {
         utils.showToast?.("正在掃描所有代理...");

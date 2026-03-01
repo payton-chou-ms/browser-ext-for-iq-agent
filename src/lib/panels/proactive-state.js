@@ -11,6 +11,20 @@
     function tp(path, fallback) { return t(`proactive.${path}`, fallback); }
     function getCurrentLanguage() { return i18n.getLanguage?.() || "zh-TW"; }
 
+    // ── Centralized achievement tracker (deduplicated) ──
+    function trackAchievement(event, meta) {
+      if (typeof AchievementEngine !== "undefined" && AchievementEngine.track) {
+        AchievementEngine.track(event, meta);
+      }
+    }
+
+    function setAchievementFlag(flag, value) {
+      if (typeof AchievementEngine !== "undefined" && AchievementEngine.setCustomFlag) {
+        AchievementEngine.setCustomFlag(flag, value);
+      }
+    }
+
+    // ── State (single source of truth) ──
     const proactiveState = {
       briefing: null,
       deadlines: null,
@@ -21,6 +35,24 @@
       unreadCount: 0,
       readKeys: [],
     };
+
+    // ── Centralized persistence ──
+    let _persistTimer = null;
+    function persistState() {
+      if (_persistTimer) return; // debounce
+      _persistTimer = setTimeout(() => {
+        _persistTimer = null;
+        const snapshot = { ...proactiveState, readKeys: [...proactiveState.readKeys] };
+        utils.batchStorageWrite?.("proactiveState", snapshot) ??
+          chrome.storage.local.set({ proactiveState: snapshot });
+      }, 100);
+    }
+
+    // ── Immutable state update helper ──
+    function updateState(patch) {
+      Object.assign(proactiveState, patch);
+      persistState();
+    }
 
     function toNotificationKey(type, item) {
       const parts = [
@@ -69,13 +101,10 @@
       }
       if (totalCount) totalCount.textContent = String(count);
 
-      // Check and set achievement flags for proactive agents
       _checkProactiveAchievementFlags();
     }
 
     function _checkProactiveAchievementFlags() {
-      if (typeof AchievementEngine === "undefined" || !AchievementEngine.setCustomFlag) return;
-
       // Check if all ghosts are cleared (ghostDetectorZero)
       const ghosts = proactiveState.ghosts?.ghosts || [];
       const ghostKeys = ghosts.filter((g) => g.priority === "critical" || g.priority === "high")
@@ -83,7 +112,7 @@
       const readSet = new Set(proactiveState.readKeys || []);
       const unreadGhosts = ghostKeys.filter((k) => !readSet.has(k));
       if (ghosts.length > 0 && unreadGhosts.length === 0) {
-        AchievementEngine.setCustomFlag("ghostsCleared", true);
+        setAchievementFlag("ghostsCleared", true);
       }
 
       // Check if all 4 proactive agents have data (allProactiveAgentsActive)
@@ -98,7 +127,7 @@
       const hasMeetingPrep = Boolean(proactiveState.meetingPrep?.meeting);
 
       if (hasBriefing && hasDeadlines && hasGhosts && hasMeetingPrep) {
-        AchievementEngine.setCustomFlag("allProactiveUsed", true);
+        setAchievementFlag("allProactiveUsed", true);
       }
     }
 
@@ -106,21 +135,16 @@
       if (!readKey) return;
       const current = proactiveState.readKeys || [];
       if (current.includes(readKey)) return;
-      // P2-9: Use immutable push helper
       proactiveState.readKeys = utils.immutablePush?.(current, readKey) ?? [...current, readKey];
       normalizeProactiveReadState();
       updateNotificationBadge();
-      // P2-10: Use batched storage write
-      utils.batchStorageWrite?.("proactiveState", { ...proactiveState }) ??
-        chrome.storage.local.set({ proactiveState: { ...proactiveState } });
+      persistState();
     }
 
     function markAllProactiveAsRead() {
       proactiveState.readKeys = [...new Set(getAllNotificationKeys())];
       updateNotificationBadge();
-      // P2-10: Use batched storage write
-      utils.batchStorageWrite?.("proactiveState", { ...proactiveState }) ??
-        chrome.storage.local.set({ proactiveState: { ...proactiveState } });
+      persistState();
       utils.showToast?.(tp("markedAllRead", "已全部標記為已讀"));
     }
 
@@ -197,6 +221,11 @@
       markAllProactiveAsRead,
       updateNotificationBadge,
       getTopPriorityAction,
+      // Centralized helpers (exposed for render/scan to use)
+      trackAchievement,
+      setAchievementFlag,
+      updateState,
+      persistState,
     };
   };
 })(window);

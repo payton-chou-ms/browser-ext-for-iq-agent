@@ -355,34 +355,21 @@
       <!-- Panel: Notifications (Proactive Agent) -->
       <div class="panel" id="panel-notifications">
         <div class="panel-scroll">
-          <!-- Refresh / Status -->
+          <!-- 1. Proactive Agent Status Header -->
           <div class="glass-card notification-header-card">
             <div class="card-header">
               <span class="card-icon">🔔</span>
               <h3>Proactive Agent</h3>
               <span class="agent-badge" id="notif-total-count">0</span>
-              <button class="action-btn" id="btn-mark-all-read" style="margin-left:8px">全部已讀</button>
-              <button class="icon-btn" id="btn-refresh-proactive" title="立即掃描" style="margin-left:auto">
+              <button class="action-btn notif-mark-all-btn" id="btn-mark-all-read">全部已讀</button>
+              <button class="icon-btn notif-refresh-btn" id="btn-refresh-proactive" title="立即掃描">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
               </button>
             </div>
-            <p class="text-muted" style="font-size:11px;margin-top:4px" id="notif-last-scan">尚未掃描</p>
+            <p class="notif-last-scan-text" id="notif-last-scan">尚未掃描</p>
           </div>
 
-          <div class="glass-card" id="proactive-schedule-cards-card">
-            <div class="card-header">
-              <span class="card-icon">🗂️</span>
-              <h3>查詢排程小卡</h3>
-              <button class="action-btn primary" id="btn-add-schedule-card">+ 新增小卡</button>
-            </div>
-            <div id="proactive-schedule-cards-list" class="proactive-schedule-cards-list"></div>
-            <div class="empty-state" id="proactive-schedule-cards-empty">
-              <span class="empty-icon">＋</span>
-              <p>尚未建立排程小卡</p>
-              <p class="text-muted" style="font-size:11px">點擊上方 + 新增一張查詢卡</p>
-            </div>
-          </div>
-
+          <!-- 2. Top Thing To Do -->
           <div class="glass-card" id="top-priority-card">
             <div class="card-header">
               <span class="card-icon">⭐</span>
@@ -396,19 +383,23 @@
             </div>
           </div>
 
-          <!-- Idea 1: Daily Briefing -->
+          <!-- 3. Daily Briefing -->
           <div class="glass-card insight-section" id="briefing-section">
             <div class="card-header insight-section-header" data-toggle="briefing-content">
               <span class="card-icon">☀️</span>
               <h3>每日晨報</h3>
               <span class="insight-count" id="briefing-count">0</span>
-              <button class="icon-btn section-refresh-btn" id="btn-refresh-briefing" title="刷新每日晨報" data-agent="briefing" style="margin-left:8px">
+              <button class="icon-btn section-refresh-btn" id="btn-refresh-briefing" title="刷新每日晨報" data-agent="briefing">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
               </button>
               <svg class="section-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
             </div>
             <div class="insight-section-body" id="briefing-content">
-              <!-- 📬 Emails needing reply -->
+              <div class="section-loading" id="briefing-loading" style="display:none">載入中...</div>
+              <div class="section-error" id="briefing-error" style="display:none">
+                <span>載入失敗</span>
+                <button class="action-btn section-retry-btn" data-agent="briefing">重試</button>
+              </div>
               <div class="insight-subsection">
                 <div class="insight-subsection-header">
                   <span>📬</span><span>需要回覆的信件</span>
@@ -416,7 +407,6 @@
                 </div>
                 <div class="insight-items" id="briefing-emails"></div>
               </div>
-              <!-- 📅 Today's meetings -->
               <div class="insight-subsection">
                 <div class="insight-subsection-header">
                   <span>📅</span><span>今日會議</span>
@@ -424,7 +414,6 @@
                 </div>
                 <div class="insight-items" id="briefing-meetings"></div>
               </div>
-              <!-- ✅ Tasks due soon -->
               <div class="insight-subsection">
                 <div class="insight-subsection-header">
                   <span>✅</span><span>即將到期待辦</span>
@@ -432,7 +421,6 @@
                 </div>
                 <div class="insight-items" id="briefing-tasks"></div>
               </div>
-              <!-- ⚠️ Teams mentions -->
               <div class="insight-subsection">
                 <div class="insight-subsection-header">
                   <span>⚠️</span><span>Teams @mention</span>
@@ -443,23 +431,28 @@
               <div class="empty-state" id="briefing-empty">
                 <span class="empty-icon">☀️</span>
                 <p>尚無晨報資料</p>
-                <p class="text-muted" style="font-size:11px">點擊上方刷新按鈕或等待每日自動掃描</p>
+                <p class="text-muted notif-hint">點擊上方刷新按鈕或等待每日自動掃描</p>
               </div>
             </div>
           </div>
 
-          <!-- Idea 2: Deadline Hawk -->
+          <!-- 4. Deadline Tracker -->
           <div class="glass-card insight-section" id="deadline-section">
             <div class="card-header insight-section-header" data-toggle="deadline-content">
               <span class="card-icon">⏰</span>
               <h3>截止日追蹤</h3>
               <span class="insight-count" id="deadline-count">0</span>
-              <button class="icon-btn section-refresh-btn" id="btn-refresh-deadlines" title="刷新截止日追蹤" data-agent="deadlines" style="margin-left:8px">
+              <button class="icon-btn section-refresh-btn" id="btn-refresh-deadlines" title="刷新截止日追蹤" data-agent="deadlines">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
               </button>
               <svg class="section-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
             </div>
             <div class="insight-section-body" id="deadline-content">
+              <div class="section-loading" id="deadline-loading" style="display:none">載入中...</div>
+              <div class="section-error" id="deadline-error" style="display:none">
+                <span>載入失敗</span>
+                <button class="action-btn section-retry-btn" data-agent="deadlines">重試</button>
+              </div>
               <div class="insight-items" id="deadline-list"></div>
               <div class="empty-state" id="deadline-empty">
                 <span class="empty-icon">⏰</span>
@@ -468,18 +461,23 @@
             </div>
           </div>
 
-          <!-- Idea 4: Ghost Detector (unreplied) -->
+          <!-- 5. Ghost Detector (unreplied) -->
           <div class="glass-card insight-section" id="ghost-section">
             <div class="card-header insight-section-header" data-toggle="ghost-content">
               <span class="card-icon">👻</span>
               <h3>未回覆偵測</h3>
               <span class="insight-count" id="ghost-count">0</span>
-              <button class="icon-btn section-refresh-btn" id="btn-refresh-ghosts" title="刷新未回覆偵測" data-agent="ghosts" style="margin-left:8px">
+              <button class="icon-btn section-refresh-btn" id="btn-refresh-ghosts" title="刷新未回覆偵測" data-agent="ghosts">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
               </button>
               <svg class="section-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
             </div>
             <div class="insight-section-body" id="ghost-content">
+              <div class="section-loading" id="ghost-loading" style="display:none">載入中...</div>
+              <div class="section-error" id="ghost-error" style="display:none">
+                <span>載入失敗</span>
+                <button class="action-btn section-retry-btn" data-agent="ghosts">重試</button>
+              </div>
               <div class="insight-items" id="ghost-list"></div>
               <div class="empty-state" id="ghost-empty">
                 <span class="empty-icon">👻</span>
@@ -488,23 +486,43 @@
             </div>
           </div>
 
-          <!-- Idea 3: Meeting Prep -->
+          <!-- 6. Meeting Prep -->
           <div class="glass-card insight-section" id="meeting-prep-section">
             <div class="card-header insight-section-header" data-toggle="meeting-prep-content">
               <span class="card-icon">📋</span>
               <h3>會議準備</h3>
               <span class="insight-count" id="meeting-prep-count">0</span>
-              <button class="icon-btn section-refresh-btn" id="btn-refresh-meeting-prep" title="刷新會議準備" data-agent="meeting-prep" style="margin-left:8px">
+              <button class="icon-btn section-refresh-btn" id="btn-refresh-meeting-prep" title="刷新會議準備" data-agent="meeting-prep">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
               </button>
               <svg class="section-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
             </div>
             <div class="insight-section-body" id="meeting-prep-content">
+              <div class="section-loading" id="meeting-prep-loading" style="display:none">載入中...</div>
+              <div class="section-error" id="meeting-prep-error" style="display:none">
+                <span>載入失敗</span>
+                <button class="action-btn section-retry-btn" data-agent="meeting-prep">重試</button>
+              </div>
               <div class="insight-items" id="meeting-prep-list"></div>
               <div class="empty-state" id="meeting-prep-empty">
                 <span class="empty-icon">📋</span>
                 <p>近期沒有需要準備的會議</p>
               </div>
+            </div>
+          </div>
+
+          <!-- 7. Schedule Cards (query cards) -->
+          <div class="glass-card" id="proactive-schedule-cards-card">
+            <div class="card-header">
+              <span class="card-icon">🗂️</span>
+              <h3>查詢排程小卡</h3>
+              <button class="action-btn primary" id="btn-add-schedule-card">+ 新增小卡</button>
+            </div>
+            <div id="proactive-schedule-cards-list" class="proactive-schedule-cards-list"></div>
+            <div class="empty-state" id="proactive-schedule-cards-empty">
+              <span class="empty-icon">＋</span>
+              <p>尚未建立排程小卡</p>
+              <p class="text-muted notif-hint">點擊上方 + 新增一張查詢卡</p>
             </div>
           </div>
         </div>

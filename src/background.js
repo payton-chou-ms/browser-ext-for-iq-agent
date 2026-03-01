@@ -33,6 +33,7 @@ function createDefaultProactiveScheduleCards() {
       agent: "briefing",
       prompt: "",
       lastSummary: "",
+      lastResult: null,
       enabled: true,
       schedule: { mode: "daily", hour: 8, minute: 0, intervalMinutes: 60, weekdays: [1, 2, 3, 4, 5] },
       lastRun: null,
@@ -44,6 +45,7 @@ function createDefaultProactiveScheduleCards() {
       agent: "deadlines",
       prompt: "",
       lastSummary: "",
+      lastResult: null,
       enabled: true,
       schedule: { mode: "interval", hour: 9, minute: 0, intervalMinutes: 720, weekdays: [1, 2, 3, 4, 5] },
       lastRun: null,
@@ -55,6 +57,7 @@ function createDefaultProactiveScheduleCards() {
       agent: "ghosts",
       prompt: "",
       lastSummary: "",
+      lastResult: null,
       enabled: true,
       schedule: { mode: "interval", hour: 9, minute: 0, intervalMinutes: 240, weekdays: [1, 2, 3, 4, 5] },
       lastRun: null,
@@ -66,6 +69,7 @@ function createDefaultProactiveScheduleCards() {
       agent: "meeting-prep",
       prompt: "",
       lastSummary: "",
+      lastResult: null,
       enabled: true,
       schedule: { mode: "interval", hour: 9, minute: 0, intervalMinutes: 30, weekdays: [1, 2, 3, 4, 5] },
       lastRun: null,
@@ -101,6 +105,7 @@ function normalizeProactiveScheduleCard(raw) {
     agent,
     prompt: typeof raw?.prompt === "string" ? raw.prompt : "",
     lastSummary: typeof raw?.lastSummary === "string" ? raw.lastSummary : "",
+    lastResult: raw?.lastResult != null ? raw.lastResult : null,
     enabled: raw?.enabled !== false,
     schedule: {
       mode,
@@ -243,7 +248,7 @@ function summarizeScheduleResult(agent, result) {
   return "查詢完成";
 }
 
-async function updateScheduleCardRunState(cardId, nextStatus, scannedAt, lastSummary = "") {
+async function updateScheduleCardRunState(cardId, nextStatus, scannedAt, lastSummary = "", lastResult = undefined) {
   const updated = proactiveScheduleCards.map((card) => (
     card.id === cardId
       ? {
@@ -251,6 +256,7 @@ async function updateScheduleCardRunState(cardId, nextStatus, scannedAt, lastSum
         lastStatus: nextStatus,
         lastRun: scannedAt || card.lastRun,
         lastSummary: typeof lastSummary === "string" ? lastSummary : card.lastSummary,
+        lastResult: lastResult !== undefined ? lastResult : card.lastResult,
       }
       : card
   ));
@@ -268,7 +274,8 @@ async function runScheduleCardNow(cardId, reason = "manual") {
     const nextSummary = result?.ok
       ? summarizeScheduleResult(card.agent, result)
       : `查詢失敗：${result?.error || "未取得資料"}`;
-    await updateScheduleCardRunState(card.id, result?.ok ? "ok" : "error", scannedAt, nextSummary);
+    const resultData = result?.ok ? (result.data || result.results || null) : null;
+    await updateScheduleCardRunState(card.id, result?.ok ? "ok" : "error", scannedAt, nextSummary, resultData);
     if (result?.ok) {
       chrome.runtime.sendMessage({
         type: "PROACTIVE_UPDATE",
