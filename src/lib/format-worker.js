@@ -26,6 +26,8 @@ function formatInlineMarkdown(line) {
   });
 
   parsed = parsed
+    // Images: ![alt](url) - must be before links to avoid conflict
+    .replace(/!\[([^\]]*)\]\(([^)\s]+)\)/g, '<img src="$2" alt="$1" class="chat-inline-image" style="max-width:100%;border-radius:8px;margin:8px 0;">')
     .replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>')
     .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
     .replace(/__(.+?)__/g, "<strong>$1</strong>")

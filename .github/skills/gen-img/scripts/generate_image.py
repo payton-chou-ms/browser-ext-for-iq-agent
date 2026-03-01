@@ -79,11 +79,19 @@ def main():
             size=size,
         )
 
-        image_bytes = base64.b64decode(img.data[0].b64_json)
+        # Get base64 image data
+        b64_json = img.data[0].b64_json
+        image_bytes = base64.b64decode(b64_json)
+        
+        # Save to file
         with open(args.output, "wb") as f:
             f.write(image_bytes)
 
         print(f"✅ 圖片已儲存至: {args.output}")
+        
+        # Output markdown image with data URL for browser display
+        # This allows the browser extension to render the image inline
+        print(f"\n![Generated Image](data:image/png;base64,{b64_json})")
 
     except Exception as e:
         print(f"❌ 錯誤: {e}", file=sys.stderr)

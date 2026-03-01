@@ -15,7 +15,7 @@ const __dirname = path.dirname(__filename);
 
 export const PROXY_URL = "http://127.0.0.1:8321";
 export const STREAM_TIMEOUT = 60_000;
-export const AGENT_TIMEOUT = 120_000;
+export const AGENT_TIMEOUT = 180_000; // Increased for image generation which can be slow
 export const CONNECTION_TIMEOUT = 45_000; // Increased from 30s to 45s for slower environments
 
 /* ── Browser bootstrap ───────────────────────────────────────────────── */
