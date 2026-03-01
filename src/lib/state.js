@@ -15,7 +15,7 @@
 
     // ── Cache TTL ──
     CACHE_TTL_MODELS_MS:   5 * 60_000,  // 5 min — rarely changes
-    CACHE_TTL_TOOLS_MS:    5 * 60_000,  // 5 min — rarely changes
+    CACHE_TTL_TOOLS_MS:   30 * 60_000,  // 30 min — tools list rarely changes
     CACHE_TTL_QUOTA_MS:    2 * 60_000,  // 2 min — may update with usage
     CACHE_TTL_SESSIONS_MS: 30_000,      // 30 sec — user may create new sessions
     CACHE_TTL_CONTEXT_MS:  2 * 60_000,  // 2 min — aggregated endpoint

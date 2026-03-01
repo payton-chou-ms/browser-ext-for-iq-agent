@@ -17,6 +17,7 @@
   const THEME_MOD = IQ.theme  || {};
   const FILE_UP   = IQ.fileUpload || {};
   const PANELS    = IQ.panels || {};
+  const CMD_MENU  = IQ.commandMenu || {};
   const localizeRuntimeMessage = I18N_MOD.localizeRuntimeMessage || ((m) => m);
 
   // ── DOM refs ──
@@ -27,8 +28,6 @@
   const chatInput    = document.getElementById("chat-input");
   const btnSend      = document.getElementById("btn-send");
   const btnScreenshot = document.getElementById("btn-screenshot");
-  const btnCommandMenu = document.getElementById("btn-command-menu");
-  const commandMenu  = document.getElementById("command-menu");
   const btnNewChat   = document.getElementById("btn-new-chat");
   const suggestions  = document.getElementById("chat-suggestions");
 
@@ -94,40 +93,44 @@
     const tab = CHAT_TABS.getActiveTab?.();
     if (!tab || !chatMessages) return;
 
-    // Clear existing messages
-    chatMessages.innerHTML = "";
-
-    // Render chat history from active tab
+    // Build all messages off-DOM in a DocumentFragment (P3-13)
+    const frag = document.createDocumentFragment();
     for (const msg of tab.chatHistory || []) {
       const msgEl = CHAT.createMessage?.(msg.role, msg.content);
-      if (msgEl) chatMessages.appendChild(msgEl);
+      if (msgEl) frag.appendChild(msgEl);
     }
 
-    // If tab is streaming, show the partial content
-    const streamingContent = CHAT_TABS.getTabStreamingContent?.(tab.id);
-    if (tab.status === "running" && streamingContent) {
-      const streamBubble = CHAT.createStreamingBotMessage?.();
-      if (streamBubble) {
-        const formatText = UTILS.formatText || ((s) => s);
-        streamBubble.innerHTML = formatText(streamingContent);
+    // Single DOM mutation in rAF to avoid layout thrashing
+    requestAnimationFrame(() => {
+      chatMessages.innerHTML = "";
+      chatMessages.appendChild(frag);
+
+      // If tab is streaming, show the partial content
+      const streamingContent = CHAT_TABS.getTabStreamingContent?.(tab.id);
+      if (tab.status === "running" && streamingContent) {
+        const streamBubble = CHAT.createStreamingBotMessage?.();
+        if (streamBubble) {
+          const formatText = UTILS.formatText || ((s) => s);
+          streamBubble.innerHTML = formatText(streamingContent);
+        }
+      } else if (tab.status === "running") {
+        // Tab is running but no content yet - show typing indicator
+        CHAT.showTyping?.();
       }
-    } else if (tab.status === "running") {
-      // Tab is running but no content yet - show typing indicator
-      CHAT.showTyping?.();
-    }
 
-    // Sync session ID to CHAT module
-    CHAT.setCurrentSessionId?.(tab.sessionId);
+      // Sync session ID to CHAT module
+      CHAT.setCurrentSessionId?.(tab.sessionId);
 
-    // Sync model from tab (per-tab model support)
-    if (tab.model) {
-      CHAT.setCurrentModel?.(tab.model);
-      const modelSel = document.getElementById("config-model");
-      if (modelSel) modelSel.value = tab.model;
-    }
+      // Sync model from tab (per-tab model support)
+      if (tab.model) {
+        CHAT.setCurrentModel?.(tab.model);
+        const modelSel = document.getElementById("config-model");
+        if (modelSel) modelSel.value = tab.model;
+      }
 
-    // Scroll to bottom
-    UTILS.scrollToBottom?.();
+      // Scroll to bottom
+      UTILS.scrollToBottom?.();
+    });
   }
 
   function bindChatTabsEvents() {
@@ -197,315 +200,6 @@
     bindChatTabsEvents();
   }
 
-  const commandState = {
-    open: false,
-    activeIndex: -1,
-    items: [],
-  };
-
-  const COMMAND_GROUP_LABEL = {
-    general: "General",
-    skills: "Skills",
-    models: "Models",
-    mcp: "MCP",
-  };
-
-  function getCommandItems() {
-    const chatState = CHAT.getState?.() || {};
-    const availableModels = Array.isArray(chatState.availableModels) ? chatState.availableModels : [];
-    const currentModel = chatState.currentModel || CONFIG.DEFAULT_MODEL || "gpt-4.1";
-
-    const getModelId = (m) => (typeof m === "string" ? m : m?.id || m?.name || String(m));
-    const getModelLabel = (m) => (typeof m === "string" ? m : m?.name || m?.id || String(m));
-
-    const normalizedModels = availableModels
-      .map((m) => ({ id: getModelId(m), label: getModelLabel(m) }))
-      .filter((m) => m.id);
-
-    const seen = new Set();
-    const modelOptions = normalizedModels.filter((m) => {
-      if (seen.has(m.id)) return false;
-      seen.add(m.id);
-      return true;
-    });
-
-    const baseItems = [
-      {
-        id: "help",
-        group: "general",
-        title: "顯示命令說明",
-        description: "列出可用命令與用法",
-        command: "/help",
-        run: async () => [
-          "**可用命令**",
-          "- `/help` 顯示命令說明",
-          "- `/foundry_agent_skills <query>` 使用 Foundry skill 查詢",
-          "- `/model list` 列出模型",
-          "- `/model refresh` 刷新模型",
-          "- `/model use <model-id>` 切換模型",
-          "- `/mcp status` 檢視 MCP 狀態",
-          "- `/mcp reload` 重新載入 MCP 設定",
-        ].join("\n"),
-      },
-      {
-        id: "foundry-agent-skills",
-        group: "skills",
-        title: "Foundry Agent Skills 查詢",
-        description: "用法：/foundry_agent_skills <query>",
-        command: "/foundry_agent_skills",
-        run: async () => [
-          "**Foundry Agent Skills**",
-          "用法：`/foundry_agent_skills <query>`",
-          "範例：`/foundry_agent_skills How do I fix projector screen flickering?`",
-        ].join("\n"),
-      },
-      {
-        id: "model-list",
-        group: "models",
-        title: "列出模型",
-        description: "顯示目前可用模型與當前模型",
-        command: "/model list",
-        run: async () => {
-          const latest = await UTILS.cachedSendToBackground?.("models", { type: "LIST_MODELS" });
-          const models = Array.isArray(latest) ? latest : modelOptions.map((m) => m.id);
-
-          if (Array.isArray(latest) && latest.length > 0) {
-            CHAT.setAvailableModels?.(latest);
-            PANELS.usage?.populateModelSelect?.(latest);
-          }
-
-          if (!Array.isArray(models) || models.length === 0) {
-            return "目前查無可用模型。";
-          }
-
-          const ids = models.map((m) => (typeof m === "string" ? m : getModelId(m)));
-          return [
-            `**Models (${ids.length})**`,
-            `Current: \`${CHAT.getState?.().currentModel || currentModel}\``,
-            ...ids.slice(0, 20).map((id) => `- ${id}`),
-            ...(ids.length > 20 ? [`- ... 還有 ${ids.length - 20} 個`] : []),
-          ].join("\n");
-        },
-      },
-      {
-        id: "model-refresh",
-        group: "models",
-        title: "刷新模型",
-        description: "重新從 CLI 讀取可用模型",
-        command: "/model refresh",
-        run: async () => {
-          if (!CONN.isConnected?.()) return "目前未連線 Copilot CLI，請先連線後再刷新模型。";
-          const latest = await UTILS.sendToBackground?.({ type: "LIST_MODELS" });
-          if (!Array.isArray(latest) || latest.length === 0) return "CLI 未回傳任何模型。";
-          CHAT.setAvailableModels?.(latest);
-          PANELS.usage?.populateModelSelect?.(latest);
-          PANELS.usage?.renderModelsCard?.();
-          return `已刷新模型（${latest.length}）。`;
-        },
-      },
-      {
-        id: "mcp-status",
-        group: "mcp",
-        title: "MCP 狀態",
-        description: "顯示 MCP server 設定數量與來源",
-        command: "/mcp status",
-        run: async () => {
-          const res = await UTILS.sendToBackground?.({ type: "GET_MCP_CONFIG" });
-          if (!res?.ok || !res.config) return `讀取 MCP 設定失敗：${res?.error || "unknown"}`;
-          const servers = Object.keys(res.config.mcpServers || {});
-          const source = res.source || "~/.copilot/mcp-config.json";
-          return [
-            "**MCP Status**",
-            `Source: \`${source}\``,
-            `Servers: ${servers.length}`,
-            ...servers.slice(0, 10).map((name, index) => `${index + 1}. ${name}`),
-            ...(servers.length > 10 ? [`... and ${servers.length - 10} more`] : []),
-          ].join("\n");
-        },
-      },
-      {
-        id: "mcp-reload",
-        group: "mcp",
-        title: "重載 MCP",
-        description: "重新載入 MCP 設定並切到 MCP 面板",
-        command: "/mcp reload",
-        run: async () => {
-          switchPanel("mcp");
-          await PANELS.mcp?.loadMcpConfig?.();
-          return "已重新載入 MCP 設定。";
-        },
-      },
-    ];
-
-    const modelSwitchItems = modelOptions.slice(0, 20).map((model) => ({
-      id: `model-use-${model.id}`,
-      group: "models",
-      title: `切換到 ${model.label}`,
-      description: model.id === currentModel ? "目前使用中" : `切換模型為 ${model.id}`,
-      command: `/model use ${model.id}`,
-      run: async () => {
-        await PANELS.usage?.switchModel?.(model.id);
-        return `已切換模型：\`${model.id}\``;
-      },
-    }));
-
-    return [...baseItems, ...modelSwitchItems];
-  }
-
-  function closeCommandMenu() {
-    if (!commandMenu) return;
-    commandState.open = false;
-    commandState.activeIndex = -1;
-    commandState.items = [];
-    commandMenu.style.display = "none";
-    commandMenu.innerHTML = "";
-  }
-
-  function setActiveCommandItem(index) {
-    if (!commandMenu || commandState.items.length === 0) return;
-    commandState.activeIndex = Math.max(0, Math.min(index, commandState.items.length - 1));
-    commandMenu.querySelectorAll(".command-menu-item").forEach((itemEl, idx) => {
-      itemEl.classList.toggle("active", idx === commandState.activeIndex);
-    });
-  }
-
-  function renderCommandMenu(filterText = "") {
-    if (!commandMenu) return;
-    const query = String(filterText || "").trim().toLowerCase();
-    const allItems = getCommandItems();
-    const filtered = allItems.filter((item) => {
-      if (!query) return true;
-      return [item.command, item.title, item.description, item.group].join(" ").toLowerCase().includes(query);
-    });
-
-    commandState.items = filtered;
-    commandState.activeIndex = filtered.length > 0 ? 0 : -1;
-
-    if (filtered.length === 0) {
-      commandMenu.innerHTML = `<div class="command-menu-empty">${escapeHtml(localizeRuntimeMessage("沒有符合的命令"))}</div>`;
-      return;
-    }
-
-    let html = "";
-    let currentGroup = "";
-    filtered.forEach((item, index) => {
-      if (item.group !== currentGroup) {
-        currentGroup = item.group;
-        html += `<div class="command-menu-group">${escapeHtml(COMMAND_GROUP_LABEL[currentGroup] || currentGroup)}</div>`;
-      }
-      html += `
-        <button class="command-menu-item${index === 0 ? " active" : ""}" data-index="${index}" role="option" aria-selected="${index === 0 ? "true" : "false"}">
-          <span class="command-menu-main">
-            <span class="command-menu-title">${escapeHtml(item.title)}</span>
-            <span class="command-menu-desc">${escapeHtml(item.description || "")}</span>
-          </span>
-          <span class="command-menu-cmd">${escapeHtml(item.command)}</span>
-        </button>
-      `;
-    });
-    commandMenu.innerHTML = html;
-  }
-
-  function openCommandMenu(filterText = "") {
-    if (!commandMenu) return;
-    renderCommandMenu(filterText);
-    commandState.open = true;
-    commandMenu.style.display = "block";
-  }
-
-  async function executeCommandItem(item, options = {}) {
-    const { addEcho = true } = options;
-    if (!item) return false;
-    if (addEcho) CHAT.addUserMessage?.(item.command);
-    try {
-      const result = await item.run?.();
-      CHAT.addBotMessage?.(result || localizeRuntimeMessage("命令已執行"));
-    } catch (err) {
-      CHAT.addBotMessage?.(`⚠ ${localizeRuntimeMessage("命令執行失敗")}: ${err.message}`);
-    }
-    PANELS.usage?.updateStats?.();
-    return true;
-  }
-
-  async function handleSlashCommand(text) {
-    const commandText = String(text || "").trim();
-    if (!commandText.startsWith("/")) return false;
-
-    const foundryMatch = commandText.match(/^\/(foundry_agent_skills?|foundryagentskills?|foundry_agent_skill|foundryagentskill)(?:\s+([\s\S]+))?$/i);
-    if (foundryMatch) {
-      const query = String(foundryMatch[2] || "").trim();
-      CHAT.addUserMessage?.(commandText);
-
-      if (!query) {
-        CHAT.addBotMessage?.([
-          "**Foundry Agent Skills**",
-          "用法：`/foundry_agent_skills <query>`",
-          "範例：`/foundry_agent_skills How do I fix projector screen flickering?`",
-        ].join("\n"));
-        PANELS.usage?.updateStats?.();
-        return true;
-      }
-
-      if (!CONN.isConnected?.()) {
-        CHAT.addBotMessage?.("目前未連線 Copilot CLI，請先連線後再使用 `/foundry_agent_skills`。");
-        PANELS.usage?.updateStats?.();
-        return true;
-      }
-
-      try {
-        const response = await UTILS.sendToBackground?.({
-          type: "EXECUTE_SKILL",
-          skillName: "foundry_agent_skill",
-          command: "invoke",
-          payload: { message: query, source: "slash-command" },
-        });
-
-        if (response?.ok && response?.mode !== "mock") {
-          const result = response.result || {};
-          const textResult = result.response_text || result.output?.response_text || result.output?.message || result.summary;
-          CHAT.addBotMessage?.(typeof textResult === "string" && textResult.trim()
-            ? textResult
-            : `\`\`\`json\n${escapeHtml(JSON.stringify(result.output || result, null, 2))}\n\`\`\``);
-        } else {
-          if (response?.mode === "mock") {
-            UTILS.showToast?.("目前是 MVP mock skill，已改用一般查詢模式");
-          }
-          await CHAT.sendMessageStreaming?.(query, []);
-        }
-      } catch (err) {
-        CHAT.addBotMessage?.(`⚠ ${localizeRuntimeMessage("命令執行失敗")}: ${err?.message || String(err)}`);
-      }
-
-      PANELS.usage?.updateStats?.();
-      return true;
-    }
-
-    const item = getCommandItems().find((entry) => entry.command === commandText);
-    if (!item) return false;
-    await executeCommandItem(item, { addEcho: true });
-    return true;
-  }
-
-  async function runActiveCommand() {
-    const item = commandState.items[commandState.activeIndex];
-    closeCommandMenu();
-    if (!item) return;
-    const typedText = String(chatInput?.value || "").trim();
-    const supportsArgs = /^\/(foundry_agent_skills?|foundryagentskills?|foundry_agent_skill|foundryagentskill)$/i.test(item.command);
-    const useTypedCommand =
-      typedText === item.command ||
-      (supportsArgs && typedText.startsWith(`${item.command} `));
-    const commandText = useTypedCommand ? typedText : item.command;
-
-    chatInput.value = "";
-    chatInput.style.height = "auto";
-    const handled = await handleSlashCommand(commandText);
-    if (handled) return;
-
-    chatInput.value = commandText;
-    await sendMessage();
-  }
-
   // ── Panel Navigation ──
   function switchPanel(id) {
     navBtns.forEach((b) => b.classList.remove("active"));
@@ -561,24 +255,8 @@
 
   // ── Debug Log (DOM-bound) ──
   const debugLogEl = document.getElementById("debug-log");
-  // Bind debugLog to DOM element
-  if (debugLogEl && UTILS.debugLog) {
-    // debugLog in utils already writes to console;
-    // here we also append to the DOM element via a wrapper
-    const origDebugLog = UTILS.debugLog;
-    const escapeHtml = UTILS.escapeHtml || ((s) => s);
-    UTILS.debugLog = function domDebugLog(tag, ...args) {
-      origDebugLog(tag, ...args);
-      const ts = new Date().toLocaleTimeString("en-US", { hour12: false, hour: "2-digit", minute: "2-digit", second: "2-digit" });
-      const msg = args.map((a) => (typeof a === "object" ? JSON.stringify(a, null, 2) : String(a))).join(" ");
-      const span = document.createElement("div");
-      span.className = "debug-log-entry";
-      span.innerHTML = `<span class="debug-ts">[${ts}]</span> <span class="debug-tag" data-tag="${tag}">[${tag}]</span> ${escapeHtml(msg)}`;
-      debugLogEl.appendChild(span);
-      UTILS.trimContainerChildren?.(debugLogEl, CONFIG.MAX_DEBUG_LOG_ENTRIES || 500);
-      debugLogEl.scrollTop = debugLogEl.scrollHeight;
-    };
-  }
+  // debugLog in utils.js already writes to both console and DOM;
+  // no wrapper needed here — unified in P2-16.
   document.getElementById("btn-clear-debug")?.addEventListener("click", () => {
     if (debugLogEl) debugLogEl.innerHTML = "";
   });
@@ -739,14 +417,14 @@
     if (text.startsWith("/") && pending.length === 0) {
       chatInput.value = "";
       chatInput.style.height = "auto";
-      closeCommandMenu();
-      const handled = await handleSlashCommand(text);
+      CMD_MENU.closeCommandMenu?.();
+      const handled = await CMD_MENU.handleSlashCommand?.(text);
       if (handled) return;
     }
 
     chatInput.value = "";
     chatInput.style.height = "auto";
-    closeCommandMenu();
+    CMD_MENU.closeCommandMenu?.();
 
     // Easter egg achievement check
     if (typeof AchievementEngine !== "undefined" && text.toLowerCase() === "iq easter egg") {
@@ -840,25 +518,25 @@
   chatInput?.addEventListener("compositionstart", () => { isChatInputComposing = true; });
   chatInput?.addEventListener("compositionend",   () => { isChatInputComposing = false; });
   chatInput?.addEventListener("keydown", (e) => {
-    if (commandState.open) {
+    if (CMD_MENU.isOpen?.()) {
       if (e.key === "ArrowDown") {
         e.preventDefault();
-        setActiveCommandItem(commandState.activeIndex + 1);
+        CMD_MENU.setActiveCommandItem?.(CMD_MENU.getActiveIndex?.() + 1);
         return;
       }
       if (e.key === "ArrowUp") {
         e.preventDefault();
-        setActiveCommandItem(commandState.activeIndex - 1);
+        CMD_MENU.setActiveCommandItem?.(CMD_MENU.getActiveIndex?.() - 1);
         return;
       }
       if (e.key === "Escape") {
         e.preventDefault();
-        closeCommandMenu();
+        CMD_MENU.closeCommandMenu?.();
         return;
       }
       if (e.key === "Enter" && !e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey) {
         e.preventDefault();
-        runActiveCommand();
+        CMD_MENU.runActiveCommand?.(sendMessage);
         return;
       }
     }
@@ -878,273 +556,13 @@
     chatInput.style.height = Math.min(chatInput.scrollHeight, 120) + "px";
     const value = String(chatInput.value || "");
     if (value.startsWith("/")) {
-      openCommandMenu(value.slice(1));
+      CMD_MENU.openCommandMenu?.(value.slice(1));
     } else {
-      closeCommandMenu();
+      CMD_MENU.closeCommandMenu?.();
     }
   });
 
-  btnCommandMenu?.addEventListener("click", (e) => {
-    e.preventDefault();
-    if (commandState.open) {
-      closeCommandMenu();
-      return;
-    }
-    openCommandMenu("");
-    chatInput?.focus();
-  });
-
-  commandMenu?.addEventListener("click", (event) => {
-    const target = event.target instanceof HTMLElement ? event.target.closest(".command-menu-item") : null;
-    if (!target) return;
-    const index = Number(target.getAttribute("data-index"));
-    if (!Number.isFinite(index)) return;
-    commandState.activeIndex = index;
-    runActiveCommand();
-  });
-
-  document.addEventListener("click", (event) => {
-    if (!commandState.open) return;
-    const target = event.target;
-    if (!(target instanceof Node)) return;
-    if (commandMenu?.contains(target) || btnCommandMenu?.contains(target) || chatInput?.contains(target)) return;
-    closeCommandMenu();
-  });
-
-  // ===== Quick Prompts Feature =====
-  const QUICK_PROMPTS_STORAGE_KEY = "iq_quick_prompts";
-  const btnQuickPrompts = document.getElementById("btn-quick-prompts");
-  const quickPromptsPopup = document.getElementById("quick-prompts-popup");
-  const quickPromptsList = document.getElementById("quick-prompts-list");
-  const quickPromptsEmpty = document.getElementById("quick-prompts-empty");
-  const btnAddPrompt = document.getElementById("btn-add-prompt");
-  let quickPromptsOpen = false;
-  let quickPrompts = [];
-
-  // Debug: verify elements found
-  console.log("[QuickPrompts] Init:", { 
-    btnQuickPrompts: !!btnQuickPrompts, 
-    quickPromptsPopup: !!quickPromptsPopup,
-    quickPromptsList: !!quickPromptsList,
-    btnAddPrompt: !!btnAddPrompt
-  });
-
-  // Load quick prompts from storage
-  async function loadQuickPrompts() {
-    try {
-      if (typeof chrome !== "undefined" && chrome.storage?.local) {
-        const data = await chrome.storage.local.get(QUICK_PROMPTS_STORAGE_KEY);
-        quickPrompts = data[QUICK_PROMPTS_STORAGE_KEY] || [];
-      } else {
-        const raw = localStorage.getItem(QUICK_PROMPTS_STORAGE_KEY);
-        quickPrompts = raw ? JSON.parse(raw) : [];
-      }
-    } catch (e) {
-      console.error("[QuickPrompts] loadQuickPrompts error:", e);
-      quickPrompts = [];
-    }
-  }
-
-  // Save quick prompts to storage
-  async function saveQuickPrompts() {
-    try {
-      if (typeof chrome !== "undefined" && chrome.storage?.local) {
-        await chrome.storage.local.set({ [QUICK_PROMPTS_STORAGE_KEY]: quickPrompts });
-      } else {
-        localStorage.setItem(QUICK_PROMPTS_STORAGE_KEY, JSON.stringify(quickPrompts));
-      }
-    } catch (e) {
-      console.error("[QuickPrompts] saveQuickPrompts error:", e);
-    }
-  }
-
-  // Render quick prompts list
-  function renderQuickPrompts() {
-    if (!quickPromptsList || !quickPromptsEmpty) return;
-
-    if (quickPrompts.length === 0) {
-      quickPromptsList.style.display = "none";
-      quickPromptsEmpty.style.display = "flex";
-      return;
-    }
-
-    quickPromptsEmpty.style.display = "none";
-    quickPromptsList.style.display = "block";
-
-    quickPromptsList.innerHTML = quickPrompts.map((p, index) => `
-      <div class="quick-prompt-item" data-index="${index}">
-        <span class="prompt-icon">${escapeHtml(p.icon || "📝")}</span>
-        <div class="prompt-content">
-          <div class="prompt-title">${escapeHtml(p.title)}</div>
-          <div class="prompt-preview">${escapeHtml(p.prompt.slice(0, 50))}${p.prompt.length > 50 ? "..." : ""}</div>
-        </div>
-        <button class="prompt-delete" data-index="${index}" title="刪除">✕</button>
-      </div>
-    `).join("");
-  }
-
-  // Open quick prompts popup
-  function openQuickPromptsPopup() {
-    if (!quickPromptsPopup || !btnQuickPrompts) return;
-    renderQuickPrompts();
-
-    // Position popup above the button
-    const btnRect = btnQuickPrompts.getBoundingClientRect();
-    quickPromptsPopup.style.left = `${btnRect.left}px`;
-    quickPromptsPopup.style.bottom = `${window.innerHeight - btnRect.top + 8}px`;
-
-    quickPromptsPopup.style.display = "flex";
-    quickPromptsOpen = true;
-  }
-
-  // Close quick prompts popup
-  function closeQuickPromptsPopup() {
-    if (!quickPromptsPopup) return;
-    quickPromptsPopup.style.display = "none";
-    quickPromptsOpen = false;
-  }
-
-  // Toggle quick prompts popup
-  btnQuickPrompts?.addEventListener("click", (e) => {
-    console.log("[QuickPrompts] Button clicked, quickPromptsOpen:", quickPromptsOpen);
-    e.preventDefault();
-    e.stopPropagation();
-    if (quickPromptsOpen) {
-      closeQuickPromptsPopup();
-    } else {
-      openQuickPromptsPopup();
-    }
-  });
-
-  // Handle quick prompt item click
-  quickPromptsList?.addEventListener("click", (e) => {
-    const deleteBtn = e.target.closest(".prompt-delete");
-    if (deleteBtn) {
-      e.stopPropagation();
-      const index = parseInt(deleteBtn.dataset.index, 10);
-      if (!isNaN(index) && index >= 0 && index < quickPrompts.length) {
-        quickPrompts.splice(index, 1);
-        saveQuickPrompts();
-        renderQuickPrompts();
-        UTILS.showToast?.(localizeRuntimeMessage("提示已刪除"));
-      }
-      return;
-    }
-
-    const item = e.target.closest(".quick-prompt-item");
-    if (item) {
-      const index = parseInt(item.dataset.index, 10);
-      if (!isNaN(index) && index >= 0 && index < quickPrompts.length) {
-        const prompt = quickPrompts[index];
-        if (chatInput) {
-          chatInput.value = prompt.prompt;
-          chatInput.focus();
-          // Adjust textarea height
-          chatInput.style.height = "auto";
-          chatInput.style.height = Math.min(chatInput.scrollHeight, 120) + "px";
-        }
-        closeQuickPromptsPopup();
-      }
-    }
-  });
-
-  // Show add prompt modal
-  function showAddPromptModal() {
-    const modal = document.createElement("div");
-    modal.className = "quick-prompt-modal";
-    modal.innerHTML = `
-      <div class="quick-prompt-modal-content">
-        <h3>⭐ 新增常用提示</h3>
-        <input type="text" id="prompt-title-input" placeholder="標題 (例如：翻譯成中文)" maxlength="50">
-        <textarea id="prompt-content-input" placeholder="提示內容 (例如：請將以下內容翻譯成繁體中文...)"></textarea>
-        <div class="quick-prompt-modal-actions">
-          <button class="btn-cancel">取消</button>
-          <button class="btn-save">儲存</button>
-        </div>
-      </div>
-    `;
-
-    document.body.appendChild(modal);
-
-    const titleInput = modal.querySelector("#prompt-title-input");
-    const contentInput = modal.querySelector("#prompt-content-input");
-    const cancelBtn = modal.querySelector(".btn-cancel");
-    const saveBtn = modal.querySelector(".btn-save");
-
-    // If there's text in chat input, use it as default content
-    if (chatInput?.value?.trim()) {
-      contentInput.value = chatInput.value.trim();
-    }
-
-    titleInput?.focus();
-
-    cancelBtn?.addEventListener("click", () => {
-      modal.remove();
-    });
-
-    saveBtn?.addEventListener("click", () => {
-      const title = titleInput?.value?.trim();
-      const prompt = contentInput?.value?.trim();
-
-      if (!title) {
-        UTILS.showToast?.(localizeRuntimeMessage("請輸入標題"), "error");
-        titleInput?.focus();
-        return;
-      }
-      if (!prompt) {
-        UTILS.showToast?.(localizeRuntimeMessage("請輸入提示內容"), "error");
-        contentInput?.focus();
-        return;
-      }
-
-      quickPrompts.push({
-        id: `qp-${Date.now()}`,
-        title,
-        prompt,
-        icon: "📝",
-        createdAt: new Date().toISOString(),
-      });
-
-      saveQuickPrompts();
-      renderQuickPrompts();
-      modal.remove();
-      UTILS.showToast?.(localizeRuntimeMessage("提示已儲存"));
-    });
-
-    // Close on backdrop click
-    modal.addEventListener("click", (e) => {
-      if (e.target === modal) {
-        modal.remove();
-      }
-    });
-
-    // Close on Escape
-    const handleEscape = (e) => {
-      if (e.key === "Escape") {
-        modal.remove();
-        document.removeEventListener("keydown", handleEscape);
-      }
-    };
-    document.addEventListener("keydown", handleEscape);
-  }
-
-  btnAddPrompt?.addEventListener("click", (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    showAddPromptModal();
-  });
-
-  // Close popup when clicking outside
-  document.addEventListener("click", (event) => {
-    if (!quickPromptsOpen) return;
-    const target = event.target;
-    if (!(target instanceof Node)) return;
-    if (quickPromptsPopup?.contains(target) || btnQuickPrompts?.contains(target)) return;
-    closeQuickPromptsPopup();
-  });
-
-  // Initialize quick prompts
-  loadQuickPrompts();
+  // ===== Quick Prompts Feature (delegated to lib/panels/quick-prompts.js) =====
 
   function startNewChat() {
     switchPanel("chat");
@@ -1222,9 +640,12 @@
     PANELS.proactive?.loadProactiveConfig?.();
     PANELS.proactive?.renderTopPriority?.();
     PANELS.achievements?.initAchievements?.();
+    await PANELS.quickPrompts?.init?.();
 
     // Bind panel events
     FILE_UP.bindEvents?.();
+    CMD_MENU.bindEvents?.(sendMessage);
+    PANELS.quickPrompts?.bindEvents?.();
     PANELS.context?.bindEvents?.();
     PANELS.history?.bindEvents?.();
     PANELS.proactive?.bindEvents?.();

@@ -267,6 +267,68 @@
     return html.join("");
   }
 
+  // ── Off-thread formatText via Web Worker (P2-13) ──
+  // Lazily creates a Worker. For long content (>500 chars) this avoids
+  // blocking the main thread with markdown parsing.
+  let _formatWorker = null;
+  let _formatCallId = 0;
+  const _formatCallbacks = new Map();
+  const FORMAT_WORKER_THRESHOLD = 500; // chars
+
+  function getFormatWorker() {
+    if (!_formatWorker) {
+      try {
+        _formatWorker = new Worker("lib/format-worker.js");
+        _formatWorker.onmessage = (e) => {
+          const { id, html } = e.data;
+          const cb = _formatCallbacks.get(id);
+          if (cb) { _formatCallbacks.delete(id); cb(html); }
+        };
+        _formatWorker.onerror = () => {
+          // Worker failed to load — disable and fall back to sync
+          _formatWorker = null;
+        };
+      } catch {
+        // Worker not supported — stay null, always fall back
+        _formatWorker = null;
+      }
+    }
+    return _formatWorker;
+  }
+
+  /**
+   * Asynchronous formatText — uses Web Worker for content longer than
+   * FORMAT_WORKER_THRESHOLD, falls back to synchronous formatText for short
+   * content or when Worker is unavailable.
+   * @param {string} content
+   * @returns {Promise<string>} Formatted HTML string
+   */
+  function formatTextAsync(content) {
+    const text = String(content ?? "");
+    // Short content → sync is faster (no message overhead)
+    if (text.length < FORMAT_WORKER_THRESHOLD) {
+      return Promise.resolve(formatText(text));
+    }
+    const worker = getFormatWorker();
+    if (!worker) return Promise.resolve(formatText(text));
+
+    return new Promise((resolve) => {
+      const id = ++_formatCallId;
+      // Timeout fallback — if worker doesn't respond within 200ms, use sync
+      const timer = setTimeout(() => {
+        _formatCallbacks.delete(id);
+        resolve(formatText(text));
+      }, 200);
+
+      _formatCallbacks.set(id, (html) => {
+        clearTimeout(timer);
+        resolve(html);
+      });
+
+      worker.postMessage({ id, content: text });
+    });
+  }
+
   function formatTokenCount(n) {
     if (n >= 1000000) return (n / 1000000).toFixed(1) + "M";
     if (n >= 1000) return (n / 1000).toFixed(1) + "k";
@@ -381,10 +443,8 @@
     const debugLogEl = document.getElementById("debug-log");
     if (debugLogEl) {
       const span = document.createElement("div");
-      span.style.borderBottom = "1px solid rgba(255,255,255,0.05)";
-      span.style.padding = "2px 0";
-      const tagColors = { CONN: "#48bb78", RPC: "#63b3ed", ERR: "#fc8181", INFO: "#d6bcfa", CFG: "#fbd38d" };
-      span.innerHTML = `<span style="color:#718096">[${ts}]</span> <span style="color:${tagColors[tag] || '#a0aec0'}">[${tag}]</span> ${escapeHtml(msg)}`;
+      span.className = "debug-log-entry";
+      span.innerHTML = `<span class="debug-ts">[${ts}]</span> <span class="debug-tag" data-tag="${tag}">[${tag}]</span> ${escapeHtml(msg)}`;
       debugLogEl.appendChild(span);
       trimContainerChildren(debugLogEl, CONFIG.MAX_DEBUG_LOG_ENTRIES || 500);
       debugLogEl.scrollTop = debugLogEl.scrollHeight;
@@ -715,6 +775,7 @@
     showToast,
     scrollToBottom,
     formatText,
+    formatTextAsync,
     formatTokenCount,
     formatFileSize,
     relativeTime,

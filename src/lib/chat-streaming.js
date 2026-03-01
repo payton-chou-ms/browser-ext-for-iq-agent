@@ -88,16 +88,40 @@
       let toolCallsContainer = null;
       let streamDone = false;
       let pendingRender = null;
+      let lastRenderedLength = 0;
+      let deferredRebuild = null;
+
+      // Structural markdown patterns that require full formatText rebuild
+      const STRUCTURAL_MD = /```|^#{1,6}\s|^\|.*\|.*\||^[-*]\s|^\d+\.\s|^>/m;
 
       // Batched render - coalesces rapid message_delta updates to next frame
+      // P2-12b: Uses text-node append for plain deltas, full rebuild only
+      //         when structural markdown (code fences, headings, tables) appears
       function scheduleRender() {
         if (pendingRender) return;
         pendingRender = requestAnimationFrame(() => {
           pendingRender = null;
-          if (bubble) {
+          if (!bubble) return;
+
+          const delta = content.slice(lastRenderedLength);
+
+          // First render or structural markdown detected → full rebuild
+          if (lastRenderedLength === 0 || STRUCTURAL_MD.test(delta)) {
             bubble.innerHTML = formatText(content);
-            utils.scrollToBottom?.();
+            if (deferredRebuild) { clearTimeout(deferredRebuild); deferredRebuild = null; }
+          } else if (delta) {
+            // Fast path: plain text delta → append text node directly
+            bubble.appendChild(document.createTextNode(delta));
+            // Queue a deferred full rebuild to apply inline formatting (bold, links, etc.)
+            if (deferredRebuild) clearTimeout(deferredRebuild);
+            deferredRebuild = setTimeout(() => {
+              deferredRebuild = null;
+              if (bubble) bubble.innerHTML = formatText(content);
+            }, 150);
           }
+
+          lastRenderedLength = content.length;
+          utils.scrollToBottom?.();
         });
       }
 
@@ -180,24 +204,33 @@
           if (msg.type === "STREAM_DONE") {
             streamDone = true;
             removeTyping();
+            // Cancel any pending deferred rebuild (P2-12b)
+            if (deferredRebuild) { clearTimeout(deferredRebuild); deferredRebuild = null; }
+            if (pendingRender) { cancelAnimationFrame(pendingRender); pendingRender = null; }
             getToolCalls().forEach((tc) => { if (tc.status === "running") { tc.status = "success"; tc.endedAt = Date.now(); } });
             if (!bubble) bubble = createStreamingBotMessage();
+            // Final render — use async Worker for long content (P2-13)
             if (!content) {
               const final = msg.data?.content || msg.data?.text || "";
-              if (final) {
-                content = final;
-                bubble.innerHTML = formatText(content);
-              }
+              if (final) content = final;
             }
-            const streamEl = document.getElementById("streaming-msg");
-            if (streamEl) streamEl.removeAttribute("id");
-            pushChatHistory({ role: "bot", content });
+            const formatTextAsync = utils.formatTextAsync || ((s) => Promise.resolve(formatText(s)));
+            formatTextAsync(content).then((html) => {
+              if (bubble && html) bubble.innerHTML = html;
+              const streamEl = document.getElementById("streaming-msg");
+              if (streamEl) streamEl.removeAttribute("id");
+              pushChatHistory({ role: "bot", content });
+              utils.scrollToBottom?.();
+            });
             safeDisconnectPort(port);
           }
 
           if (msg.type === "STREAM_ERROR") {
             streamDone = true;
             removeTyping();
+            // Cancel any pending deferred rebuild (P2-12b)
+            if (deferredRebuild) { clearTimeout(deferredRebuild); deferredRebuild = null; }
+            if (pendingRender) { cancelAnimationFrame(pendingRender); pendingRender = null; }
             getToolCalls().forEach((tc) => { if (tc.status === "running") { tc.status = "error"; tc.endedAt = Date.now(); } });
             if (!bubble) bubble = createStreamingBotMessage();
             const errText = msg.error || msg.message || localizeRuntimeMessage("串流錯誤");

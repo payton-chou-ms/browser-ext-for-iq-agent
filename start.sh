@@ -100,7 +100,51 @@ if [[ -n "${FOUNDRY_ENDPOINT:-}" ]]; then
 else
   echo -e "  Foundry   : ${DIM}not configured${NC}"
 fi
+# Python status (shown after venv check below)
 echo ""
+
+# ── Python venv setup for Foundry Agent Skill ──
+SKILL_DIR=".github/skills/foundry_agent_skill"
+VENV_DIR="$SKILL_DIR/.venv"
+
+if [[ -d "$SKILL_DIR" ]]; then
+  log "${P_SYS} Setting up Python venv for Foundry Agent Skill..."
+  
+  # Check if Python is available
+  if command -v python3 &>/dev/null; then
+    PYTHON_CMD="python3"
+  elif command -v python &>/dev/null; then
+    PYTHON_CMD="python"
+  else
+    log "${YELLOW}⚠ Python not found. Foundry Agent Skill will not work.${NC}"
+    PYTHON_CMD=""
+  fi
+  
+  if [[ -n "$PYTHON_CMD" ]]; then
+    # Create venv if not exists
+    if [[ ! -d "$VENV_DIR" ]]; then
+      log "${P_SYS} Creating Python venv at $VENV_DIR..."
+      "$PYTHON_CMD" -m venv "$VENV_DIR"
+      ok "Python venv created"
+    fi
+    
+    # Activate and install dependencies
+    source "$VENV_DIR/bin/activate"
+    
+    # Check if dependencies are installed (quick check for azure-ai-projects)
+    if ! "$VENV_DIR/bin/python" -c "import azure.ai.projects" 2>/dev/null; then
+      log "${P_SYS} Installing Foundry Agent Skill dependencies..."
+      "$VENV_DIR/bin/pip" install -q azure-ai-projects azure-identity python-dotenv
+      ok "Dependencies installed"
+    else
+      debug "Foundry Agent Skill dependencies already installed"
+    fi
+    
+    # Export PYTHON_PATH for skill execution
+    export FOUNDRY_SKILL_PYTHON="$VENV_DIR/bin/python"
+    ok "Foundry Agent Skill Python ready: $FOUNDRY_SKILL_PYTHON"
+  fi
+fi
 
 # 1) Free ports if occupied
 log "${P_SYS} Checking ports..."

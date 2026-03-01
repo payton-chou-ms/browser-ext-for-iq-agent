@@ -221,6 +221,13 @@ async function executeProactiveAgent(agent, prompt = "") {
 function summarizeScheduleResult(agent, result) {
   const payload = result?.data || result?.results || {};
 
+  const textSummary = [payload?.text, payload?.summary, payload?.message]
+    .find((value) => typeof value === "string" && value.trim());
+  if (typeof textSummary === "string" && textSummary.trim()) {
+    const trimmed = textSummary.trim();
+    return trimmed.length > 72 ? `${trimmed.slice(0, 72)}…` : trimmed;
+  }
+
   if (agent === "briefing") {
     const emails = Array.isArray(payload.emails) ? payload.emails.length : 0;
     const meetings = Array.isArray(payload.meetings) ? payload.meetings.length : 0;
