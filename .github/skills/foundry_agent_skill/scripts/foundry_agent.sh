@@ -45,7 +45,7 @@ setup_venv() {
   # Check if dependencies are installed
   if ! "$VENV_DIR/bin/python" -c "import azure.ai.projects" 2>/dev/null; then
     echo "Installing dependencies..." >&2
-    "$VENV_DIR/bin/pip" install -q azure-ai-projects azure-identity python-dotenv
+    "$VENV_DIR/bin/pip" install -q "azure-ai-projects>=2.0.0b4" azure-identity python-dotenv openai
   fi
   
   echo "$VENV_DIR/bin/python"

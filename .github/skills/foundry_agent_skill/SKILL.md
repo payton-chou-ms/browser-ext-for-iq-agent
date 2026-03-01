@@ -21,16 +21,16 @@ description: '使用 Microsoft Foundry Agent Service 列出 Agent、呼叫指定
 cd .github/skills/foundry_agent_skill
 
 # 健康檢查
-python scripts/foundry_agent.py health
+./scripts/foundry_agent.sh health
 
 # 列出 agents
-python scripts/foundry_agent.py list --limit 20
+./scripts/foundry_agent.sh list --limit 20
 
 # 呼叫指定 agent
-python scripts/foundry_agent.py invoke --agent-name um-semantic-agent --message "哪些投影機支援 Short Throw?"
+./scripts/foundry_agent.sh invoke --agent-name um-semantic-agent --message "哪些投影機支援 Short Throw?"
 
 # 多輪對話（帶前一輪 response id）
-python scripts/foundry_agent.py invoke \
+./scripts/foundry_agent.sh invoke \
   --agent-name um-semantic-agent \
   --message "再補充一下 EW805ST" \
   --session-id <previous_response_id>
@@ -69,7 +69,9 @@ python scripts/foundry_agent.py invoke \
 
 ## 相依套件
 
-請先安裝：
+Wrapper script 會自動建立 venv 並安裝依賴，無需手動安裝。
+
+如需手動安裝：
 
 ```bash
 pip install azure-ai-projects azure-identity python-dotenv
