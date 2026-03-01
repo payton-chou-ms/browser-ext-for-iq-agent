@@ -164,6 +164,20 @@
     "The user's current browser tab context is provided in <browser_context> tags with each message.",
   ].join(" ");
 
+  // Helper to safely set message content, avoiding raw innerHTML on untrusted text.
+  function setSafeContent(element, formattedText) {
+    const utils = root.utils || {};
+    const sanitizeHtml = utils.sanitizeHtml;
+
+    if (typeof sanitizeHtml === "function") {
+      // Use the host application's HTML sanitizer if available.
+      element.innerHTML = sanitizeHtml(formattedText || "");
+    } else {
+      // Fallback: treat as plain text to avoid interpreting HTML.
+      element.textContent = formattedText || "";
+    }
+  }
+
   // ── DOM Helpers ──
   function createMessage(role, text) {
     const utils = root.utils || {};
@@ -182,7 +196,8 @@
     // Content wrapper
     const content = document.createElement("div");
     content.className = "msg-content";
-    content.innerHTML = formatText(role === "bot" ? formatNewsResponse(text) : text);
+    const formatted = formatText(role === "bot" ? formatNewsResponse(text) : text);
+    setSafeContent(content, formatted);
     bubble.appendChild(content);
 
     // Add action bar for bot messages
