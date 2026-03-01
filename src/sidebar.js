@@ -490,9 +490,20 @@
     const item = commandState.items[commandState.activeIndex];
     closeCommandMenu();
     if (!item) return;
+    const typedText = String(chatInput?.value || "").trim();
+    const supportsArgs = /^\/(foundry_agent_skills?|foundryagentskills?|foundry_agent_skill|foundryagentskill)$/i.test(item.command);
+    const useTypedCommand =
+      typedText === item.command ||
+      (supportsArgs && typedText.startsWith(`${item.command} `));
+    const commandText = useTypedCommand ? typedText : item.command;
+
     chatInput.value = "";
     chatInput.style.height = "auto";
-    await executeCommandItem(item, { addEcho: true });
+    const handled = await handleSlashCommand(commandText);
+    if (handled) return;
+
+    chatInput.value = commandText;
+    await sendMessage();
   }
 
   // ── Panel Navigation ──
