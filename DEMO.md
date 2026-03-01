@@ -104,7 +104,8 @@ Goal: show a single interface for enterprise tools and local skills.
 1. Open the Skills panel.
 2. Show available CLI skills and local repo skills.
 3. Trigger a skill from the sidebar and show output in chat.
-4. Explain MCP-based extensibility for internal tools.
+4. Switch to the MCP panel and show MCP Config upload/edit/sample download in one place.
+5. Explain MCP-based extensibility for internal tools.
 
 ---
 
