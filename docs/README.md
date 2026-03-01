@@ -204,6 +204,8 @@ flowchart TB
 - [Features Overview](./FEATURES-zhtw.md) - 功能詳細說明與使用方式
 - [Architecture Deep Dive](./architecture.md) - 系統架構深入解析
 - [Demo Prompt Pack](./DEMO-zhtw.md) - Demo 腳本與可直接貼上的提示詞
+- [CI/CD Flow](./cicd_flow.md) - CI/CD 流程與打包說明
+- [SDK Feedback](./feedback.md) - Copilot SDK 已確認限制清單
 - [Archive](./archive/README.md) - 歷史文件與已封存規劃
 
 ---

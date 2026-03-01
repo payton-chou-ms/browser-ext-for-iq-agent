@@ -38,7 +38,7 @@ flowchart LR
   - `sidebar.js`
 - 功能模組由 `lib/*` 與 `lib/panels/*` 載入。
 - UI 主要職責：
-  - 面板導覽（`chat`、`context`、`history`、`usage`、`tasks`、`skills`、`mcp`、`notifications`、`achievements`、`config`、`version`）
+  - 面板導覽（`chat`、`context`、`history`、`usage`、`mcp`、`notifications`、`achievements`、`config`、`version`）
   - 聊天輸入與檔案上傳體驗
   - tool 視覺化
   - Foundry / MCP 設定體驗
@@ -93,7 +93,7 @@ flowchart LR
 - `lib/file-upload.js`：附件管理
 
 ### 3.3 面板模組（`lib/panels/*`）
-- `context.js`、`history.js`、`usage.js`、`tasks.js`、`skills.js`、`mcp.js`、`achievements.js`
+- `context.js`、`history.js`、`usage.js`、`mcp.js`、`achievements.js`
 - Proactive 拆分為專責模組：
   - `proactive-state.js`（狀態與通知已讀/未讀模型）
   - `proactive-render.js`（UI 渲染與動作）
