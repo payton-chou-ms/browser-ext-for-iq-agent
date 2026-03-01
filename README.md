@@ -111,13 +111,12 @@ Key implementation points:
 
 ### Business outcomes
 
-| Metric | Expected Improvement |
-|--------|----------------------|
-| Information lookup time | **-50%** |
-| Meeting preparation time | **-40%** |
-| Missed-reply risk | **-80%** |
-| Context-switching between tools | **-70%** |
-| Pre-sales/spec consulting efficiency | **3×** |
+- **Proactive daily WorkIQ updates** provide morning summaries, pending actions, and follow-up reminders.
+- **Multi-tab and multi-session workflows** enable faster parallel lookup across different topics and models.
+- **Edge extension-first UX** integrates into existing browsing workflows and supports quick screenshot-based queries.
+- **Foundry integration** connects enterprise agents across Foundry IQ and Fabric IQ scenarios.
+- **MCP extensibility** allows teams to connect their own tools and knowledge endpoints.
+
 
 ### Core capabilities (detailed)
 
@@ -125,10 +124,12 @@ Key implementation points:
 |------------|---------------|-----------------|
 | **Smart Chat + Page Context** | Uses page context, files, and prompts for summaries, analysis, translation, and drafting | Faster understanding and response preparation |
 | **Multi-Tab Sessions** | Runs up to 10 isolated chats with per-tab model and skill context | Parallel task handling without cross-talk |
-| **Foundry Agent Skills** | Invokes domain agents (`um`, `pkm`, `fabric`) via slash commands | Reliable enterprise answers for manuals and specs |
+| **PKM Q&A** | Answers product FAQ-style questions with **PKM Agent + Azure AI Search** | Faster issue clarification and support response |
+| **UM Lookup** | Performs user-manual metadata lookup with **UM Agent + Azure AI Search** | More accurate manual navigation and retrieval |
+| **Specification Query** | Queries structured product spec data with **Fabric Agent + Fabric Data Agent** | Better pre-sales comparison and technical validation |
 | **WorkIQ + Proactive Scan** | Queries Microsoft 365 and generates proactive briefings/reminders | Better execution on meetings, deadlines, and follow-ups |
 | **MCP Integrations** | Connects external tool servers (for example Docs and SDK references) | Single UI for internal + external intelligence |
-| **Quick Prompts / Usage / Achievements / History** | Standardizes prompts, tracks usage, and preserves session history | Better adoption, traceability, and repeatability |
+| **Screenshot Query + Prompt Assets** | Captures page screenshots, standardizes prompts, tracks usage, and preserves session history | Faster context handoff and repeatable team workflows |
 
 ---
 
