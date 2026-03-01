@@ -1,4 +1,5 @@
 import type { RouteTable, CoreRouteDeps } from "../shared/types.js";
+import type child_process from "node:child_process";
 import { Schemas, type ToolsListInput, type McpConfigWriteInput, type SkillsExecuteInput } from "./schemas.js";
 
 type LocalSkillItem = {
@@ -78,6 +79,100 @@ function listLocalSkills(baseDir: string, fsImpl: CoreRouteDeps["fs"], pathImpl:
   return skills;
 }
 
+/** Parse payload.message into { agentName, message } for invoke commands. */
+export function parseInvokePayload(payload: Record<string, unknown>): { agentName: string; message: string } | null {
+  const rawMessage = String(payload.message ?? "").trim();
+  if (!rawMessage) return null;
+
+  // Pattern: "<agent-name> to check <actual message>"
+  const match = rawMessage.match(/^(\S+)\s+to\s+check\s+([\s\S]+)$/i);
+  if (match?.[1] && match[2]) {
+    return { agentName: match[1], message: match[2].trim() };
+  }
+
+  // Fallback: if --agent-name is provided separately in payload
+  const agentName = String(payload.agentName ?? payload.agent_name ?? "").trim();
+  if (agentName) {
+    return { agentName, message: rawMessage };
+  }
+
+  // Raw message only — no agent name detected
+  return null;
+}
+
+/** Build CLI args for foundry_agent.sh based on the command. */
+export function buildFoundryArgs(command: string, payload: Record<string, unknown>): string[] | null {
+  switch (command) {
+    case "health":
+      return ["health", "--json"];
+
+    case "list":
+      return ["list", "--json", "--limit", String(payload.limit ?? 50)];
+
+    case "invoke": {
+      const parsed = parseInvokePayload(payload);
+      if (!parsed) {
+        // Fall back to using the raw message with a default agent
+        const fallbackMessage = String(payload.message ?? "").trim();
+        if (!fallbackMessage) return null;
+        return [
+          "invoke",
+          "--agent-name", String(payload.defaultAgent ?? "um-semantic-agent"),
+          "--message", fallbackMessage,
+          "--json",
+        ];
+      }
+
+      const args = [
+        "invoke",
+        "--agent-name", parsed.agentName,
+        "--message", parsed.message,
+        "--json",
+      ];
+
+      const sessionId = String(payload.sessionId ?? payload.session_id ?? "").trim();
+      if (sessionId) {
+        args.push("--session-id", sessionId);
+      }
+
+      return args;
+    }
+
+    case "status":
+      return ["health", "--json"];
+
+    default:
+      return null;
+  }
+}
+
+type ExecFileResult = { stdout: string; stderr: string };
+type ExecFileFn = typeof child_process.execFile;
+
+/** Promise wrapper around child_process.execFile. */
+export function execFileAsync(
+  execFileFn: ExecFileFn,
+  file: string,
+  args: string[],
+  options: { cwd?: string; timeout?: number; env?: NodeJS.ProcessEnv },
+): Promise<ExecFileResult> {
+  return new Promise((resolve, reject) => {
+    execFileFn(file, args, options, (error, stdout, stderr) => {
+      if (error) {
+        const enriched = Object.assign(error, {
+          stderr: typeof stderr === "string" ? stderr : String(stderr ?? ""),
+        });
+        reject(enriched);
+      } else {
+        resolve({
+          stdout: typeof stdout === "string" ? stdout : String(stdout ?? ""),
+          stderr: typeof stderr === "string" ? stderr : String(stderr ?? ""),
+        });
+      }
+    });
+  });
+}
+
 export function registerCoreRoutes(routes: RouteTable, deps: CoreRouteDeps): void {
   const {
     ensureClient,
@@ -91,6 +186,7 @@ export function registerCoreRoutes(routes: RouteTable, deps: CoreRouteDeps): voi
     getWritableMcpConfigPath,
     fs,
     path,
+    execFile,
     getFoundrySnapshot,
   } = deps;
 
@@ -168,28 +264,95 @@ export function registerCoreRoutes(routes: RouteTable, deps: CoreRouteDeps): voi
     if (!normalized.includes("foundry")) {
       jsonRes(res, 400, {
         ok: false,
-        error: `Only foundry mock skill is enabled in MVP: ${skillName}`,
+        error: `Only foundry skill is enabled: ${skillName}`,
       });
       return;
     }
 
-    log("SKILL", `Mock execute ${skillName} command=${command}`);
-    jsonRes(res, 200, {
-      ok: true,
-      mode: "mock",
-      result: {
-        skillName,
-        command,
-        status: "completed",
-        startedAt: new Date().toISOString(),
-        summary: `Mock Foundry agent executed command: ${command}`,
-        output: {
-          message: "Mock response from Foundry Agent",
-          nextAction: "Replace /api/skills/execute mock handler with real Foundry invocation",
-          payloadEcho: payload,
+    // Resolve the foundry_agent.sh script path
+    const scriptPath = path.join(
+      process.cwd(),
+      ".github",
+      "skills",
+      "foundry_agent_skill",
+      "scripts",
+      "foundry_agent.sh",
+    );
+
+    if (!fs.existsSync(scriptPath)) {
+      log("WARN", `Foundry skill script not found at ${scriptPath}, falling back to mock`);
+      jsonRes(res, 200, {
+        ok: true,
+        mode: "mock",
+        result: {
+          skillName,
+          command,
+          status: "script-not-found",
+          summary: "foundry_agent.sh not found — mock fallback",
         },
-      },
-    });
+      });
+      return;
+    }
+
+    // Build CLI arguments based on the command
+    const args = buildFoundryArgs(command, payload);
+    if (args === null) {
+      jsonRes(res, 400, {
+        ok: false,
+        error: `Unsupported foundry command: ${command}`,
+      });
+      return;
+    }
+
+    log("SKILL", `Foundry ${command}: ${scriptPath} ${args.join(" ")}`);
+
+    const timeoutMs = parseInt(process.env.SKILL_REQUEST_TIMEOUT_SECONDS || "60", 10) * 1000;
+
+    try {
+      const result = await execFileAsync(execFile, scriptPath, args, {
+        cwd: process.cwd(),
+        timeout: timeoutMs,
+        env: { ...process.env },
+      });
+
+      let parsed: Record<string, unknown>;
+      try {
+        parsed = JSON.parse(result.stdout);
+      } catch {
+        // If JSON parse fails, wrap raw output
+        parsed = { raw: result.stdout.trim(), stderr: result.stderr.trim() };
+      }
+
+      if (result.stderr) {
+        log("SKILL", `Foundry stderr: ${result.stderr.slice(0, 500)}`);
+      }
+
+      jsonRes(res, 200, {
+        ok: true,
+        mode: "live",
+        result: {
+          skillName,
+          command,
+          status: "completed",
+          startedAt: new Date().toISOString(),
+          ...parsed,
+        },
+      });
+    } catch (err) {
+      const error = err as Error & { code?: string; killed?: boolean; stderr?: string };
+      const isTimeout = error.killed === true || error.code === "ERR_CHILD_PROCESS_TIMEOUT";
+      log("ERROR", `Foundry skill failed: ${error.message}`);
+      if (error.stderr) log("ERROR", `Foundry stderr: ${error.stderr.slice(0, 500)}`);
+
+      jsonRes(res, isTimeout ? 504 : 502, {
+        ok: false,
+        mode: "live",
+        error: isTimeout
+          ? `Foundry skill timed out after ${timeoutMs / 1000}s`
+          : `Foundry skill error: ${error.message}`,
+        stderr: error.stderr?.slice(0, 1000) || undefined,
+      });
+    }
   };
 
   routes["POST /api/quota"] = async (_req, res) => {

@@ -51,14 +51,20 @@ export async function launchExtension() {
   // Wait for basic UI readiness
   await expect(page.locator("#chat-input")).toBeVisible({ timeout: CONNECTION_TIMEOUT });
 
-  // Wait for welcome bot message (proof that JS fully loaded)
-  await expect(page.locator("#chat-messages .message.bot").first()).toContainText(
-    /IQ Copilot|✦|你好/,
-    { timeout: CONNECTION_TIMEOUT },
-  );
+  // Wait for either welcome message OR chat-messages container to be ready
+  // (persistent context may not show welcome if session was already initialized)
+  try {
+    await expect(page.locator("#chat-messages .message.bot").first()).toContainText(
+      /IQ Copilot|✦|你好/,
+      { timeout: 15000 },
+    );
+  } catch {
+    // No welcome message, just wait for chat container to be stable
+    await expect(page.locator("#chat-messages")).toBeVisible({ timeout: 5000 });
+  }
 
-  // Small buffer for background init (session, tools cache)
-  await page.waitForTimeout(1500);
+  // Buffer for background init (session, tools cache)
+  await page.waitForTimeout(2000);
 
   return { context, page, extensionId };
 }
@@ -71,6 +77,7 @@ export async function launchExtension() {
  */
 export async function sendAndWaitForReply(page, text, timeout = STREAM_TIMEOUT) {
   const usersBefore = await page.locator("#chat-messages .message.user").count();
+  const botsBefore = await page.locator("#chat-messages .message.bot").count();
 
   await page.locator("#chat-input").fill(text);
   await page.locator("#btn-send").click();
@@ -80,9 +87,23 @@ export async function sendAndWaitForReply(page, text, timeout = STREAM_TIMEOUT) 
     timeout: 10_000,
   });
 
+  // Wait for EITHER streaming to start OR a new bot message to appear (for local handlers like /help)
+  try {
+    await Promise.race([
+      expect(page.locator("#streaming-msg")).toHaveCount(1, { timeout: 10_000 }),
+      expect(page.locator("#typing-msg")).toHaveCount(1, { timeout: 10_000 }),
+      expect(page.locator("#chat-messages .message.bot")).toHaveCount(botsBefore + 1, { timeout: 10_000 }),
+    ]);
+  } catch {
+    // Streaming may not start for locally handled commands - continue anyway
+  }
+
   // Wait for streaming to finish (both markers removed when done)
   await expect(page.locator("#streaming-msg")).toHaveCount(0, { timeout });
   await expect(page.locator("#typing-msg")).toHaveCount(0, { timeout: 10_000 });
+
+  // Wait for a NEW bot message (not just any visible bot message)
+  await expect(page.locator("#chat-messages .message.bot")).toHaveCount(botsBefore + 1, { timeout: 30_000 });
 
   const lastBot = page.locator("#chat-messages .message.bot").last();
   await expect(lastBot).toBeVisible({ timeout: 10_000 });

@@ -153,6 +153,7 @@ export interface ProactiveConfig {
 import type http from "node:http";
 import type fs from "node:fs";
 import type path from "node:path";
+import type child_process from "node:child_process";
 import type { CopilotSession, CopilotClient } from "@github/copilot-sdk";
 
 export type RouteHandler = (
@@ -203,6 +204,7 @@ export interface CoreRouteDeps {
   getWritableMcpConfigPath: (existingSource: string | null) => string;
   fs: typeof fs;
   path: typeof path;
+  execFile: typeof child_process.execFile;
   getFoundrySnapshot: () => { configured: boolean; endpoint: string | null };
 }
 

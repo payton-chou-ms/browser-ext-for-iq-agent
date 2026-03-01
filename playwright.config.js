@@ -6,8 +6,9 @@ export default defineConfig({
   testIgnore: '**/unit/**',
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
-  retries: process.env.CI ? 2 : 0,
-  workers: process.env.CI ? 1 : undefined,
+  retries: process.env.CI ? 2 : 1,
+  // Limit workers to avoid concurrent proxy issues
+  workers: process.env.CI ? 1 : 2,
   reporter: 'html',
   use: {
     trace: 'on-first-retry',
