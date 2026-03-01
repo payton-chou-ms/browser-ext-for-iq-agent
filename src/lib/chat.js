@@ -36,7 +36,7 @@
     return root.chatTabs?.getActiveTab?.()?.id || null;
   }
 
-  function syncToActiveTab(updates) {
+  function _syncToActiveTab(updates) {
     const tabId = getActiveTabId();
     if (tabId && root.chatTabs?.updateTab) {
       root.chatTabs.updateTab(tabId, updates);
@@ -50,7 +50,7 @@
     }
   }
 
-  function syncToolCallToActiveTab(toolCall) {
+  function _syncToolCallToActiveTab(toolCall) {
     const tabId = getActiveTabId();
     if (tabId && root.chatTabs?.pushToolCall) {
       root.chatTabs.pushToolCall(tabId, toolCall);
@@ -78,7 +78,7 @@
   function setCurrentModel(m) { currentModel = m; }
   function setSessionData(d) { sessionData = d; }
   function setAvailableModels(m) { availableModels = m; }
-  function escapeHtml(s) {
+  function _escapeHtml(s) {
     return (root.utils?.escapeHtml || ((x) => x))(s);
   }
   function clearTaskActivity() {
@@ -240,7 +240,7 @@
         const parentMsg = actions.closest(".message.bot");
         if (parentMsg) parentMsg.remove();
         // Trigger resend
-        handleSend(lastUserMsg.content, { regenerate: true });
+        sendMessageStreaming(lastUserMsg.content);
       }
     });
 

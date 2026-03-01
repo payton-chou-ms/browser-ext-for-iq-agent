@@ -122,7 +122,7 @@ describe("core routes", () => {
       session_id: "resp_abc123",
       response_text: "Here are WXGA models: EW800ST, EW805ST",
     };
-    deps.execFile = vi.fn((_file: string, _args: string[], _opts: unknown, cb: Function) => {
+    deps.execFile = vi.fn((_file: string, _args: string[], _opts: unknown, cb: (...args: unknown[]) => void) => {
       cb(null, JSON.stringify(mockResult), "");
     }) as never;
 
@@ -157,7 +157,7 @@ describe("core routes", () => {
     }));
 
     deps.fs = { ...deps.fs, existsSync: vi.fn(() => true) } as never;
-    deps.execFile = vi.fn((_file: string, _args: string[], _opts: unknown, cb: Function) => {
+    deps.execFile = vi.fn((_file: string, _args: string[], _opts: unknown, cb: (...args: unknown[]) => void) => {
       const error = Object.assign(new Error("Process exited with code 1"), { stderr: "Auth failed" });
       cb(error, "", "Auth failed");
     }) as never;
@@ -186,7 +186,7 @@ describe("core routes", () => {
     }));
 
     deps.fs = { ...deps.fs, existsSync: vi.fn(() => true) } as never;
-    deps.execFile = vi.fn((_file: string, _args: string[], _opts: unknown, cb: Function) => {
+    deps.execFile = vi.fn((_file: string, _args: string[], _opts: unknown, cb: (...args: unknown[]) => void) => {
       const error = Object.assign(new Error("Timed out"), { killed: true, stderr: "" });
       cb(error, "", "");
     }) as never;
@@ -377,7 +377,7 @@ describe("buildFoundryArgs", () => {
 
 describe("execFileAsync", () => {
   test("resolves with stdout and stderr on success", async () => {
-    const mockExecFile = vi.fn((_file: string, _args: string[], _opts: unknown, cb: Function) => {
+    const mockExecFile = vi.fn((_file: string, _args: string[], _opts: unknown, cb: (...args: unknown[]) => void) => {
       cb(null, '{"ok":true}', "some warning");
     });
 
@@ -386,7 +386,7 @@ describe("execFileAsync", () => {
   });
 
   test("rejects with enriched error on failure", async () => {
-    const mockExecFile = vi.fn((_file: string, _args: string[], _opts: unknown, cb: Function) => {
+    const mockExecFile = vi.fn((_file: string, _args: string[], _opts: unknown, cb: (...args: unknown[]) => void) => {
       cb(new Error("exit code 1"), "", "fatal error");
     });
 

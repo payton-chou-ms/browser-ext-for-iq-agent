@@ -3,7 +3,7 @@
 // Mirrors formatText logic from utils.js but uses pure-string escapeHtml
 // (Workers have no DOM access).
 
-/* eslint-env worker */
+/* global self */
 "use strict";
 
 // ── Pure-string escapeHtml (no DOM) ──

@@ -31,7 +31,7 @@
   const btnNewChat   = document.getElementById("btn-new-chat");
   const suggestions  = document.getElementById("chat-suggestions");
 
-  const escapeHtml = UTILS.escapeHtml || ((s) => s);
+  const _escapeHtml = UTILS.escapeHtml || ((s) => s);
 
   // ── Chat Tabs Management ──
   const chatTabsContainer = document.getElementById("chat-tabs");

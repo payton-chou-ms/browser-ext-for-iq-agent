@@ -423,7 +423,7 @@
           ].join("\n");
           await CHAT.sendMessageStreaming?.(workiqPrompt);
         }
-      } catch (err) {
+      } catch {
         // Network / timeout error — also fall back to streaming
         try {
           await CHAT.sendMessageStreaming?.(`[Work IQ Query] ${query}`);

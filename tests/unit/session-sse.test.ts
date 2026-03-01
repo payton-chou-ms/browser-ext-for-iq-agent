@@ -5,7 +5,7 @@ import { registerSessionRoutes } from "../../src/routes/session";
 import type { RouteTable } from "../../src/shared/types";
 
 function createReq() {
-  const req = new EventEmitter() as any;
+  const req = new EventEmitter() as EventEmitter & { on: EventEmitter["on"] };
   req.on = req.on.bind(req);
   return req;
 }
@@ -21,7 +21,12 @@ function createSseRes() {
       chunks.push(chunk);
     }),
     end: vi.fn(),
-  } as any;
+  } as Record<string, unknown> & {
+    headersSent: boolean;
+    writeHead: ReturnType<typeof vi.fn>;
+    write: ReturnType<typeof vi.fn>;
+    end: ReturnType<typeof vi.fn>;
+  };
 
   return { res, chunks };
 }

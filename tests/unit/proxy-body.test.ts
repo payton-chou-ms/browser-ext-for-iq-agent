@@ -4,7 +4,7 @@ import { describe, expect, test, vi } from "vitest";
 import { readBody, readJsonBody } from "../../src/lib/proxy-body";
 
 function createReq(chunks: string[] = []) {
-  const req = new EventEmitter() as any;
+  const req = new EventEmitter() as EventEmitter & { destroy: ReturnType<typeof vi.fn> };
   req.destroy = vi.fn();
 
   queueMicrotask(() => {
@@ -25,7 +25,7 @@ describe("proxy body helpers", () => {
   });
 
   test("readBody rejects when body exceeds max size", async () => {
-    const req = new EventEmitter() as any;
+    const req = new EventEmitter() as EventEmitter & { destroy: ReturnType<typeof vi.fn> };
     req.destroy = vi.fn();
 
     const promise = readBody(req, 4);
@@ -37,7 +37,7 @@ describe("proxy body helpers", () => {
 
   test("readJsonBody returns 400 for invalid json", async () => {
     const req = createReq(["{invalid"]);
-    const res = {} as any;
+    const res = {} as Record<string, unknown>;
     const jsonRes = vi.fn();
 
     const parsed = await readJsonBody(req, res, jsonRes);
@@ -52,7 +52,7 @@ describe("proxy body helpers", () => {
 
   test("readJsonBody returns 413 when JSON body exceeds size guard", async () => {
     const req = createReq(["x".repeat(10 * 1024 * 1024 + 1)]);
-    const res = {} as any;
+    const res = {} as Record<string, unknown>;
     const jsonRes = vi.fn();
 
     const parsed = await readJsonBody(req, res, jsonRes);
@@ -67,7 +67,7 @@ describe("proxy body helpers", () => {
 
   test("readJsonBody rejects empty body when allowEmpty is false", async () => {
     const req = createReq(["   "]);
-    const res = {} as any;
+    const res = {} as Record<string, unknown>;
     const jsonRes = vi.fn();
 
     const parsed = await readJsonBody(req, res, jsonRes, { allowEmpty: false });
@@ -82,7 +82,7 @@ describe("proxy body helpers", () => {
 
   test("readJsonBody returns empty object for allowEmpty without schema", async () => {
     const req = createReq([""]);
-    const res = {} as any;
+    const res = {} as Record<string, unknown>;
     const jsonRes = vi.fn();
 
     const parsed = await readJsonBody(req, res, jsonRes, { allowEmpty: true });
@@ -93,7 +93,7 @@ describe("proxy body helpers", () => {
 
   test("readJsonBody rejects non-object JSON payloads", async () => {
     const req = createReq(["[]"]);
-    const res = {} as any;
+    const res = {} as Record<string, unknown>;
     const jsonRes = vi.fn();
 
     const parsed = await readJsonBody(req, res, jsonRes);
@@ -108,7 +108,7 @@ describe("proxy body helpers", () => {
 
   test("readJsonBody returns schema validation details", async () => {
     const req = createReq(["{}"]);
-    const res = {} as any;
+    const res = {} as Record<string, unknown>;
     const jsonRes = vi.fn();
     const schema = {
       safeParse: vi.fn(() => ({
@@ -121,7 +121,7 @@ describe("proxy body helpers", () => {
       })),
     };
 
-    const parsed = await readJsonBody(req, res, jsonRes, { schema: schema as any });
+    const parsed = await readJsonBody(req, res, jsonRes, { schema });
 
     expect(parsed).toBeNull();
     expect(jsonRes).toHaveBeenCalledWith(

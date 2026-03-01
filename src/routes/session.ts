@@ -59,7 +59,7 @@ function parseRepository(remoteUrl: string, gitRoot: string): string {
  */
 function transformImagePaths(content: string, httpPort: number): string {
   // Match common image paths in output directory
-  const imagePathRegex = /(?:^|\s|：|\:|儲存至)(\/?(?:[\w./-]+\/)?output\/[^\s\n]+\.(?:png|jpg|jpeg|gif|webp))/gi;
+  const imagePathRegex = /(?:^|\s|：|:|儲存至)(\/?(?:[\w./-]+\/)?output\/[^\s\n]+\.(?:png|jpg|jpeg|gif|webp))/gi;
   
   let transformed = content;
   const matches = content.matchAll(imagePathRegex);

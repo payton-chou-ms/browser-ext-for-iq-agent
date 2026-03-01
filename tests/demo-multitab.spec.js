@@ -2,7 +2,7 @@
  * Demo 2 — Multi-Tab & Multi-Session
  */
 import { test, expect } from "@playwright/test";
-import { launchExtension, sendAndWaitForReply, resetChat, goToChat, CONNECTION_TIMEOUT } from "./demo-helper.js";
+import { launchExtension, sendAndWaitForReply, goToChat, CONNECTION_TIMEOUT } from "./demo-helper.js";
 
 test.describe("Demo 2: Multi-Tab", () => {
   let context, page;

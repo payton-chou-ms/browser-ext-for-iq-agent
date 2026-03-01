@@ -3,7 +3,7 @@ import type { CopilotSession } from "@github/copilot-sdk";
 import { Schemas, type WorkiqQueryInput } from "./schemas.js";
 
 export function registerWorkiqRoutes(routes: RouteTable, deps: WorkiqRouteDeps): void {
-  const { ensureClient, jsonRes, readJsonBody, log, getSessionOrResume, sessions } = deps;
+  const { ensureClient: _ensureClient, jsonRes, readJsonBody, log, getSessionOrResume, sessions } = deps;
 
   /**
    * POST /api/workiq/query

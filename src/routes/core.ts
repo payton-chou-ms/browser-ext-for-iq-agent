@@ -64,7 +64,7 @@ function listLocalSkills(baseDir: string, fsImpl: CoreRouteDeps["fs"], pathImpl:
       try {
         const rawDoc = fsImpl.readFileSync(docPath, "utf-8");
         description = extractSkillDescription(rawDoc);
-      } catch {}
+      } catch { /* ignore unreadable skill doc */ }
 
       return {
         name: skillName,
