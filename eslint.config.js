@@ -27,7 +27,7 @@ export default [
 
   // ── Node files (proxy, config, scripts) ──
   {
-    files: ["proxy.js", "copilot-rpc.js", "playwright.config.js", "scripts/**/*.mjs"],
+    files: ["src/proxy.js", "src/copilot-rpc.js", "playwright.config.js", "src/scripts/**/*.mjs"],
     languageOptions: {
       ecmaVersion: "latest",
       sourceType: "module",
@@ -39,7 +39,7 @@ export default [
 
   // ── Background service worker ──
   {
-    files: ["background.js"],
+    files: ["src/background.js"],
     languageOptions: {
       ecmaVersion: "latest",
       sourceType: "script",
@@ -56,7 +56,7 @@ export default [
 
   // ── Browser extension files ──
   {
-    files: ["sidebar.js", "content_script.js", "achievement-engine.js", "lib/**/*.js"],
+    files: ["src/sidebar.js", "src/content_script.js", "src/achievement-engine.js", "src/lib/**/*.js"],
     languageOptions: {
       ecmaVersion: "latest",
       sourceType: "script",
@@ -111,7 +111,12 @@ export default [
       "dist/",
       "playwright-report/",
       "test-results/",
-      "achievement-engine.js",
+      "coverage/",
+      "output/",
+      ".venv/",
+      "**/.venv/",
+      ".github/skills/**/.venv/",
+      "src/achievement-engine.js",
     ],
   },
 ];

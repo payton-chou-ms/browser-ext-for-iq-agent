@@ -4,7 +4,7 @@
 
 ## Product Overview
 
-IQ Copilot 是一個 **Chrome 瀏覽器擴充功能**（MV3），透過側欄提供企業級 AI 助手體驗。整合 GitHub Copilot CLI、Microsoft Foundry Agent Service 與 Work IQ（M365），形成三大 IQ 平台協同：
+IQ Copilot 是一個 **Edge 瀏覽器擴充功能**（MV3），透過側欄提供企業級 AI 助手體驗。整合 GitHub Copilot CLI、Microsoft Foundry Agent Service 與 Work IQ（M365），形成三大 IQ 平台協同：
 
 | Platform | 能力 | 後端 |
 |----------|------|------|
@@ -63,7 +63,7 @@ Prompts：`summarize_page`、`analyze_code`
 ## Architecture
 
 ```
-Chrome Extension (MV3)
+Edge Extension (MV3)
 ├── sidebar.html/js + lib/*   → UI 層
 ├── background.js             → Service Worker (訊息路由)
 └── content_script.js         → 頁面上下文擷取

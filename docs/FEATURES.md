@@ -70,7 +70,7 @@ IQ Copilot 的聊天核心基於 GitHub Copilot，支援多種輸入形式與智
 |------|------|
 | **Per-Tab Model** | 每個 Tab 可選擇不同 AI 模型（GPT-4.1、Claude、o1 等） |
 | **Per-Tab Skills** | 每個 Tab 可啟用/停用特定技能 |
-| **獨立串流通道** | 各 Tab 各自擁有 Chrome port，互不干擾 |
+| **獨立串流通道** | 各 Tab 各自擁有 Edge port，互不干擾 |
 | **Token 統計** | 每 Tab 獨立記錄 input/output/cache token 與成本 |
 | **自動持久化** | 關閉瀏覽器後對話、模型設定、歷史自動保存 |
 | **Tab 狀態指示** | idle / running / error 即時顯示在 Tab 標籤上 |

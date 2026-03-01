@@ -255,7 +255,7 @@ const COPILOT_RPC = (() => {
   }
 
   async function testFoundryConnection() {
-    return await apiCall("/api/foundry/test");
+    return await getFoundryStatus();
   }
 
   async function getFoundryStatus() {

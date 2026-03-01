@@ -7,13 +7,13 @@
 
 ## 1) System Overview
 
-IQ Copilot is a Chrome MV3 sidebar extension that bridges local and enterprise AI services through a localhost proxy.
+IQ Copilot is an Edge MV3 sidebar extension that bridges local and enterprise AI services through a localhost proxy.
 
 ### Core integration map
 
 ```mermaid
 flowchart LR
-  subgraph Extension["Chrome Extension · MV3"]
+  subgraph Extension["Edge Extension · MV3"]
     SP["Sidebar UI"]
     BG["Service Worker"]
     CS["Content Script"]
@@ -218,7 +218,7 @@ Security note: `execFile` (non-shell) is used to reduce injection risk.
 ### Required environment (BYOE)
 
 - Node.js 20+
-- Chrome (MV3 compatible)
+- Edge (MV3 compatible)
 - GitHub Copilot CLI and `copilot auth login`
 - Azure CLI and `az login` (for Foundry-related skills)
 
@@ -242,7 +242,7 @@ curl http://127.0.0.1:8321/api/ping
 
 ## 6) How to Run and Use the Extension
 
-1. Open `chrome://extensions`
+1. Open `edge://extensions`
 2. Enable Developer mode
 3. Click **Load unpacked** and choose the repo root
 4. Open any page and launch side panel

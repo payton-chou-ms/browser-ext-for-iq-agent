@@ -25,12 +25,6 @@ export interface AchievementDetail extends AchievementCatalogEntry {
   readonly rarityInfo: RarityInfo;
 }
 
-export interface AchievementDetail extends AchievementCatalogEntry {
-  readonly id: string;
-  readonly xpBonus: number;
-  readonly rarityInfo: RarityInfo;
-}
-
 export interface ThresholdRule {
   readonly id: string;
   readonly counter: string;
@@ -133,8 +127,8 @@ export interface Attachment {
   readonly name: string;
   readonly type: string;
   readonly size?: number;
-  readonly dataUrl?: string;
-  readonly textContent?: string;
+  readonly dataUrl?: string | null;
+  readonly textContent?: string | null;
   readonly isImage?: boolean;
 }
 
@@ -217,7 +211,7 @@ export interface SessionRouteDeps {
   log: LogFn;
   buildPromptWithAttachments: (prompt: string, attachments: readonly Attachment[]) => string;
   cors: CorsFn;
-  loadMcpConfigFromDisk: () => { source: string; config: { mcpServers?: Record<string, unknown> } };
+  loadMcpConfigFromDisk: () => { source: string | null; config: { mcpServers?: Record<string, unknown> } };
 }
 
 export interface FoundryRouteDeps {

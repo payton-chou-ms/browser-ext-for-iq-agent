@@ -11,6 +11,8 @@ import {
   type SessionSendInput,
 } from "./schemas.js";
 
+import type { SessionEvent } from "@github/copilot-sdk";
+
 type SessionRuntimeContext = {
   cwd: string;
   gitRoot: string;
@@ -64,6 +66,7 @@ function transformImagePaths(content: string, httpPort: number): string {
   
   for (const match of matches) {
     const imagePath = match[1];
+    if (!imagePath) continue;
     // Check if this path already has a markdown image link
     if (content.includes(`](http://127.0.0.1:${httpPort}/api/image?path=`)) {
       continue;
@@ -160,7 +163,7 @@ export function registerSessionRoutes(routes: RouteTable, deps: SessionRouteDeps
       ...(body.model && { model: body.model }),
       ...(body.streaming !== undefined && { streaming: body.streaming }),
       ...(body.systemMessage && { systemMessage: { content: body.systemMessage } }),
-      ...(Object.keys(mcpServers).length > 0 && { mcpServers }),
+      ...(Object.keys(mcpServers).length > 0 && { mcpServers: mcpServers as Record<string, import("@github/copilot-sdk").MCPServerConfig> }),
       onPermissionRequest: approveAll,
     };
 
@@ -294,20 +297,23 @@ export function registerSessionRoutes(routes: RouteTable, deps: SessionRouteDeps
 
     let finished = false;
 
-    const unsubscribe = session.on((event: { type: string; data?: { content?: string } }) => {
+    const unsubscribe = session.on((event: SessionEvent) => {
       if (finished) return;
       log("SSE", `[${body.sessionId.slice(0, 8)}] event: ${event.type}`);
       
       // Transform image paths in assistant messages
-      let eventToSend = event;
-      if (event.type === "assistant.message" && event.data?.content) {
-        const transformedContent = transformImagePaths(event.data.content, httpPort);
-        if (transformedContent !== event.data.content) {
-          eventToSend = {
-            ...event,
-            data: { ...event.data, content: transformedContent },
-          };
-          log("SSE", `[${body.sessionId.slice(0, 8)}] transformed image path in response`);
+      let eventToSend: SessionEvent | Record<string, unknown> = event;
+      if (event.type === "assistant.message" && "content" in (event.data ?? {})) {
+        const eventData = event.data as { content?: string };
+        if (eventData.content) {
+          const transformedContent = transformImagePaths(eventData.content, httpPort);
+          if (transformedContent !== eventData.content) {
+            eventToSend = {
+              ...event,
+              data: { ...event.data, content: transformedContent },
+            };
+            log("SSE", `[${body.sessionId.slice(0, 8)}] transformed image path in response`);
+          }
         }
       }
       

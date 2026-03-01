@@ -48,7 +48,8 @@ export function registerFoundryRoutes(routes: RouteTable, deps: FoundryRouteDeps
     }
 
     const body = await readBody(req);
-    const url = `${endpoint.replace(/\/$/, "")}/chat/completions?api-version=2024-12-01-preview`;
+    const FOUNDRY_API_VERSION = "2024-12-01-preview";
+    const url = `${endpoint.replace(/\/$/, "")}/chat/completions?api-version=${FOUNDRY_API_VERSION}`;
     log("FOUNDRY", `→ POST ${url.split("?")[0]}`);
 
     try {

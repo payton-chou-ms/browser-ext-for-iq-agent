@@ -85,7 +85,6 @@ export function registerWorkiqRoutes(routes: RouteTable, deps: WorkiqRouteDeps):
       jsonRes(res, 500, {
         ok: false,
         error: error.message,
-        stack: error.stack,
       });
     }
   };

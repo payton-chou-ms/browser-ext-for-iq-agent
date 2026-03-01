@@ -16,6 +16,8 @@ const CONNECTION_CHECK_PERIOD_DISCONNECTED_MIN = 1;
 const LAST_BROADCAST_STATE_KEY = "iq_lastBroadcastState";
 const PROACTIVE_SCHEDULES_KEY = "proactiveScheduleCards";
 const PROACTIVE_SCHEDULE_ALARM_PREFIX = "proactive-schedule-";
+// Legacy alarm names — kept for backward-compat cleanup in clearLegacyAndScheduleAlarms().
+// New system uses "proactive-schedule-*" prefix. These are never created anymore.
 const LEGACY_PROACTIVE_ALARMS = [
   "proactive-briefing",
   "proactive-deadlines",
@@ -320,7 +322,7 @@ chrome.sidePanel
   .catch((error) => console.error(error));
 
 chrome.runtime.onInstalled.addListener(() => {
-  console.log("IQ Copilot v3.0.0 installed (SDK mode)");
+  console.log("IQ Copilot v3.1.0 installed (SDK mode)");
   chrome.storage.local.get(["cliHost", "cliPort"], (data) => {
     if (data.cliHost) cliHost = data.cliHost;
     if (data.cliPort) cliPort = data.cliPort;
