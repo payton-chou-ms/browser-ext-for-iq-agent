@@ -1,0 +1,52 @@
+{
+  "mcpServers": {
+    "playwright": {
+      "type": "local",
+      "command": "npx",
+      "args": ["@playwright/mcp@latest"],
+      "tools": ["*"]
+    },
+    "github": {
+      "type": "local",
+      "command": "docker",
+      "args": [
+        "run", "-i", "--rm",
+        "-e", "GITHUB_PERSONAL_ACCESS_TOKEN=$COPILOT_MCP_GITHUB_TOKEN",
+        "ghcr.io/github/github-mcp-server:0.28.1"
+      ],
+      "tools": ["*"],
+      "env": {
+        "GITHUB_TOKEN": "COPILOT_MCP_GITHUB_TOKEN"
+      }
+    },
+    "context7": {
+      "type": "local",
+      "command": "npx",
+      "args": ["@upstash/context7-mcp@1.0.31"],
+      "tools": ["*"],
+      "env": {
+        "CONTEXT7_API_KEY": "COPILOT_MCP_CONTEXT7_API_KEY"
+      }
+    },
+    "microsoftdocs": {
+      "type": "http",
+      "url": "https://learn.microsoft.com/api/mcp",
+      "tools": ["*"]
+    },
+    "azure": {
+      "type": "local",
+      "command": "npx",
+      "args": ["-y", "@azure/mcp@latest", "server", "start"],
+      "tools": ["*"]
+    },
+    "foundry-agent": {
+      "type": "local",
+      "command": "npx",
+      "args": ["@your-org/foundry-agent-mcp@latest"],
+      "tools": ["*"],
+      "env": {
+        "FOUNDRY_API_KEY": "COPILOT_MCP_FOUNDRY_API_KEY"
+      }
+    }
+  }
+}
