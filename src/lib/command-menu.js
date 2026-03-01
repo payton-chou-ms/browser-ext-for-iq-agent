@@ -325,7 +325,7 @@
     if (!item) return;
 
     // Fill command into input box for user to edit before sending
-    const supportsArgs = /^\/(foundry_agent_skills?|foundryagentskills?|foundry_agent_skill|foundryagentskill)$/i.test(item.command);
+    const supportsArgs = /^\/(foundry_agent_skills?|foundryagentskills?|foundry_agent_skill|foundryagentskill|workiq)$/i.test(item.command);
     const commandText = supportsArgs ? `${item.command} ` : item.command;
 
     _chatInput.value = commandText;

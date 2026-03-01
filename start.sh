@@ -134,7 +134,7 @@ if [[ -d "$SKILL_DIR" ]]; then
     # Check if dependencies are installed (quick check for azure-ai-projects)
     if ! "$VENV_DIR/bin/python" -c "import azure.ai.projects" 2>/dev/null; then
       log "${P_SYS} Installing Foundry Agent Skill dependencies..."
-      "$VENV_DIR/bin/pip" install -q azure-ai-projects azure-identity python-dotenv
+      "$VENV_DIR/bin/pip" install -q "azure-ai-projects>=2.0.0b4" azure-identity python-dotenv openai
       ok "Dependencies installed"
     else
       debug "Foundry Agent Skill dependencies already installed"
