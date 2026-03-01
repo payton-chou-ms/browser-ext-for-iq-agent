@@ -2,7 +2,7 @@
 
 > Chrome Extension (MV3) + Local Proxy，企業級 AI 助手側欄。
 
-[![CI](https://github.com/user/repo/actions/workflows/ci.yml/badge.svg)](https://github.com/user/repo/actions)
+[![CI](https://github.com/payton-chou-ms/browser-ext-for-iq-agent/actions/workflows/ci.yml/badge.svg)](https://github.com/payton-chou-ms/browser-ext-for-iq-agent/actions)
 
 ## Quick Start
 
