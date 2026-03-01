@@ -4,10 +4,26 @@
 
 完整 Demo 腳本（含 Multi-Tab / Foundry Agents / Foundry Model / Work IQ Prompt）請見：[`DEMO-zhtw.md`](../../../docs/DEMO-zhtw.md)
 
+## ⚠️ 注意事項
+
+### SDK 版本要求
+
+此 skill 需要 `azure-ai-projects>=2.0.0b4`。若使用舊版 SDK（如 1.0.0），會出現以下錯誤：
+
+- `'AgentsClient' object has no attribute 'get'`
+- `agents.list() not supported`
+
+### Browser Extension 環境
+
+當透過 Browser Extension 執行此 skill 時：
+- 會使用 `.venv` 內的 Python 環境
+- Wrapper script (`./scripts/foundry_agent.sh`) 會自動建立 venv 並安裝依賴
+- 確保 `start.sh` 或 wrapper script 安裝的是 `azure-ai-projects>=2.0.0b4`
+
 ## 1) 安裝
 
 ```bash
-pip install azure-ai-projects azure-identity python-dotenv
+pip install "azure-ai-projects>=2.0.0b4" azure-identity python-dotenv
 ```
 
 ## 2) 設定環境
