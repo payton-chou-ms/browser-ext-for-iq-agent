@@ -4,7 +4,7 @@
  * UI-only tests — no live proxy streaming needed.
  */
 import { test, expect } from "@playwright/test";
-import { launchExtension, goToChat, CONNECTION_TIMEOUT } from "./demo-helper.js";
+import { launchExtension, goToChat, skipWithoutProxy, CONNECTION_TIMEOUT } from "./demo-helper.js";
 
 test.describe("Demo Panels", () => {
   test.describe.configure({ mode: "serial" });
@@ -13,6 +13,7 @@ test.describe("Demo Panels", () => {
 
   test.beforeAll(async () => {
     test.setTimeout(CONNECTION_TIMEOUT + 30000); // Extra buffer for browser launch
+    await skipWithoutProxy(test);
     ({ context, page } = await launchExtension());
   });
   test.afterAll(async () => { await context?.close(); });

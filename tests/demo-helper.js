@@ -18,6 +18,39 @@ export const STREAM_TIMEOUT = 60_000;
 export const AGENT_TIMEOUT = 180_000; // Increased for image generation which can be slow
 export const CONNECTION_TIMEOUT = 45_000; // Increased from 30s to 45s for slower environments
 
+/* ── Proxy health check ──────────────────────────────────────────────── */
+
+/**
+ * Check if the local proxy is reachable.
+ * Returns true when the proxy responds, false otherwise.
+ */
+export async function isProxyReachable() {
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 3_000);
+    const res = await fetch(`${PROXY_URL}/api/health`, { signal: controller.signal });
+    clearTimeout(timer);
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Call from `test.beforeAll` / `test.beforeEach` to skip the entire suite
+ * when the proxy is not running. Usage:
+ *
+ *   test.beforeAll(async () => {
+ *     await skipWithoutProxy(test);
+ *     // ... rest of setup
+ *   });
+ */
+export async function skipWithoutProxy(testCtx) {
+  if (!(await isProxyReachable())) {
+    testCtx.skip(true, "Local proxy is not running — skipping E2E suite");
+  }
+}
+
 /* ── Browser bootstrap ───────────────────────────────────────────────── */
 
 /**

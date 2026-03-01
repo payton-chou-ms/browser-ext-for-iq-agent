@@ -2,7 +2,7 @@
  * Demo 5 & 6 — Foundry Agents + Image Generation
  */
 import { test, expect } from "@playwright/test";
-import { launchExtension, sendAndWaitForReply, resetChat, goToChat, AGENT_TIMEOUT, CONNECTION_TIMEOUT } from "./demo-helper.js";
+import { launchExtension, sendAndWaitForReply, resetChat, goToChat, skipWithoutProxy, AGENT_TIMEOUT, CONNECTION_TIMEOUT } from "./demo-helper.js";
 
 test.describe("Demo 5-6: Foundry Agents & Gen Img", () => {
   test.describe.configure({ mode: "serial" });
@@ -11,6 +11,7 @@ test.describe("Demo 5-6: Foundry Agents & Gen Img", () => {
 
   test.beforeAll(async () => {
     test.setTimeout(CONNECTION_TIMEOUT + 30000); // Extra buffer for browser launch
+    await skipWithoutProxy(test);
     ({ context, page } = await launchExtension());
   });
   test.afterAll(async () => { await context?.close(); });

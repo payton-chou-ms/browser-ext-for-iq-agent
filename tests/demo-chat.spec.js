@@ -2,7 +2,7 @@
  * Demo 1 — Smart Chat Assistant (1-1, 1-5, 1-6)
  */
 import { test, expect } from "@playwright/test";
-import { launchExtension, sendAndWaitForReply, resetChat, goToChat, CONNECTION_TIMEOUT } from "./demo-helper.js";
+import { launchExtension, sendAndWaitForReply, resetChat, goToChat, skipWithoutProxy, CONNECTION_TIMEOUT } from "./demo-helper.js";
 
 test.describe("Demo 1: Smart Chat", () => {
   test.describe.configure({ mode: "serial" });
@@ -11,6 +11,7 @@ test.describe("Demo 1: Smart Chat", () => {
 
   test.beforeAll(async () => {
     test.setTimeout(CONNECTION_TIMEOUT + 30000); // Extra buffer for browser launch
+    await skipWithoutProxy(test);
     ({ context, page } = await launchExtension());
   });
   test.afterAll(async () => { await context?.close(); });

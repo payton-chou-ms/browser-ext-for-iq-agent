@@ -2,13 +2,14 @@
  * Demo 2 — Multi-Tab & Multi-Session
  */
 import { test, expect } from "@playwright/test";
-import { launchExtension, sendAndWaitForReply, goToChat, CONNECTION_TIMEOUT } from "./demo-helper.js";
+import { launchExtension, sendAndWaitForReply, goToChat, skipWithoutProxy, CONNECTION_TIMEOUT } from "./demo-helper.js";
 
 test.describe("Demo 2: Multi-Tab", () => {
   let context, page;
 
   test.beforeAll(async () => {
     test.setTimeout(CONNECTION_TIMEOUT + 30000); // Extra buffer for browser launch
+    await skipWithoutProxy(test);
     ({ context, page } = await launchExtension());
   });
   test.afterAll(async () => { await context?.close(); });

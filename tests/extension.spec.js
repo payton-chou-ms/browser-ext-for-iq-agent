@@ -1,6 +1,7 @@
 import { test, expect, chromium } from '@playwright/test';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { skipWithoutProxy } from './demo-helper.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -14,6 +15,7 @@ test.describe('Extension Sidebar', () => {
   let page;
 
   test.beforeEach(async () => {
+    await skipWithoutProxy(test);
     // Determine the path to the extension directory (project root)
     const extensionPath = path.resolve(__dirname, '..');
     
