@@ -3161,21 +3161,41 @@ kbd {
 }
 
 #panel-notifications .panel-scroll {
-  position: absolute;
-  inset: 0;
+  flex: 1;
   min-height: 0;
-  overflow-y: auto !important;
-  overflow-x: hidden !important;
+  overflow-y: auto;
+  overflow-x: hidden;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
   padding-bottom: 20px;
 }
 
 /* Notification header inline-style replacements */
-.notif-mark-all-btn { margin-left: 8px; }
-.notif-refresh-btn { margin-left: auto; }
+.notification-header-card .card-header {
+  flex-wrap: wrap;
+}
+
+.notification-header-card .card-header h3 {
+  flex: 0 0 auto;
+}
+
+.notif-mark-all-btn {
+  margin-left: auto;
+  flex: 0 0 auto;
+}
+
+.notif-refresh-btn {
+  flex: 0 0 auto;
+  margin-left: 4px;
+}
+
 .notif-last-scan-text { font-size: 11px; margin-top: 4px; color: var(--text-muted); }
 .notif-hint { font-size: 11px; }
+
+/* Prevent action-btn from stretching inside card-headers */
+.card-header .action-btn {
+  flex: 0 0 auto;
+}
 
 /* Notification badge on nav button */
 .notification-badge {
@@ -3608,14 +3628,14 @@ kbd {
 
 .proactive-schedule-card-header {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 6px 8px;
   margin-bottom: 8px;
 }
 
 .proactive-schedule-card-main {
-  flex: 1 1 240px;
+  flex: 1 1 180px;
   min-width: 0;
 }
 
@@ -3623,26 +3643,28 @@ kbd {
   font-size: 12px;
   color: var(--text-primary);
   font-weight: 600;
+  line-height: 1.4;
 }
 
 .proactive-schedule-card-summary {
   font-size: 10px;
   color: var(--text-muted);
   margin-top: 2px;
+  line-height: 1.4;
 }
 
 .proactive-schedule-card-status {
-  margin-left: auto;
   flex: 0 0 auto;
   font-size: 10px;
   color: var(--text-muted);
+  white-space: nowrap;
 }
 
 .proactive-schedule-card-header-actions {
   display: flex;
   gap: 6px;
-  margin-left: auto;
   flex: 0 0 auto;
+  margin-left: auto;
 }
 
 .proactive-schedule-card-last-summary {
@@ -3809,9 +3831,9 @@ kbd {
 }
 
 #btn-add-schedule-card {
-  flex: 0 0 auto !important;
-  width: auto !important;
-  margin-top: 0 !important;
+  flex: 0 0 auto;
+  width: auto;
+  margin-top: 0;
   min-width: 0;
   padding: 5px 14px;
   font-size: 12px;
