@@ -36,7 +36,7 @@
 ## 參考文件
 
 - `README.md`：現行產品行為與限制
-- `plan/feature-achievement.md`：成就系統中的 Proactive 掃描類
+- `plan/archive/feature-achievement.md`：成就系統中的 Proactive 掃描類
 
 ## 備註
 

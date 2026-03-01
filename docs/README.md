@@ -113,7 +113,7 @@ zip -r iq-copilot-companion-${VERSION}.zip \
 
 ### CI/CD
 
-參見 `.github/workflows/ci.yml` 與 `doc/cicd_flow.md`：
+參見 `.github/workflows/ci.yml` 與 `docs/cicd_flow.md`：
 - Validate：Lint / Typecheck / Unit Test / E2E
 - Build：產生 `dist/proxy.js` 與 `src/achievement-engine.js`
 - Package：Extension 與 Companion 分離產物
@@ -201,9 +201,10 @@ flowchart TB
 
 ## 📚 Additional Documentation
 
-- [Features Overview](./FEATURES.md) - 功能詳細說明與使用方式
+- [Features Overview](./FEATURES-zhtw.md) - 功能詳細說明與使用方式
 - [Architecture Deep Dive](./architecture.md) - 系統架構深入解析
-- [Challenge Analysis](./challenge-analysis.md) - Hackathon 提交分析與改進計畫
+- [Demo Prompt Pack](./DEMO-zhtw.md) - Demo 腳本與可直接貼上的提示詞
+- [Archive](./archive/README.md) - 歷史文件與已封存規劃
 
 ---
 
@@ -217,7 +218,7 @@ npm run test:unit
 npm test
 
 # 測試覆蓋率
-npm run test:coverage
+npm run test:unit:coverage
 ```
 
 測試說明：[tests/README.md](../tests/README.md)

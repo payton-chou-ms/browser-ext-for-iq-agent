@@ -2,7 +2,7 @@
 
 最短路徑：用本機 `az login` 呼叫 Foundry Agent Service。
 
-完整 Demo 腳本（含 Multi-Tab / Foundry Agents / Foundry Model / Work IQ Prompt）請見：[`DEMO.md`](../../../docs/DEMO.md)
+完整 Demo 腳本（含 Multi-Tab / Foundry Agents / Foundry Model / Work IQ Prompt）請見：[`DEMO-zhtw.md`](../../../docs/DEMO-zhtw.md)
 
 ## 1) 安裝
 

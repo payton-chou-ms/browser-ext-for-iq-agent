@@ -1,6 +1,6 @@
 # IQ Copilot Demo Prompt Pack（繁體中文）
 
-英文版本請見 [`DEMO.md`](./DEMO.md)。
+目前維護版本為繁體中文（本文件）。
 
 ---
 

@@ -43,11 +43,12 @@ flowchart LR
 
 📚 **[Full Documentation →](./docs/README.md)**
 
-- [Features](./docs/FEATURES.md)
-- [Demo Script](./docs/DEMO.md)
+- [Features](./docs/FEATURES-zhtw.md)
+- [Demo Script](./docs/DEMO-zhtw.md)
 - [Architecture](./docs/architecture.md)
-- [CI/CD Flow](./doc/cicd_flow.md)
+- [CI/CD Flow](./docs/cicd_flow.md)
 - [RAI Notes](./docs/README.md#-responsible-ai-rai-notes)
+- [Archive](./docs/archive/README.md)
 
 ## Project Structure
 
