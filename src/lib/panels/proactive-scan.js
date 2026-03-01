@@ -377,7 +377,7 @@
           utils.showToast?.("已套用排程並立即查詢");
           const updatedCard = (res.cards || []).find((c) => c.id === card.id);
           if (updatedCard?.lastResult) {
-            const safeId = String(card.id).replace(/"/g, "\\\"");
+            const safeId = String(card.id).replace(/["\\]/g, "\\$&");
             const newCardEl = document.querySelector(`.proactive-schedule-card[data-card-id="${safeId}"]`);
             if (newCardEl instanceof HTMLElement) {
               renderApi.renderScheduleCardResult(newCardEl, updatedCard.agent, updatedCard.lastResult);
