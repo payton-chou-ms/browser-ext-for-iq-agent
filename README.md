@@ -21,6 +21,9 @@ npm install
 
 - 🗂️ **多 Tab 聊天** - 最多 10 個並行對話
 - 🤖 **Per-Tab 模型** - 每個 Tab 可選用不同模型
+- ⚡ **Quick Custom Prompt** - 儲存常用 prompt，一鍵套用
+- 📎 **檔案問答** - 上傳附件後直接分析與回答
+- 🌐 **網頁問答** - 讀取當前頁面內容後回答
 - 🔧 **Skills/Tools** - 視覺化工具執行狀態
 - 📡 **Proactive Scan** - 頁面智慧掃描建議
 - 📊 **Token Tracking** - 即時用量追蹤
@@ -41,7 +44,9 @@ flowchart LR
 📚 **[Full Documentation →](./docs/README.md)**
 
 - [Features](./docs/FEATURES.md)
+- [Demo Script](./DEMO.md)
 - [Architecture](./docs/architecture.md)
+- [CI/CD Flow](./doc/cicd_flow.md)
 - [RAI Notes](./docs/README.md#-responsible-ai-rai-notes)
 
 ## Project Structure
