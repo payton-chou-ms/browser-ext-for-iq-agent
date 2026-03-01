@@ -100,7 +100,11 @@ jobs:
       - name: Check for inline scripts
         run: |
           echo "🔍 Checking for inline scripts in HTML..."
-          if grep -Pn '<script[^>]*>[^<]+</script>' --include="*.html" -r . --exclude-dir=node_modules; then
+          if grep -Pn '<script[^>]*>[^<]+</script>' --include="*.html" -r . \
+            --exclude-dir=node_modules \
+            --exclude-dir=playwright-report \
+            --exclude-dir=coverage \
+            --exclude-dir=test-results; then
             echo "❌ Inline scripts found (Manifest V3 violation)"
             exit 1
           fi

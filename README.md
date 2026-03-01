@@ -2,6 +2,12 @@
 
 > Edge sidebar AI assistant integrating GitHub Copilot, Foundry IQ, Work IQ, and Fabric IQ.
 
+**[▶️ Demo Video (3 min)](https://1drv.ms/v/c/997cab12c6465ec0/IQB13la1wL0-TIa-QNcvLIzkAZPkUHDBnCmkN-WHPP38alg?e=WgbKie)**
+
+## Project Summary
+
+IQ Copilot is an Edge MV3 sidebar extension that unifies three enterprise AI platforms — **Foundry IQ**, **Work IQ**, and **Fabric IQ** — into a single browsing-integrated assistant powered by the **GitHub Copilot SDK**. Field engineers and knowledge workers use it to query product manuals (UM Agent + Azure AI Search), retrieve internal SOPs (PKM Agent), compare structured specifications (Fabric Data Agent), and receive proactive Microsoft 365 briefings — all without leaving their current browser tab. The extension supports multi-tab parallel sessions, per-tab model switching, page-context screenshot queries, and MCP-based tool extensibility. A local HTTP proxy bridges the extension to Copilot CLI and Microsoft Foundry Agent Service, with Zod-validated inputs, localhost-only networking, and CI/CD pipelines covering lint, type-check, unit tests, E2E tests, and automated security scans. IQ Copilot turns fragmented enterprise intelligence into a unified, context-aware assistant that accelerates decision-making and reduces information retrieval time.
+
 ---
 
 ## Table of Contents
