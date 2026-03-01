@@ -45,7 +45,9 @@ test.describe('Extension Sidebar', () => {
   });
 
   test.afterEach(async () => {
-    await context.close();
+    if (context) {
+      await context.close();
+    }
   });
 
   test('Sidebar UI loads and chat input works', async () => {
