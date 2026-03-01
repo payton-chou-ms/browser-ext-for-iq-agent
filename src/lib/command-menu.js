@@ -24,14 +24,40 @@
     open: false,
     activeIndex: -1,
     items: [],
+    mcpServers: [], // cached MCP server names
   };
 
   const COMMAND_GROUP_LABEL = {
     general: "General",
     skills: "Skills",
     models: "Models",
-    mcp: "MCP",
+    mcp: "MCP Tools",
   };
+
+  // MCP server icon mapping
+  function getMcpServerIcon(name) {
+    const n = name.toLowerCase();
+    if (n.includes("playwright")) return "🎭";
+    if (n.includes("github")) return "🐙";
+    if (n.includes("azure")) return "☁️";
+    if (n.includes("context7") || n.includes("upstash")) return "📚";
+    if (n.includes("microsoft") || n.includes("docs")) return "📖";
+    if (n.includes("foundry")) return "🤖";
+    if (n.includes("workiq") || n.includes("work-iq")) return "💼";
+    return "⚡";
+  }
+
+  // Load MCP servers from background
+  async function loadMcpServers() {
+    try {
+      const res = await UTILS.sendToBackground?.({ type: "GET_MCP_CONFIG" });
+      if (res?.ok && res?.config?.mcpServers) {
+        commandState.mcpServers = Object.keys(res.config.mcpServers);
+      }
+    } catch (err) {
+      UTILS.debugLog?.("ERR", "loadMcpServers error:", err.message);
+    }
+  }
 
   function resolveDOM() {
     _commandMenu = document.getElementById("command-menu");
@@ -178,10 +204,32 @@
         run: async () => {
           switchPanel("mcp");
           await PANELS.mcp?.loadMcpConfig?.();
+          await loadMcpServers(); // refresh cached MCP servers
           return "已重新載入 MCP 設定。";
         },
       },
     ];
+
+    // Dynamically generate MCP tool commands from cached servers
+    const mcpToolItems = commandState.mcpServers
+      .filter((name) => {
+        // Skip servers that already have dedicated commands
+        const n = name.toLowerCase();
+        return !n.includes("foundry") && !n.includes("workiq") && !n.includes("work-iq");
+      })
+      .map((name) => ({
+        id: `mcp-${name}`,
+        group: "mcp",
+        title: `${getMcpServerIcon(name)} ${name}`,
+        description: `用法：/${name} <query>`,
+        command: `/${name}`,
+        isMcpTool: true,
+        run: async () => [
+          `**${name}**`,
+          `用法：\`/${name} <query>\``,
+          `範例：\`/${name} search for something\``,
+        ].join("\n"),
+      }));
 
     const modelSwitchItems = modelOptions.slice(0, 20).map((model) => ({
       id: `model-use-${model.id}`,
@@ -195,7 +243,7 @@
       },
     }));
 
-    return [...baseItems, ...modelSwitchItems];
+    return [...baseItems, ...mcpToolItems, ...modelSwitchItems];
   }
 
   function closeCommandMenu() {
@@ -366,7 +414,9 @@
           if (response?.mode === "mock") {
             UTILS.showToast?.("目前是 MVP mock skill，已改用一般查詢模式");
           }
-          await CHAT.sendMessageStreaming?.(query, []);
+          // Explicitly request WorkIQ tool usage in the prompt
+          const workiqPrompt = `Use the workiq skill to answer this question: ${query}`;
+          await CHAT.sendMessageStreaming?.(workiqPrompt, []);
         }
       } catch (err) {
         CHAT.addBotMessage?.(`⚠ ${localizeRuntimeMessage("命令執行失敗")}: ${err?.message || String(err)}`);
@@ -374,6 +424,44 @@
 
       PANELS.usage?.updateStats?.();
       return true;
+    }
+
+    // Handle dynamic MCP tool commands (e.g., /context7, /playwright, etc.)
+    const mcpMatch = commandText.match(/^\/([a-zA-Z0-9_-]+)(?:\s+([\s\S]+))?$/);
+    if (mcpMatch) {
+      const toolName = mcpMatch[1];
+      const query = String(mcpMatch[2] || "").trim();
+
+      // Check if this is a known MCP tool
+      const isMcpTool = commandState.mcpServers.some(
+        (s) => s.toLowerCase() === toolName.toLowerCase()
+      );
+
+      if (isMcpTool) {
+        CHAT.addUserMessage?.(commandText);
+
+        if (!query) {
+          CHAT.addBotMessage?.([
+            `**${toolName}**`,
+            `用法：\`/${toolName} <query>\``,
+            `範例：\`/${toolName} search for something\``,
+          ].join("\n"));
+          PANELS.usage?.updateStats?.();
+          return true;
+        }
+
+        if (!CONN.isConnected?.()) {
+          CHAT.addBotMessage?.(`目前未連線 Copilot CLI，請先連線後再使用 \`/${toolName}\`。`);
+          PANELS.usage?.updateStats?.();
+          return true;
+        }
+
+        // Send message with explicit MCP tool instruction
+        const mcpPrompt = `Use the ${toolName} MCP tool to answer: ${query}`;
+        await CHAT.sendMessageStreaming?.(mcpPrompt, []);
+        PANELS.usage?.updateStats?.();
+        return true;
+      }
     }
 
     const item = getCommandItems().find((entry) => entry.command === commandText);
@@ -388,7 +476,9 @@
     if (!item) return;
 
     // Fill command into input box for user to edit before sending
-    const supportsArgs = /^\/(foundry_agent_skills?|foundryagentskills?|foundry_agent_skill|foundryagentskill|workiq)$/i.test(item.command);
+    // Commands that support arguments: built-in skills + dynamic MCP tools
+    const builtinWithArgs = /^\/(foundry_agent_skills?|foundryagentskills?|foundry_agent_skill|foundryagentskill|workiq)$/i.test(item.command);
+    const supportsArgs = builtinWithArgs || item.isMcpTool;
     const commandText = supportsArgs ? `${item.command} ` : item.command;
 
     _chatInput.value = commandText;
@@ -410,6 +500,7 @@
 
   function bindEvents(sendMessageFn) {
     resolveDOM();
+    loadMcpServers(); // Load MCP servers on init
 
     _btnCommandMenu?.addEventListener("click", (e) => {
       e.preventDefault();
@@ -449,5 +540,6 @@
     isOpen,
     getActiveIndex,
     bindEvents,
+    loadMcpServers,
   };
 })(window);
