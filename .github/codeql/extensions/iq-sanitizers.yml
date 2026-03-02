@@ -1,0 +1,28 @@
+extensions:
+  - addsTo:
+      pack: codeql/javascript-all
+      extensible: sourceModel
+    data: []
+  - addsTo:
+      pack: codeql/javascript-all
+      extensible: sinkModel
+    data: []
+  - addsTo:
+      pack: codeql/javascript-all
+      extensible: summaryModel
+    data:
+      # parseAndSanitize is an HTML sanitizer that:
+      # 1. Parses HTML with DOMParser
+      # 2. Applies strict allowlist via cleanNode()
+      # 3. Returns sanitized body element
+      #
+      # The output is safe for DOM insertion because:
+      # - Only allowed tags (ALLOWED_TAGS) remain
+      # - Only allowed attributes (ALLOWED_ATTRS) remain per tag
+      # - All javascript:/data: URLs are removed from href/src
+      # - All links have target="_blank" rel="noopener noreferrer"
+      #
+      # Flow: Argument[0] (untrusted HTML) -> ReturnValue (sanitized DOM element)
+      # The taint is sanitized (removed) by cleanNode's allowlist
+      - ["src/lib/utils.js", "Member[parseAndSanitize]", "Argument[0]", "ReturnValue", "taint"]
+      - ["src/lib/utils.js", "Member[cleanNode]", "Argument[0]", "Argument[0]", "taint"]

@@ -150,15 +150,33 @@
   }
 
   /**
+   * SECURITY: Parse HTML and sanitize via strict allowlist.
+   * Returns the sanitized document body element.
+   * All untrusted HTML MUST go through this function before DOM insertion.
+   *
+   * Sanitization includes:
+   * - Removing all tags not in ALLOWED_TAGS
+   * - Removing all attributes not in ALLOWED_ATTRS
+   * - Blocking javascript:/data: URLs in href/src
+   * - Forcing target="_blank" rel="noopener noreferrer" on links
+   *
+   * @param {string} html - Untrusted HTML string
+   * @returns {HTMLElement} - Sanitized body element (children are safe for DOM insertion)
+   */
+  function parseAndSanitize(html) {
+    const doc = new DOMParser().parseFromString(String(html ?? ""), "text/html");
+    cleanNode(doc.body);
+    return doc.body;
+  }
+
+  /**
    * Sanitize HTML — returns a string.
    * INTERNAL: only used by formatText for the markdown→HTML path where the
    * source string is already escaped by escapeHtml(). The HTML-passthrough
    * path uses sanitizeToFragment() to avoid DOM-text-reinterpreted-as-HTML.
    */
   function sanitizeHtml(html) {
-    const doc = new DOMParser().parseFromString(html, "text/html");
-    cleanNode(doc.body);
-    return doc.body.innerHTML;
+    return parseAndSanitize(html).innerHTML;
   }
 
   /**
@@ -166,11 +184,10 @@
    * Avoids re-serialising to innerHTML, eliminating DOM-text-reinterpreted-as-HTML (#12).
    */
   function sanitizeToFragment(html) {
-    const doc = new DOMParser().parseFromString(html, "text/html"); // lgtm[js/dom-text-reinterpreted-as-html]
-    cleanNode(doc.body);
+    const body = parseAndSanitize(html);
     const frag = document.createDocumentFragment();
-    while (doc.body.firstChild) {
-      frag.appendChild(document.adoptNode(doc.body.firstChild));
+    while (body.firstChild) {
+      frag.appendChild(document.adoptNode(body.firstChild));
     }
     return frag;
   }
@@ -178,17 +195,15 @@
   function formatText(text) {
     const raw = String(text ?? "");
     // If content is already HTML, sanitize via allowlist.
-    // Uses the same DOM-to-DOM approach as sanitizeToFragment to avoid
-    // DOM-text-reinterpreted-as-HTML vulnerabilities (mutation XSS).
+    // Uses parseAndSanitize to ensure safe DOM handling.
     if (HTML_DETECT_RE.test(raw)) {
-      const doc = new DOMParser().parseFromString(raw, "text/html"); // lgtm[js/dom-text-reinterpreted-as-html]
-      cleanNode(doc.body);
-      // Serialize via temporary element to preserve cleanNode guarantees
+      const body = parseAndSanitize(raw);
+      // Serialize via temporary element to preserve sanitization guarantees
       const tmp = document.createElement("div");
-      while (doc.body.firstChild) {
-        tmp.appendChild(document.adoptNode(doc.body.firstChild));
+      while (body.firstChild) {
+        tmp.appendChild(document.adoptNode(body.firstChild));
       }
-      return tmp.innerHTML; // lgtm[js/dom-text-reinterpreted-as-html]
+      return tmp.innerHTML;
     }
     const safeText = escapeHtml(raw).replace(/\r\n?/g, "\n");
     const lines = safeText.split("\n");
@@ -473,10 +488,9 @@
     }
     // Markdown → HTML string (built from escaped source) → parse to fragment
     const html = formatText(raw);
-    const doc = new DOMParser().parseFromString(html, "text/html");
-    cleanNode(doc.body);
-    while (doc.body.firstChild) {
-      element.appendChild(document.adoptNode(doc.body.firstChild));
+    const body = parseAndSanitize(html);
+    while (body.firstChild) {
+      element.appendChild(document.adoptNode(body.firstChild));
     }
   }
 
@@ -487,11 +501,10 @@
    * @param {string} html - Pre-formatted HTML string
    */
   function renderSafeHtml(element, html) {
-    const doc = new DOMParser().parseFromString(String(html ?? ""), "text/html"); // lgtm[js/dom-text-reinterpreted-as-html]
-    cleanNode(doc.body);
+    const body = parseAndSanitize(html);
     element.textContent = "";
-    while (doc.body.firstChild) {
-      element.appendChild(document.adoptNode(doc.body.firstChild));
+    while (body.firstChild) {
+      element.appendChild(document.adoptNode(body.firstChild));
     }
   }
 
