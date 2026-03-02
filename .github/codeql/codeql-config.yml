@@ -16,8 +16,7 @@ paths-ignore:
   - "**/*.test.ts"
   - "**/*.spec.js"
 
-# Data extensions for custom sanitizer recognition
-# parseAndSanitize() in src/lib/utils.js is a strict allowlist-based HTML sanitizer
-# that removes all disallowed tags/attributes via cleanNode() before DOM insertion
-data-extensions:
-  - .github/codeql/extensions/*.yml
+# Note: parseAndSanitize() in src/lib/utils.js is a strict allowlist-based HTML
+# sanitizer that removes all disallowed tags/attributes via cleanNode() before
+# DOM insertion. Any js/xss-through-dom alerts on this function are false positives
+# and should be dismissed manually in the GitHub Security tab.
