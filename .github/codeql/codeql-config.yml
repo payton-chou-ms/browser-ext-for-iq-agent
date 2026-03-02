@@ -4,18 +4,20 @@ name: "IQ Copilot CodeQL Configuration"
 queries:
   - uses: security-extended
 
-# Path filters
+# Path filters - exclude test and build output directories
 paths-ignore:
   - coverage
   - playwright-report
   - test-results
   - node_modules
+  - output
+  - dist
   - "**/*.test.js"
   - "**/*.test.ts"
   - "**/*.spec.js"
 
-# Model packs for custom sanitizer recognition
+# Data extensions for custom sanitizer recognition
 # parseAndSanitize() in src/lib/utils.js is a strict allowlist-based HTML sanitizer
 # that removes all disallowed tags/attributes via cleanNode() before DOM insertion
-model-packs:
-  - .github/codeql/extensions/
+data-extensions:
+  - .github/codeql/extensions/*.yml

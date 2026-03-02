@@ -1,0 +1,14 @@
+# CodeQL Alert Suppressions
+# Format: rule-id,file-path,line-range,reason
+#
+# This file documents security alert suppressions with justification.
+# Each entry represents a reviewed false positive or accepted risk.
+
+# parseAndSanitize() is an allowlist-based HTML sanitizer that calls cleanNode()
+# to remove ALL elements/attributes not in ALLOWED_TAGS/ALLOWED_ATTRS before
+# returning the sanitized body. This is safe because:
+# 1. Only 30 safe tags are allowed (p, br, strong, em, code, pre, ul, ol, li, etc.)
+# 2. Attributes are filtered per-tag (only href, src, alt, class, etc.)
+# 3. javascript: and data: URLs are explicitly blocked
+# 4. All links get target="_blank" rel="noopener noreferrer"
+js/xss-through-dom,src/lib/utils.js,167,Allowlist sanitizer - cleanNode removes dangerous content
