@@ -66,74 +66,111 @@
   // Detect whether content is already HTML (has block-level tags)
   const HTML_DETECT_RE = /<(?:p|div|ul|ol|li|h[1-6]|table|tr|td|th|blockquote|pre|br\s*\/?)(?:\s[^>]*)?>\s*/i;
 
+  // ── Shared sanitization constants ──
+  const ALLOWED_TAGS = new Set([
+    "p", "br", "strong", "b", "em", "i", "u", "s", "del",
+    "code", "pre", "blockquote",
+    "ul", "ol", "li",
+    "h1", "h2", "h3", "h4", "h5", "h6",
+    "a", "img",
+    "table", "thead", "tbody", "tr", "th", "td",
+    "hr", "span", "div", "sup", "sub",
+  ]);
+  const ALLOWED_ATTRS = {
+    a: new Set(["href", "target", "rel"]),
+    img: new Set(["src", "alt", "width", "height", "style", "class"]),
+    code: new Set(["class"]),
+    pre: new Set(["class"]),
+    span: new Set(["class", "style"]),
+    td: new Set(["colspan", "rowspan"]),
+    th: new Set(["colspan", "rowspan"]),
+  };
+  // Strip control characters and whitespace from protocol for robust scheme check (#6)
+  const UNSAFE_URL_RE = /^\s*(?:j\s*a\s*v\s*a\s*s\s*c\s*r\s*i\s*p\s*t|d\s*a\s*t\s*a)\s*:/i;
+  /** Remove ASCII control characters (U+0000–U+001F, U+007F) from a string. */
+  function stripControlChars(str) {
+    let out = "";
+    for (let i = 0; i < str.length; i++) {
+      const c = str.charCodeAt(i);
+      if ((c >= 0x20 && c !== 0x7f)) out += str[i];
+    }
+    return out;
+  }
+
   /**
-   * Sanitize HTML — allow safe formatting tags, strip everything dangerous.
+   * Walk a parsed DOM tree and remove disallowed elements/attributes.
+   * Shared by both sanitizeHtml (string return) and sanitizeToFragment (Fragment return).
+   */
+  function cleanNode(node) {
+    const children = Array.from(node.childNodes);
+    for (const child of children) {
+      if (child.nodeType === Node.TEXT_NODE) continue;
+      if (child.nodeType === Node.COMMENT_NODE) {
+        node.removeChild(child);
+        continue;
+      }
+      if (child.nodeType !== Node.ELEMENT_NODE) {
+        node.removeChild(child);
+        continue;
+      }
+      const tag = child.tagName.toLowerCase();
+      if (!ALLOWED_TAGS.has(tag)) {
+        // Replace disallowed element with its text content
+        const text = document.createTextNode(child.textContent || "");
+        node.replaceChild(text, child);
+        continue;
+      }
+      // Remove disallowed attributes
+      const allowedSet = ALLOWED_ATTRS[tag] || new Set();
+      const attrs = Array.from(child.attributes);
+      for (const attr of attrs) {
+        if (!allowedSet.has(attr.name)) {
+          child.removeAttribute(attr.name);
+        }
+      }
+      // Force safe link attributes
+      if (tag === "a") {
+        child.setAttribute("target", "_blank");
+        child.setAttribute("rel", "noopener noreferrer");
+        // Block dangerous URL schemes (strips control chars before check)
+        const href = stripControlChars(child.getAttribute("href") || "");
+        if (UNSAFE_URL_RE.test(href)) {
+          child.removeAttribute("href");
+        }
+      }
+      // Block dangerous URL schemes in img src
+      if (tag === "img") {
+        const src = stripControlChars(child.getAttribute("src") || "");
+        if (UNSAFE_URL_RE.test(src)) {
+          child.removeAttribute("src");
+        }
+      }
+      cleanNode(child);
+    }
+  }
+
+  /**
+   * Sanitize HTML — returns a string (used by formatText).
    * Allowlist approach: only permit known-safe elements and attributes.
    */
   function sanitizeHtml(html) {
-    const ALLOWED_TAGS = new Set([
-      "p", "br", "strong", "b", "em", "i", "u", "s", "del",
-      "code", "pre", "blockquote",
-      "ul", "ol", "li",
-      "h1", "h2", "h3", "h4", "h5", "h6",
-      "a", "img",
-      "table", "thead", "tbody", "tr", "th", "td",
-      "hr", "span", "div", "sup", "sub",
-    ]);
-    const ALLOWED_ATTRS = {
-      a: new Set(["href", "target", "rel"]),
-      img: new Set(["src", "alt", "width", "height", "style", "class"]),
-      code: new Set(["class"]),
-      pre: new Set(["class"]),
-      span: new Set(["class", "style"]),
-      td: new Set(["colspan", "rowspan"]),
-      th: new Set(["colspan", "rowspan"]),
-    };
-
-    // Use DOMParser to parse, then walk and filter
     const doc = new DOMParser().parseFromString(html, "text/html");
-    function cleanNode(node) {
-      const children = Array.from(node.childNodes);
-      for (const child of children) {
-        if (child.nodeType === Node.TEXT_NODE) continue;
-        if (child.nodeType === Node.COMMENT_NODE) {
-          node.removeChild(child);
-          continue;
-        }
-        if (child.nodeType !== Node.ELEMENT_NODE) {
-          node.removeChild(child);
-          continue;
-        }
-        const tag = child.tagName.toLowerCase();
-        if (!ALLOWED_TAGS.has(tag)) {
-          // Replace disallowed element with its text content
-          const text = document.createTextNode(child.textContent || "");
-          node.replaceChild(text, child);
-          continue;
-        }
-        // Remove disallowed attributes
-        const allowedSet = ALLOWED_ATTRS[tag] || new Set();
-        const attrs = Array.from(child.attributes);
-        for (const attr of attrs) {
-          if (!allowedSet.has(attr.name)) {
-            child.removeAttribute(attr.name);
-          }
-        }
-        // Force safe link attributes
-        if (tag === "a") {
-          child.setAttribute("target", "_blank");
-          child.setAttribute("rel", "noopener noreferrer");
-          // Block javascript: URLs
-          const href = (child.getAttribute("href") || "").trim().toLowerCase();
-          if (href.startsWith("javascript:") || href.startsWith("data:")) {
-            child.removeAttribute("href");
-          }
-        }
-        cleanNode(child);
-      }
-    }
     cleanNode(doc.body);
     return doc.body.innerHTML;
+  }
+
+  /**
+   * Sanitize HTML — returns a DocumentFragment (used by setSafeContent).
+   * Avoids re-serialising to innerHTML, eliminating DOM-text-reinterpreted-as-HTML (#12).
+   */
+  function sanitizeToFragment(html) {
+    const doc = new DOMParser().parseFromString(html, "text/html");
+    cleanNode(doc.body);
+    const frag = document.createDocumentFragment();
+    while (doc.body.firstChild) {
+      frag.appendChild(document.adoptNode(doc.body.firstChild));
+    }
+    return frag;
   }
 
   function formatText(text) {
@@ -852,6 +889,7 @@
     trimContainerChildren,
     escapeHtml,
     sanitizeHtml,
+    sanitizeToFragment,
     showToast,
     scrollToBottom,
     formatText,

@@ -47,25 +47,42 @@ const HTML_DETECT_RE = /<(?:p|div|ul|ol|li|h[1-6]|table|tr|td|th|blockquote|pre|
 
 /**
  * Sanitize HTML in Worker context (no DOM — use regex allowlist).
- * Strip dangerous tags/attributes, keep safe formatting.
+ * Uses loop-until-stable to prevent nested bypass (#8-#11).
+ * Strips dangerous tags/attributes, keeps safe formatting.
  */
 function sanitizeHtmlWorker(html) {
-  const ALLOWED_TAG_RE = /^(?:p|br|strong|b|em|i|u|s|del|code|pre|blockquote|ul|ol|li|h[1-6]|a|img|table|thead|tbody|tr|th|td|hr|span|div|sup|sub)$/i;
-  // Remove <script>, <style>, <iframe>, <object>, <embed>, <form>, <input>, <svg>, event handlers
-  let safe = html
-    .replace(/<script[\s\S]*?<\/script>/gi, "")
-    .replace(/<style[\s\S]*?<\/style>/gi, "")
-    .replace(/<iframe[\s\S]*?<\/iframe>/gi, "")
-    .replace(/<object[\s\S]*?<\/object>/gi, "")
-    .replace(/<embed[^>]*>/gi, "")
-    .replace(/<form[\s\S]*?<\/form>/gi, "")
-    .replace(/<input[^>]*>/gi, "")
-    .replace(/<svg[\s\S]*?<\/svg>/gi, "");
-  // Remove on* event attributes
-  safe = safe.replace(/\s+on\w+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, "");
-  // Remove javascript: and data: from href/src
-  safe = safe.replace(/(href|src)\s*=\s*["']?\s*javascript:/gi, '$1="');
-  safe = safe.replace(/(href|src)\s*=\s*["']?\s*data:/gi, '$1="');
+  let safe = html;
+
+  // Loop until no more dangerous patterns are found (prevents nested bypass)
+  let prev;
+  do {
+    prev = safe;
+    // Remove dangerous elements
+    safe = safe
+      .replace(/<script[\s\S]*?<\/script\s*>/gi, "")
+      .replace(/<style[\s\S]*?<\/style\s*>/gi, "")
+      .replace(/<iframe[\s\S]*?<\/iframe\s*>/gi, "")
+      .replace(/<object[\s\S]*?<\/object\s*>/gi, "")
+      .replace(/<embed[^>]*\/?>/gi, "")
+      .replace(/<form[\s\S]*?<\/form\s*>/gi, "")
+      .replace(/<input[^>]*\/?>/gi, "")
+      .replace(/<svg[\s\S]*?<\/svg\s*>/gi, "");
+    // Remove orphaned opening tags for dangerous elements
+    safe = safe.replace(/<(?:script|style|iframe|object|embed|form|input|svg)\b[^>]*>/gi, "");
+    // Remove on* event attributes (loop handles re-formed patterns)
+    safe = safe.replace(/\s+on\w+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, "");
+  } while (safe !== prev);
+
+  // Remove dangerous URL schemes (handles whitespace/entity obfuscation)
+  safe = safe.replace(
+    /(href|src)\s*=\s*(["'])\s*(?:\s*(?:&#\d+;|&#x[0-9a-f]+;)?)*j\s*a\s*v\s*a\s*s\s*c\s*r\s*i\s*p\s*t\s*:/gi,
+    '$1=$2'
+  );
+  safe = safe.replace(
+    /(href|src)\s*=\s*(["'])\s*(?:\s*(?:&#\d+;|&#x[0-9a-f]+;)?)*d\s*a\s*t\s*a\s*:/gi,
+    '$1=$2'
+  );
+
   // Force target="_blank" rel="noopener noreferrer" on <a> tags
   safe = safe.replace(/<a\s/gi, '<a target="_blank" rel="noopener noreferrer" ');
   return safe;

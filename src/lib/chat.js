@@ -167,13 +167,17 @@
   // Helper to safely set message content, avoiding raw innerHTML on untrusted text.
   function setSafeContent(element, formattedText) {
     const utils = root.utils || {};
-    const sanitizeHtml = utils.sanitizeHtml;
+    const sanitizeToFragment = utils.sanitizeToFragment;
 
-    if (typeof sanitizeHtml === "function") {
-      // Use the host application's HTML sanitizer if available.
-      element.innerHTML = sanitizeHtml(formattedText || "");
+    if (typeof sanitizeToFragment === "function") {
+      // Use DocumentFragment — avoids re-serialising through innerHTML (#12).
+      element.textContent = "";
+      element.appendChild(sanitizeToFragment(formattedText || ""));
+    } else if (typeof utils.sanitizeHtml === "function") {
+      // Fallback: string-based sanitizer.
+      element.innerHTML = utils.sanitizeHtml(formattedText || "");
     } else {
-      // Fallback: treat as plain text to avoid interpreting HTML.
+      // Last resort: treat as plain text to avoid interpreting HTML.
       element.textContent = formattedText || "";
     }
   }
