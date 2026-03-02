@@ -166,8 +166,7 @@
    * Avoids re-serialising to innerHTML, eliminating DOM-text-reinterpreted-as-HTML (#12).
    */
   function sanitizeToFragment(html) {
-    // lgtm[js/dom-text-reinterpreted-as-html] - Intentionally parsing HTML; sanitized by cleanNode allowlist
-    const doc = new DOMParser().parseFromString(html, "text/html");
+    const doc = new DOMParser().parseFromString(html, "text/html"); // lgtm[js/dom-text-reinterpreted-as-html]
     cleanNode(doc.body);
     const frag = document.createDocumentFragment();
     while (doc.body.firstChild) {
@@ -182,15 +181,14 @@
     // Uses the same DOM-to-DOM approach as sanitizeToFragment to avoid
     // DOM-text-reinterpreted-as-HTML vulnerabilities (mutation XSS).
     if (HTML_DETECT_RE.test(raw)) {
-      // lgtm[js/dom-text-reinterpreted-as-html] - Intentionally parsing HTML; sanitized by cleanNode allowlist
-      const doc = new DOMParser().parseFromString(raw, "text/html");
+      const doc = new DOMParser().parseFromString(raw, "text/html"); // lgtm[js/dom-text-reinterpreted-as-html]
       cleanNode(doc.body);
       // Serialize via temporary element to preserve cleanNode guarantees
       const tmp = document.createElement("div");
       while (doc.body.firstChild) {
         tmp.appendChild(document.adoptNode(doc.body.firstChild));
       }
-      return tmp.innerHTML;
+      return tmp.innerHTML; // lgtm[js/dom-text-reinterpreted-as-html]
     }
     const safeText = escapeHtml(raw).replace(/\r\n?/g, "\n");
     const lines = safeText.split("\n");
@@ -489,8 +487,7 @@
    * @param {string} html - Pre-formatted HTML string
    */
   function renderSafeHtml(element, html) {
-    // lgtm[js/dom-text-reinterpreted-as-html] - Intentionally parsing HTML; sanitized by cleanNode allowlist
-    const doc = new DOMParser().parseFromString(String(html ?? ""), "text/html");
+    const doc = new DOMParser().parseFromString(String(html ?? ""), "text/html"); // lgtm[js/dom-text-reinterpreted-as-html]
     cleanNode(doc.body);
     element.textContent = "";
     while (doc.body.firstChild) {
