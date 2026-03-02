@@ -150,8 +150,10 @@
   }
 
   /**
-   * Sanitize HTML — returns a string (used by formatText).
-   * Allowlist approach: only permit known-safe elements and attributes.
+   * Sanitize HTML — returns a string.
+   * INTERNAL: only used by formatText for the markdown→HTML path where the
+   * source string is already escaped by escapeHtml(). The HTML-passthrough
+   * path uses sanitizeToFragment() to avoid DOM-text-reinterpreted-as-HTML.
    */
   function sanitizeHtml(html) {
     const doc = new DOMParser().parseFromString(html, "text/html");
@@ -175,9 +177,13 @@
 
   function formatText(text) {
     const raw = String(text ?? "");
-    // If content is already HTML, sanitize and return directly
+    // If content is already HTML, sanitize via allowlist (returns safe string).
+    // Callers that set innerHTML should prefer formatToElement() instead.
     if (HTML_DETECT_RE.test(raw)) {
-      return sanitizeHtml(raw);
+      // Parse, clean, and re-serialize — safe because cleanNode allowlists.
+      const doc = new DOMParser().parseFromString(raw, "text/html");
+      cleanNode(doc.body);
+      return doc.body.innerHTML;
     }
     const safeText = escapeHtml(raw).replace(/\r\n?/g, "\n");
     const lines = safeText.split("\n");
@@ -443,6 +449,45 @@
 
       worker.postMessage({ id, content: text });
     });
+  }
+
+  /**
+   * Render text/markdown/HTML content into an element using DOM nodes only
+   * (never assigns innerHTML on user-facing elements).
+   * Breaks the "DOM text reinterpreted as HTML" chain flagged by CodeQL.
+   * @param {HTMLElement} element - Target element to render into
+   * @param {string} text - Raw text, markdown, or HTML content
+   */
+  function renderSafe(element, text) {
+    const raw = String(text ?? "");
+    element.textContent = "";
+    if (HTML_DETECT_RE.test(raw)) {
+      // HTML → allowlist sanitize → DocumentFragment (no innerHTML)
+      element.appendChild(sanitizeToFragment(raw));
+      return;
+    }
+    // Markdown → HTML string (built from escaped source) → parse to fragment
+    const html = formatText(raw);
+    const doc = new DOMParser().parseFromString(html, "text/html");
+    cleanNode(doc.body);
+    while (doc.body.firstChild) {
+      element.appendChild(document.adoptNode(doc.body.firstChild));
+    }
+  }
+
+  /**
+   * Set an already-formatted HTML string on an element via DOMParser → fragment.
+   * Used for Worker-generated HTML to avoid innerHTML assignment.
+   * @param {HTMLElement} element - Target element
+   * @param {string} html - Pre-formatted HTML string
+   */
+  function renderSafeHtml(element, html) {
+    const doc = new DOMParser().parseFromString(String(html ?? ""), "text/html");
+    cleanNode(doc.body);
+    element.textContent = "";
+    while (doc.body.firstChild) {
+      element.appendChild(document.adoptNode(doc.body.firstChild));
+    }
   }
 
   function formatTokenCount(n) {
@@ -894,6 +939,8 @@
     scrollToBottom,
     formatText,
     formatTextAsync,
+    renderSafe,
+    renderSafeHtml,
     formatTokenCount,
     formatFileSize,
     relativeTime,

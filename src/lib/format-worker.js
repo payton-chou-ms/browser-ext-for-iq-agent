@@ -46,46 +46,119 @@ function formatInlineMarkdown(line) {
 const HTML_DETECT_RE = /<(?:p|div|ul|ol|li|h[1-6]|table|tr|td|th|blockquote|pre|br\s*\/?)(?:\s[^>]*)?>\s*/i;
 
 /**
- * Sanitize HTML in Worker context (no DOM — use regex allowlist).
- * Uses loop-until-stable to prevent nested bypass (#8-#11).
- * Strips dangerous tags/attributes, keeps safe formatting.
+ * Sanitize HTML in Worker context (no DOM available).
+ *
+ * Uses an ALLOWLIST tokenizer instead of regex-based denylist.
+ * Scans char-by-char, only emitting whitelisted tags with safe attributes.
+ * This avoids incomplete multi-character sanitization and bad-regex issues
+ * flagged by CodeQL (#8–#18).
  */
+const SAFE_TAGS = new Set([
+  "p", "br", "strong", "b", "em", "i", "u", "s", "del",
+  "code", "pre", "blockquote", "ul", "ol", "li",
+  "h1", "h2", "h3", "h4", "h5", "h6",
+  "a", "img", "table", "thead", "tbody", "tr", "th", "td",
+  "hr", "span", "div", "sup", "sub",
+]);
+const SAFE_ATTRS = {
+  a: new Set(["href", "target", "rel"]),
+  img: new Set(["src", "alt", "width", "height", "style", "class"]),
+  code: new Set(["class"]),
+  pre: new Set(["class"]),
+  span: new Set(["class", "style"]),
+  td: new Set(["colspan", "rowspan"]),
+  th: new Set(["colspan", "rowspan"]),
+};
+const UNSAFE_SCHEME_RE = /^\s*(?:j\s*a\s*v\s*a\s*s\s*c\s*r\s*i\s*p\s*t|d\s*a\s*t\s*a)\s*:/i;
+
 function sanitizeHtmlWorker(html) {
-  let safe = html;
+  const out = [];
+  let i = 0;
+  const len = html.length;
 
-  // Loop until no more dangerous patterns are found (prevents nested bypass)
-  let prev;
-  do {
-    prev = safe;
-    // Remove dangerous elements
-    safe = safe
-      .replace(/<script[\s\S]*?<\/script\s*>/gi, "")
-      .replace(/<style[\s\S]*?<\/style\s*>/gi, "")
-      .replace(/<iframe[\s\S]*?<\/iframe\s*>/gi, "")
-      .replace(/<object[\s\S]*?<\/object\s*>/gi, "")
-      .replace(/<embed[^>]*\/?>/gi, "")
-      .replace(/<form[\s\S]*?<\/form\s*>/gi, "")
-      .replace(/<input[^>]*\/?>/gi, "")
-      .replace(/<svg[\s\S]*?<\/svg\s*>/gi, "");
-    // Remove orphaned opening tags for dangerous elements
-    safe = safe.replace(/<(?:script|style|iframe|object|embed|form|input|svg)\b[^>]*>/gi, "");
-    // Remove on* event attributes (loop handles re-formed patterns)
-    safe = safe.replace(/\s+on\w+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, "");
-  } while (safe !== prev);
+  while (i < len) {
+    const ltIdx = html.indexOf("<", i);
+    if (ltIdx === -1) {
+      // No more tags — emit remaining text as-is
+      out.push(html.slice(i));
+      break;
+    }
+    // Emit text before the tag
+    if (ltIdx > i) out.push(html.slice(i, ltIdx));
 
-  // Remove dangerous URL schemes (handles whitespace/entity obfuscation)
-  safe = safe.replace(
-    /(href|src)\s*=\s*(["'])\s*(?:\s*(?:&#\d+;|&#x[0-9a-f]+;)?)*j\s*a\s*v\s*a\s*s\s*c\s*r\s*i\s*p\s*t\s*:/gi,
-    '$1=$2'
-  );
-  safe = safe.replace(
-    /(href|src)\s*=\s*(["'])\s*(?:\s*(?:&#\d+;|&#x[0-9a-f]+;)?)*d\s*a\s*t\s*a\s*:/gi,
-    '$1=$2'
-  );
+    // Find the end of this tag
+    const gtIdx = html.indexOf(">", ltIdx);
+    if (gtIdx === -1) {
+      // Unterminated tag — emit as escaped text
+      out.push(escapeHtml(html.slice(ltIdx)));
+      break;
+    }
 
-  // Force target="_blank" rel="noopener noreferrer" on <a> tags
-  safe = safe.replace(/<a\s/gi, '<a target="_blank" rel="noopener noreferrer" ');
-  return safe;
+    const fullTag = html.slice(ltIdx, gtIdx + 1);
+    const inner = fullTag.slice(1, -1).trim(); // content between < and >
+
+    // Skip comments and CDATA
+    if (inner.startsWith("!") || inner.startsWith("?")) {
+      i = gtIdx + 1;
+      continue;
+    }
+
+    // Determine if closing tag
+    const isClosing = inner.startsWith("/");
+    const tagContent = isClosing ? inner.slice(1).trim() : inner;
+
+    // Extract tag name (first word)
+    const tagNameMatch = tagContent.match(/^([a-zA-Z][a-zA-Z0-9]*)/);
+    if (!tagNameMatch) {
+      // Not a valid tag — escape and emit
+      out.push(escapeHtml(fullTag));
+      i = gtIdx + 1;
+      continue;
+    }
+
+    const tagName = tagNameMatch[1].toLowerCase();
+
+    if (!SAFE_TAGS.has(tagName)) {
+      // Disallowed tag — skip entirely (don't emit)
+      i = gtIdx + 1;
+      continue;
+    }
+
+    if (isClosing) {
+      out.push(`</${tagName}>`);
+      i = gtIdx + 1;
+      continue;
+    }
+
+    // Self-closing check
+    const isSelfClose = inner.endsWith("/") || tagName === "br" || tagName === "hr" || tagName === "img" || tagName === "embed";
+
+    // Parse and filter attributes
+    const attrsStr = tagContent.slice(tagNameMatch[0].length);
+    const allowedSet = SAFE_ATTRS[tagName] || new Set();
+    const safeAttrs = [];
+    const attrRe = /([a-zA-Z][\w-]*)\s*(?:=\s*(?:"([^"]*)"|'([^']*)'|(\S+)))?/g;
+    let attrMatch;
+    while ((attrMatch = attrRe.exec(attrsStr)) !== null) {
+      const attrName = attrMatch[1].toLowerCase();
+      const attrVal = attrMatch[2] ?? attrMatch[3] ?? attrMatch[4] ?? "";
+      if (!allowedSet.has(attrName)) continue;
+      // Block dangerous URL schemes in href/src
+      if ((attrName === "href" || attrName === "src") && UNSAFE_SCHEME_RE.test(attrVal)) continue;
+      safeAttrs.push(`${attrName}="${attrVal}"`);
+    }
+
+    // Force safe attrs on <a> tags
+    if (tagName === "a") {
+      safeAttrs.push('target="_blank"', 'rel="noopener noreferrer"');
+    }
+
+    const attrStr = safeAttrs.length > 0 ? " " + safeAttrs.join(" ") : "";
+    out.push(isSelfClose ? `<${tagName}${attrStr} />` : `<${tagName}${attrStr}>`);
+    i = gtIdx + 1;
+  }
+
+  return out.join("");
 }
 
 // ── Block-level markdown → HTML ──

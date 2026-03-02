@@ -71,8 +71,9 @@
 
     async function sendMessageStreaming(text, files = []) {
       const utils = root.utils || {};
-      const escapeHtml = utils.escapeHtml || ((s) => s);
       const formatText = utils.formatText || ((s) => s);
+      const renderSafe = utils.renderSafe || ((el, t) => { el.textContent = ""; el.textContent = formatText(t); });
+      const renderSafeHtml = utils.renderSafeHtml || ((el, h) => { el.textContent = h; });
       const debugLog = utils.debugLog || console.log;
 
       const sid = await ensureSession();
@@ -110,7 +111,7 @@
 
           // HTML content or first render or structural markdown → full rebuild
           if (isHtml || lastRenderedLength === 0 || STRUCTURAL_MD.test(delta)) {
-            bubble.innerHTML = formatText(content);
+            renderSafe(bubble, content);
             if (deferredRebuild) { clearTimeout(deferredRebuild); deferredRebuild = null; }
           } else if (delta) {
             // Fast path: plain text delta → append text node directly
@@ -119,7 +120,7 @@
             if (deferredRebuild) clearTimeout(deferredRebuild);
             deferredRebuild = setTimeout(() => {
               deferredRebuild = null;
-              if (bubble) bubble.innerHTML = formatText(content);
+              if (bubble) renderSafe(bubble, content);
             }, 150);
           }
 
@@ -153,7 +154,7 @@
               content = evtData.content;
               // Immediate render for final message (ensures complete content shown)
               if (pendingRender) cancelAnimationFrame(pendingRender);
-              bubble.innerHTML = formatText(content);
+              renderSafe(bubble, content);
               utils.scrollToBottom?.();
             }
             if (evt.type === "tool.execution_start") {
@@ -181,7 +182,7 @@
             if (evt.type === "session.error") {
               const errMsg = evtData.message || "Session error";
               content += `\n⚠ ${errMsg}`;
-              bubble.innerHTML = formatText(content);
+              renderSafe(bubble, content);
               if (currentToolCard) updateToolCallCard(currentToolCard, "error", errMsg);
             }
 
@@ -219,7 +220,7 @@
             }
             const formatTextAsync = utils.formatTextAsync || ((s) => Promise.resolve(formatText(s)));
             formatTextAsync(content).then((html) => {
-              if (bubble && html) bubble.innerHTML = html;
+              if (bubble && html) renderSafeHtml(bubble, html);
               const streamEl = document.getElementById("streaming-msg");
               if (streamEl) streamEl.removeAttribute("id");
               pushChatHistory({ role: "bot", content });
@@ -237,7 +238,11 @@
             getToolCalls().forEach((tc) => { if (tc.status === "running") { tc.status = "error"; tc.endedAt = Date.now(); } });
             if (!bubble) bubble = createStreamingBotMessage();
             const errText = msg.error || msg.message || localizeRuntimeMessage("串流錯誤");
-            bubble.innerHTML = `<span style="color:var(--error)">⚠ ${escapeHtml(errText)}</span>`;
+            bubble.textContent = "";
+            const errSpan = document.createElement("span");
+            errSpan.style.color = "var(--error)";
+            errSpan.textContent = `⚠ ${errText}`;
+            bubble.appendChild(errSpan);
             const streamEl = document.getElementById("streaming-msg");
             if (streamEl) streamEl.removeAttribute("id");
             pushChatHistory({ role: "bot", content: errText });

@@ -173,9 +173,9 @@
       // Use DocumentFragment — avoids re-serialising through innerHTML (#12).
       element.textContent = "";
       element.appendChild(sanitizeToFragment(formattedText || ""));
-    } else if (typeof utils.sanitizeHtml === "function") {
-      // Fallback: string-based sanitizer.
-      element.innerHTML = utils.sanitizeHtml(formattedText || "");
+    } else if (typeof utils.renderSafeHtml === "function") {
+      // Fallback: parse HTML string via DOMParser → fragment (no innerHTML chain).
+      utils.renderSafeHtml(element, formattedText || "");
     } else {
       // Last resort: treat as plain text to avoid interpreting HTML.
       element.textContent = formattedText || "";
@@ -656,8 +656,8 @@
 
   async function sendMessageStreaming(text, files = []) {
     const utils = root.utils || {};
-    const escapeHtml = utils.escapeHtml || ((s) => s);
     const formatText = utils.formatText || ((s) => s);
+    const renderSafe = utils.renderSafe || ((el, t) => { el.textContent = ""; el.textContent = formatText(t); });
     const debugLog = utils.debugLog || console.log;
 
     const sid = await ensureSession();
@@ -748,13 +748,13 @@
           if (evt.type === "assistant.message_delta" && (evtData.deltaContent || evtData.content)) {
               showIntentBar(localizeRuntimeMessage("生成回覆中..."), "✍️");
             content += evtData.deltaContent || evtData.content;
-            bubble.innerHTML = formatText(content);
+            renderSafe(bubble, content);
             utils.scrollToBottom?.();
           }
           if (evt.type === "assistant.message" && evtData.content) {
               showIntentBar(localizeRuntimeMessage("整理回覆中..."), "✍️");
             content = evtData.content;
-            bubble.innerHTML = formatText(content);
+            renderSafe(bubble, content);
             utils.scrollToBottom?.();
           }
           if (evt.type === "tool.execution_start") {
@@ -840,7 +840,7 @@
           if (evt.type === "session.error") {
             const errMsg = evtData.message || "Session error";
             content += `\n⚠ ${errMsg}`;
-            bubble.innerHTML = formatText(content);
+            renderSafe(bubble, content);
             if (currentToolCard) updateToolCallCard(currentToolCard, "error", errMsg);
             toolCallStats.error += 1;
             toolCallStats.running = Math.max(0, toolCallStats.running - 1);
@@ -899,11 +899,11 @@
               const final = msg.data?.content || msg.data?.text || "";
               if (final) {
                 content = formatNewsResponse(final);
-                bubble.innerHTML = formatText(content);
+                renderSafe(bubble, content);
               }
             } else {
               content = formatNewsResponse(content);
-              bubble.innerHTML = formatText(content);
+              renderSafe(bubble, content);
             }
             const streamEl = document.getElementById("streaming-msg");
             if (streamEl) streamEl.removeAttribute("id");
@@ -940,7 +940,11 @@
             updateToolCallsSummary(toolSummaryEl, toolCallStats);
             if (!bubble) bubble = createStreamingBotMessage();
             const errText = msg.error || msg.message || localizeRuntimeMessage("串流錯誤");
-            bubble.innerHTML = `<span style="color:var(--error)">⚠ ${escapeHtml(errText)}</span>`;
+            bubble.textContent = "";
+            const errSpan = document.createElement("span");
+            errSpan.style.color = "var(--error)";
+            errSpan.textContent = `⚠ ${errText}`;
+            bubble.appendChild(errSpan);
             const streamEl = document.getElementById("streaming-msg");
             if (streamEl) streamEl.removeAttribute("id");
             pushChatHistory({ role: "bot", content: errText });
