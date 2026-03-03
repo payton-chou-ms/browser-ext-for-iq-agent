@@ -65,6 +65,7 @@ export default [
         ...globals.webextensions,
         chrome: "readonly",
         AchievementEngine: "writable",
+        DOMPurify: "readonly",
       },
     },
     rules: {
@@ -117,6 +118,7 @@ export default [
       "**/.venv/",
       ".github/skills/**/.venv/",
       "src/achievement-engine.js",
+      "src/lib/dompurify.min.js",
     ],
   },
 ];

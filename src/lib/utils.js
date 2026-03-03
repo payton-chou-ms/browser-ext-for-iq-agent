@@ -63,10 +63,47 @@
     return parsed;
   }
 
+  // ── DOMPurify configuration ──
+  // Uses DOMPurify for industry-standard HTML sanitization with our allowed tags/attrs
+  const DOMPURIFY_CONFIG = {
+    ALLOWED_TAGS: [
+      "p", "br", "strong", "b", "em", "i", "u", "s", "del",
+      "code", "pre", "blockquote",
+      "ul", "ol", "li",
+      "h1", "h2", "h3", "h4", "h5", "h6",
+      "a", "img",
+      "table", "thead", "tbody", "tr", "th", "td",
+      "hr", "span", "div", "sup", "sub",
+    ],
+    ALLOWED_ATTR: [
+      "href", "target", "rel",
+      "src", "alt", "width", "height", "style", "class",
+      "colspan", "rowspan",
+    ],
+    // Force all links to open in new tab
+    ADD_ATTR: ["target"],
+    // Return DOM instead of string for efficient fragment creation
+    RETURN_DOM: true,
+    RETURN_DOM_FRAGMENT: false,
+    // Ensure links are safe
+    ALLOW_ARIA_ATTR: false,
+    ALLOW_DATA_ATTR: false,
+  };
+
+  // Hook to force safe link attributes on all anchors
+  if (typeof DOMPurify !== "undefined") {
+    DOMPurify.addHook("afterSanitizeAttributes", (node) => {
+      if (node.tagName === "A") {
+        node.setAttribute("target", "_blank");
+        node.setAttribute("rel", "noopener noreferrer");
+      }
+    });
+  }
+
   // Detect whether content is already HTML (has block-level tags)
   const HTML_DETECT_RE = /<(?:p|div|ul|ol|li|h[1-6]|table|tr|td|th|blockquote|pre|br\s*\/?)(?:\s[^>]*)?>\s*/i;
 
-  // ── Shared sanitization constants ──
+  // ── Legacy sanitization constants (kept for cleanNode fallback) ──
   const ALLOWED_TAGS = new Set([
     "p", "br", "strong", "b", "em", "i", "u", "s", "del",
     "code", "pre", "blockquote",
@@ -150,26 +187,27 @@
   }
 
   /**
-   * SECURITY: Parse HTML and sanitize via strict allowlist.
+   * SECURITY: Parse HTML and sanitize using DOMPurify (industry standard).
    * Returns the sanitized document body element.
    * All untrusted HTML MUST go through this function before DOM insertion.
    *
    * Sanitization includes:
    * - Removing all tags not in ALLOWED_TAGS
-   * - Removing all attributes not in ALLOWED_ATTRS
+   * - Removing all attributes not in ALLOWED_ATTR
    * - Blocking javascript:/data: URLs in href/src
    * - Forcing target="_blank" rel="noopener noreferrer" on links
-   *
-   * @security This is an allowlist-based HTML sanitizer. The cleanNode() call below
-   *           removes ALL elements not in a strict allowlist before the body is returned.
-   *           CodeQL alert js/xss-through-dom is a false positive for this pattern.
    *
    * @param {string} html - Untrusted HTML string
    * @returns {HTMLElement} - Sanitized body element (children are safe for DOM insertion)
    */
   function parseAndSanitize(html) {
-    const doc = new DOMParser().parseFromString(String(html ?? ""), "text/html"); // nosec: sanitized by cleanNode below
-    cleanNode(doc.body); // SECURITY: Strict allowlist sanitization
+    // Use DOMPurify if available (loaded in sidebar.html), fallback to cleanNode
+    if (typeof DOMPurify !== "undefined") {
+      return DOMPurify.sanitize(String(html ?? ""), DOMPURIFY_CONFIG);
+    }
+    // Fallback for environments without DOMPurify (e.g., unit tests)
+    const doc = new DOMParser().parseFromString(String(html ?? ""), "text/html");
+    cleanNode(doc.body);
     return doc.body;
   }
 
@@ -180,7 +218,9 @@
    * path uses sanitizeToFragment() to avoid DOM-text-reinterpreted-as-HTML.
    */
   function sanitizeHtml(html) {
-    return parseAndSanitize(html).innerHTML;
+    const result = parseAndSanitize(html);
+    // DOMPurify returns a body element, cleanNode fallback returns body element
+    return result.innerHTML || "";
   }
 
   /**
