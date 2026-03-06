@@ -164,29 +164,20 @@
     "The user's current browser tab context is provided in <browser_context> tags with each message.",
   ].join(" ");
 
-  // Helper to safely set message content, avoiding raw innerHTML on untrusted text.
-  function setSafeContent(element, formattedText) {
+  // Helper to safely render message content from raw text/markdown/HTML.
+  function setSafeContent(element, rawText) {
     const utils = root.utils || {};
-    const sanitizeToFragment = utils.sanitizeToFragment;
+    const renderSafe = utils.renderSafe;
 
-    if (typeof sanitizeToFragment === "function") {
-      // Use DocumentFragment — avoids re-serialising through innerHTML (#12).
-      element.textContent = "";
-      element.appendChild(sanitizeToFragment(formattedText || ""));
-    } else if (typeof utils.renderSafeHtml === "function") {
-      // Fallback: parse HTML string via DOMParser → fragment (no innerHTML chain).
-      utils.renderSafeHtml(element, formattedText || "");
+    if (typeof renderSafe === "function") {
+      renderSafe(element, rawText || "");
     } else {
-      // Last resort: treat as plain text to avoid interpreting HTML.
-      element.textContent = formattedText || "";
+      element.textContent = rawText || "";
     }
   }
 
   // ── DOM Helpers ──
   function createMessage(role, text) {
-    const utils = root.utils || {};
-    const formatText = utils.formatText || ((s) => s);
-
     const div = document.createElement("div");
     div.className = `message ${role}`;
 
@@ -200,8 +191,7 @@
     // Content wrapper
     const content = document.createElement("div");
     content.className = "msg-content";
-    const formatted = formatText(role === "bot" ? formatNewsResponse(text) : text);
-    setSafeContent(content, formatted);
+    setSafeContent(content, role === "bot" ? formatNewsResponse(text) : text);
     bubble.appendChild(content);
 
     // Add action bar for bot messages

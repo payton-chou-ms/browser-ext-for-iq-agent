@@ -110,8 +110,8 @@
       if (tab.status === "running" && streamingContent) {
         const streamBubble = CHAT.createStreamingBotMessage?.();
         if (streamBubble) {
-          const formatText = UTILS.formatText || ((s) => s);
-          streamBubble.innerHTML = formatText(streamingContent);
+          const renderSafe = UTILS.renderSafe || ((el, t) => { el.textContent = t; });
+          renderSafe(streamBubble, streamingContent);
         }
       } else if (tab.status === "running") {
         // Tab is running but no content yet - show typing indicator

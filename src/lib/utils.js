@@ -208,9 +208,10 @@
     if (typeof DOMPurify !== "undefined") {
       return DOMPurify.sanitize(String(html ?? ""), DOMPURIFY_CONFIG);
     }
-    // Fallback for environments without DOMPurify (e.g., unit tests)
-    const doc = new DOMParser().parseFromString(String(html ?? ""), "text/html");
-    cleanNode(doc.body);
+    // Fail closed when DOMPurify is unavailable: render HTML-looking input as plain text.
+    // This avoids reparsing untrusted HTML through DOMParser, which is what CodeQL flags.
+    const doc = document.implementation.createHTMLDocument("");
+    doc.body.textContent = String(html ?? "");
     return doc.body;
   }
 
@@ -223,10 +224,7 @@
     if (typeof DOMPurify !== "undefined") {
       return DOMPurify.sanitize(String(html ?? ""), DOMPURIFY_STRING_CONFIG);
     }
-    // Fallback: parse + allowlist-clean + serialise
-    const doc = new DOMParser().parseFromString(String(html ?? ""), "text/html");
-    cleanNode(doc.body);
-    return doc.body.innerHTML || "";
+    return escapeHtml(String(html ?? ""));
   }
 
   /**

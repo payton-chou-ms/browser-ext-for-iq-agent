@@ -82,4 +82,12 @@ describe("utils", () => {
     expect(html).toContain('<a href="https://example.com/docs" target="_blank" rel="noopener noreferrer">docs</a>');
     expect(html).toContain('<pre><code class="language-js">const x = 1;</code></pre>');
   });
+
+  test("formatText fails closed for raw html when DOMPurify is unavailable", () => {
+    const html = window.IQ.utils.formatText('<p>Hello</p><img src=x onerror=alert(1)>');
+
+    expect(html).toContain("&lt;p&gt;Hello&lt;/p&gt;");
+    expect(html).toContain("&lt;img src=x onerror=alert(1)&gt;");
+    expect(html).not.toContain("<img src=x onerror=alert(1)>");
+  });
 });
