@@ -90,6 +90,9 @@
     ALLOW_DATA_ATTR: false,
   };
 
+  // String-returning variant — avoids DOM→innerHTML round-trip (CodeQL js/xss-through-dom)
+  const DOMPURIFY_STRING_CONFIG = { ...DOMPURIFY_CONFIG, RETURN_DOM: false };
+
   // Hook to force safe link attributes on all anchors
   if (typeof DOMPurify !== "undefined") {
     DOMPurify.addHook("afterSanitizeAttributes", (node) => {
@@ -212,15 +215,18 @@
   }
 
   /**
-   * Sanitize HTML — returns a string.
-   * INTERNAL: only used by formatText for the markdown→HTML path where the
-   * source string is already escaped by escapeHtml(). The HTML-passthrough
-   * path uses sanitizeToFragment() to avoid DOM-text-reinterpreted-as-HTML.
+   * Sanitize HTML — returns a sanitized string.
+   * Uses DOMPurify in string mode when available, avoiding any
+   * DOM→innerHTML round-trip (CodeQL js/xss-through-dom).
    */
   function sanitizeHtml(html) {
-    const result = parseAndSanitize(html);
-    // DOMPurify returns a body element, cleanNode fallback returns body element
-    return result.innerHTML || "";
+    if (typeof DOMPurify !== "undefined") {
+      return DOMPurify.sanitize(String(html ?? ""), DOMPURIFY_STRING_CONFIG);
+    }
+    // Fallback: parse + allowlist-clean + serialise
+    const doc = new DOMParser().parseFromString(String(html ?? ""), "text/html");
+    cleanNode(doc.body);
+    return doc.body.innerHTML || "";
   }
 
   /**
@@ -239,15 +245,8 @@
   function formatText(text) {
     const raw = String(text ?? "");
     // If content is already HTML, sanitize via allowlist.
-    // Uses parseAndSanitize to ensure safe DOM handling.
     if (HTML_DETECT_RE.test(raw)) {
-      const body = parseAndSanitize(raw);
-      // Serialize via temporary element to preserve sanitization guarantees
-      const tmp = document.createElement("div");
-      while (body.firstChild) {
-        tmp.appendChild(document.adoptNode(body.firstChild));
-      }
-      return tmp.innerHTML;
+      return sanitizeHtml(raw);
     }
     const safeText = escapeHtml(raw).replace(/\r\n?/g, "\n");
     const lines = safeText.split("\n");
