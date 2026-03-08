@@ -14,6 +14,8 @@ import { registerFoundryRoutes } from "./routes/foundry.js";
 import { registerProactiveRoutes } from "./routes/proactive.js";
 import { registerWorkiqRoutes } from "./routes/workiq.js";
 import { readBody, readJsonBody as readJsonBodyInternal } from "./lib/proxy-body.js";
+import { normalizeProactiveResult } from "./lib/proactive-result.js";
+import { resolveProactiveWorkIqResult } from "./lib/proactive-workiq.js";
 
 const args = process.argv.slice(2);
 function getArg(name: string, fallback: string) {
@@ -259,36 +261,7 @@ let proactiveConfig: ProactiveConfig = {
   workiqPrompt: "",
   model: process.env.PROACTIVE_MODEL || "gpt-4.1",
 };
-
-function extractJson(text: string): Record<string, unknown> {
-  if (!text) return {};
-  try {
-    return JSON.parse(text);
-  } catch {
-    // not valid JSON — try other formats
-  }
-
-  const codeBlockMatch = text.match(/```(?:json)?\s*\n?([\s\S]*?)\n?```/);
-  if (codeBlockMatch) {
-    try {
-      return JSON.parse(codeBlockMatch[1]!);
-    } catch {
-      // code block content not valid JSON
-    }
-  }
-
-  const start = text.indexOf("{");
-  const end = text.lastIndexOf("}");
-  if (start !== -1 && end > start) {
-    try {
-      return JSON.parse(text.slice(start, end + 1));
-    } catch {
-      // extracted substring not valid JSON
-    }
-  }
-
-  return { _raw: text, _parseError: true };
-}
+const WORKIQ_SKILL_COMMAND = "/workiq:workiq";
 
 function withWorkIqPrompt(lines: string[]): string[] {
   const customPrompt = (proactiveConfig.workiqPrompt || "").trim();
@@ -308,55 +281,6 @@ function withPromptOverride(lines: string[], promptOverride?: string): string[] 
     "If no related items are found, return valid JSON with empty arrays/objects following the required schema.",
     "Do NOT fill unrelated generic items just to satisfy list length.",
   ];
-}
-
-function tokenizePromptQuery(promptOverride = ""): string[] {
-  const stopWords = new Set([
-    "give", "me", "the", "a", "an", "and", "or", "to", "for", "of", "in", "on", "at", "is", "are",
-    "please", "show", "list", "find", "with", "about", "just", "only",
-  ]);
-  return (promptOverride || "")
-    .toLowerCase()
-    .split(/[^a-z0-9\u4e00-\u9fff_-]+/)
-    .map((token) => token.trim())
-    .filter((token) => token.length >= 2 && !stopWords.has(token));
-}
-
-function includesAnyQueryToken(value: unknown, tokens: string[]): boolean {
-  if (!Array.isArray(tokens) || tokens.length === 0) return true;
-  const text = String(value ?? "").toLowerCase();
-  return tokens.some((token) => text.includes(token));
-}
-
-function filterBriefingByPrompt(data: Record<string, unknown>, promptOverride = ""): Record<string, unknown> {
-  const tokens = tokenizePromptQuery(promptOverride);
-  if (tokens.length === 0) return data;
-
-  const filterItems = (items: unknown[]): unknown[] =>
-    items.filter((item) => includesAnyQueryToken(JSON.stringify(item), tokens));
-
-  const emails = filterItems(Array.isArray(data.emails) ? data.emails : []);
-  const meetings = filterItems(Array.isArray(data.meetings) ? data.meetings : []);
-  const tasks = filterItems(Array.isArray(data.tasks) ? data.tasks : []);
-  const mentions = filterItems(Array.isArray(data.mentions) ? data.mentions : []);
-
-  if (emails.length || meetings.length || tasks.length || mentions.length) {
-    return {
-      ...data,
-      emails,
-      meetings,
-      tasks,
-      mentions,
-    };
-  }
-
-  return {
-    emails: [],
-    meetings: [],
-    tasks: [],
-    mentions: [],
-    text: `No relevant briefing items found for query: ${promptOverride}`,
-  };
 }
 
 function invalidateProactiveSession(reason = "") {
@@ -381,8 +305,8 @@ async function ensureProactiveSession() {
         "You are a Proactive Agent for IQ Copilot. Your job is to analyze the user's M365 data (Email, Calendar, Tasks, Teams) and generate structured insights.",
         "ALWAYS respond with valid JSON only. No markdown, no explanation outside the JSON.",
         "You have access to WorkIQ / M365 Graph tools. Use them to fetch real data when available.",
-        "If tools are not available, generate realistic mock data so the UI can still demonstrate the feature.",
-        "When generating mock data, make it realistic — use real-looking names, dates within the next 7 days, and plausible subjects.",
+        "Never fabricate, simulate, or invent M365 data.",
+        "If live tools or tenant data are unavailable, return empty arrays or empty objects matching the requested schema, and include a short text field that says live data was unavailable.",
         customPromptLine,
       ].join(" "),
     },
@@ -415,75 +339,102 @@ async function runProactiveBriefing(promptOverride = "") {
   if (hasPromptOverride) {
     invalidateProactiveSession("schedule card prompt override");
   }
-  const prompt = withPromptOverride(withWorkIqPrompt([
+  const promptBody = withPromptOverride(withWorkIqPrompt([
     "Generate a daily briefing for today. Return JSON with this exact structure:",
     "{",
     '  "emails": [{ "from": "sender name", "subject": "subject line", "age": "2h ago", "priority": "high|medium|low", "snippet": "preview text..." }],',
     '  "meetings": [{ "time": "09:00", "title": "meeting title", "attendees": ["name1", "name2"], "location": "room/link" }],',
     '  "tasks": [{ "title": "task name", "due": "today|tomorrow|3 days", "status": "pending|overdue", "source": "Planner|To-Do" }],',
-    '  "mentions": [{ "from": "person", "channel": "team/channel", "message": "snippet...", "time": "1h ago" }]',
+    '  "mentions": [{ "from": "person", "channel": "team/channel", "message": "snippet...", "time": "1h ago" }],',
+    '  "text": "optional short note"',
     "}",
     hasPromptOverride
       ? "If schedule-card query focus is provided, return only query-relevant items. If none are relevant, return empty arrays and set a short text field explaining no match."
-      : "Use WorkIQ tools to fetch real data if available. If not, generate 3-5 realistic items per category based on a typical enterprise work day.",
+      : "Use WorkIQ tools to fetch real data if available. If unavailable, do not invent results; return empty arrays and set text explaining live M365 data was unavailable.",
   ]), promptOverride).join("\n");
+  const prompt = `${WORKIQ_SKILL_COMMAND} ${promptBody}`;
 
-  const result = await sendProactivePrompt(prompt);
-  const content = result?.data?.content ?? "";
-  log("PROACTIVE", `Briefing response: ${content.slice(0, 200)}...`);
-  const parsed = extractJson(content);
-  const normalized = hasPromptOverride ? filterBriefingByPrompt(parsed, promptOverride) : parsed;
-  return { ok: true, data: normalized, raw: content };
+  const resolved = await resolveProactiveWorkIqResult({
+    kind: "briefing",
+    prompt,
+    promptOverride,
+    sendPrompt: sendProactivePrompt,
+    execFile,
+    log,
+  });
+  log("PROACTIVE", `Briefing response: ${resolved.content.slice(0, 200)}...`);
+  return { ok: true, data: resolved.data, raw: resolved.content };
 }
 
 async function runProactiveDeadlines(promptOverride = "") {
-  const prompt = withPromptOverride(withWorkIqPrompt([
+  const promptBody = withPromptOverride(withWorkIqPrompt([
     "Scan the user's email and calendar for upcoming deadlines, due dates, expense reports, and submission dates. Return JSON:",
     "{",
-    '  "deadlines": [{ "title": "what is due", "date": "YYYY-MM-DD", "daysLeft": number, "source": "email|calendar|task", "sourceDetail": "from: sender / event name", "urgency": "critical|warning|normal", "snippet": "context..." }]',
+    '  "deadlines": [{ "title": "what is due", "date": "YYYY-MM-DD", "daysLeft": number, "source": "email|calendar|task", "sourceDetail": "from: sender / event name", "urgency": "critical|warning|normal", "snippet": "context..." }],',
+    '  "text": "optional short note"',
     "}",
     "Include expense reports, approvals, submissions, reviews, and any time-sensitive items.",
     "Sort by daysLeft ascending (most urgent first).",
-    "Use WorkIQ tools to fetch real data if available. If not, generate 4-6 realistic deadlines within the next 14 days.",
+    "Use WorkIQ tools to fetch real data if available. If unavailable, do not invent deadlines; return an empty deadlines array and set text explaining live M365 data was unavailable.",
   ]), promptOverride).join("\n");
+  const prompt = `${WORKIQ_SKILL_COMMAND} ${promptBody}`;
 
-  const result = await sendProactivePrompt(prompt);
-  const content = result?.data?.content ?? "";
-  return { ok: true, data: extractJson(content), raw: content };
+  const resolved = await resolveProactiveWorkIqResult({
+    kind: "deadlines",
+    prompt,
+    sendPrompt: sendProactivePrompt,
+    execFile,
+    log,
+  });
+  return { ok: true, data: resolved.data, raw: resolved.content };
 }
 
 async function runProactiveGhosts(promptOverride = "") {
-  const prompt = withPromptOverride(withWorkIqPrompt([
+  const promptBody = withPromptOverride(withWorkIqPrompt([
     "Find emails in the user's inbox that they haven't replied to yet and probably should. Return JSON:",
     "{",
-    '  "ghosts": [{ "from": "sender name", "subject": "email subject", "receivedAt": "2 days ago", "priority": "critical|high|medium", "reason": "客戶信件|主管要求|內部請求|HR|需要確認", "snippet": "preview of the email..." }]',
+    '  "ghosts": [{ "from": "sender name", "subject": "email subject", "receivedAt": "2 days ago", "priority": "critical|high|medium", "reason": "客戶信件|主管要求|內部請求|HR|需要確認", "snippet": "preview of the email..." }],',
+    '  "text": "optional short note"',
     "}",
     "Prioritize: customer emails > manager requests > internal requests > HR > FYI.",
     "Only include emails older than 4 hours that likely need a response.",
-    "Use WorkIQ tools to fetch real data if available. If not, generate 3-5 realistic unreplied emails.",
+    "Use WorkIQ tools to fetch real data if available. If unavailable, do not invent unreplied emails; return an empty ghosts array and set text explaining live M365 data was unavailable.",
   ]), promptOverride).join("\n");
+  const prompt = `${WORKIQ_SKILL_COMMAND} ${promptBody}`;
 
-  const result = await sendProactivePrompt(prompt);
-  const content = result?.data?.content ?? "";
-  return { ok: true, data: extractJson(content), raw: content };
+  const resolved = await resolveProactiveWorkIqResult({
+    kind: "ghosts",
+    prompt,
+    sendPrompt: sendProactivePrompt,
+    execFile,
+    log,
+  });
+  return { ok: true, data: resolved.data, raw: resolved.content };
 }
 
 async function runProactiveMeetingPrep(promptOverride = "") {
-  const prompt = withPromptOverride(withWorkIqPrompt([
+  const promptBody = withPromptOverride(withWorkIqPrompt([
     "Find the user's next upcoming meeting (within 2 hours or the next one today) and prepare a briefing. Return JSON:",
     "{",
     '  "meeting": { "title": "meeting name", "time": "HH:MM", "duration": "30 min", "location": "room/link" },',
     '  "attendees": [{ "name": "person name", "role": "title/department", "notes": "relevant context" }],',
     '  "relatedDocs": [{ "name": "doc name", "type": "pptx|docx|xlsx", "url": "sharepoint url", "relevance": "why this doc is relevant" }],',
     '  "recentChats": [{ "channel": "team/channel", "summary": "what was discussed", "time": "yesterday" }],',
-    '  "actionItems": [{ "item": "what you promised", "from": "which meeting", "date": "when" }]',
+    '  "actionItems": [{ "item": "what you promised", "from": "which meeting", "date": "when" }],',
+    '  "text": "optional short note"',
     "}",
-    "Use WorkIQ tools to fetch real data if available. If not, generate realistic meeting prep data.",
+    "Use WorkIQ tools to fetch real data if available. If unavailable, do not invent meeting prep data; return empty arrays/objects and set text explaining live M365 data was unavailable.",
   ]), promptOverride).join("\n");
+  const prompt = `${WORKIQ_SKILL_COMMAND} ${promptBody}`;
 
-  const result = await sendProactivePrompt(prompt);
-  const content = result?.data?.content ?? "";
-  return { ok: true, data: extractJson(content), raw: content };
+  const resolved = await resolveProactiveWorkIqResult({
+    kind: "meeting-prep",
+    prompt,
+    sendPrompt: sendProactivePrompt,
+    execFile,
+    log,
+  });
+  return { ok: true, data: resolved.data, raw: resolved.content };
 }
 
 function getFoundryState() {
@@ -568,6 +519,8 @@ registerWorkiqRoutes(routes, {
   jsonRes,
   readJsonBody,
   log,
+  execFile,
+  loadMcpConfigFromDisk,
 });
 
 // Serve local images generated by gen-img skill

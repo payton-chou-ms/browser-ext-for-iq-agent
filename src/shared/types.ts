@@ -248,4 +248,6 @@ export interface WorkiqRouteDeps {
   jsonRes: JsonResFn;
   readJsonBody: ReadJsonBodyFn;
   log: LogFn;
+  execFile: typeof child_process.execFile;
+  loadMcpConfigFromDisk: () => { source: string | null; config: { mcpServers?: Record<string, unknown> } };
 }

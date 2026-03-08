@@ -45,6 +45,38 @@
       { value: 6, label: "六" },
     ];
 
+    function updateDataAvailabilityStatus() {
+      const proactiveState = stateApi.proactiveState || {};
+      const sections = [
+        proactiveState.briefing,
+        proactiveState.deadlines,
+        proactiveState.ghosts,
+        proactiveState.meetingPrep,
+      ].filter((section) => section && typeof section === "object");
+
+      const unavailableSections = sections.filter((section) => section.unavailable === true);
+      if (unavailableSections.length > 0) {
+        const note = unavailableSections
+          .map((section) => typeof section.text === "string" ? section.text.trim() : "")
+          .find(Boolean)
+          || "Live Work IQ / M365 data is unavailable in this session. Notifications may be incomplete.";
+        renderApi.renderDataAvailabilityStatus(note, false);
+        return;
+      }
+
+      const hasAnyData = sections.some((section) => {
+        if (!section || typeof section !== "object") return false;
+        return Object.values(section).some((value) => Array.isArray(value) ? value.length > 0 : false);
+      });
+
+      if (hasAnyData) {
+        renderApi.renderDataAvailabilityStatus("Live Work IQ / M365 data loaded.", true);
+        return;
+      }
+
+      renderApi.renderDataAvailabilityStatus("", false);
+    }
+
     function normalizeScheduleCard(card) {
       const schedule = card?.schedule || {};
       const weekdaysRaw = Array.isArray(schedule.weekdays) ? schedule.weekdays : [1, 2, 3, 4, 5];
@@ -538,6 +570,7 @@
       stateApi.normalizeProactiveReadState();
       stateApi.updateNotificationBadge();
       renderApi.renderTopPriority();
+      updateDataAvailabilityStatus();
 
       const label = document.getElementById("notif-last-scan");
       if (label) updateLastScanLabel(scannedAt);
@@ -565,6 +598,7 @@
       stateApi.normalizeProactiveReadState();
       stateApi.updateNotificationBadge();
       renderApi.renderTopPriority();
+      updateDataAvailabilityStatus();
       updateLastScanLabel(ts);
       stateApi.persistState();
     }
@@ -596,6 +630,7 @@
           stateApi.normalizeProactiveReadState();
           stateApi.updateNotificationBadge();
           renderApi.renderTopPriority();
+          updateDataAvailabilityStatus();
         }
       });
     }

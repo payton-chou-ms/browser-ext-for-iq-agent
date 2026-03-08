@@ -15,6 +15,8 @@ const CONNECTION_CHECK_PERIOD_CONNECTED_MIN = 5;
 const CONNECTION_CHECK_PERIOD_DISCONNECTED_MIN = 1;
 const LAST_BROADCAST_STATE_KEY = "iq_lastBroadcastState";
 const PROACTIVE_SCHEDULES_KEY = "proactiveScheduleCards";
+const PROACTIVE_SCHEDULE_CACHE_VERSION_KEY = "proactiveScheduleCardsCacheVersion";
+const PROACTIVE_SCHEDULE_CACHE_VERSION = 2;
 const PROACTIVE_SCHEDULE_ALARM_PREFIX = "proactive-schedule-";
 // Legacy alarm names — kept for backward-compat cleanup in clearLegacyAndScheduleAlarms().
 // New system uses "proactive-schedule-*" prefix. These are never created anymore.
@@ -165,18 +167,34 @@ async function saveProactiveScheduleCards(cards) {
     prompt: typeof card?.prompt === "string" ? card.prompt : "",
     lastSummary: typeof card?.lastSummary === "string" ? card.lastSummary : "",
   }));
-  await chrome.storage.local.set({ [PROACTIVE_SCHEDULES_KEY]: proactiveScheduleCards });
+  await chrome.storage.local.set({
+    [PROACTIVE_SCHEDULES_KEY]: proactiveScheduleCards,
+    [PROACTIVE_SCHEDULE_CACHE_VERSION_KEY]: PROACTIVE_SCHEDULE_CACHE_VERSION,
+  });
 }
 
 async function loadProactiveScheduleCards() {
-  const local = await chrome.storage.local.get([PROACTIVE_SCHEDULES_KEY]);
+  const local = await chrome.storage.local.get([PROACTIVE_SCHEDULES_KEY, PROACTIVE_SCHEDULE_CACHE_VERSION_KEY]);
   const stored = Array.isArray(local?.[PROACTIVE_SCHEDULES_KEY]) ? local[PROACTIVE_SCHEDULES_KEY] : [];
+  const storedVersion = Number(local?.[PROACTIVE_SCHEDULE_CACHE_VERSION_KEY] || 0);
+
   if (stored.length === 0) {
     const defaults = createDefaultProactiveScheduleCards().map(normalizeProactiveScheduleCard);
     await saveProactiveScheduleCards(defaults);
     return defaults;
   }
-  const normalized = stored.map(normalizeProactiveScheduleCard);
+
+  const normalized = stored.map(normalizeProactiveScheduleCard).map((card) => {
+    if (storedVersion >= PROACTIVE_SCHEDULE_CACHE_VERSION) return card;
+    return {
+      ...card,
+      lastSummary: "",
+      lastResult: null,
+      lastRun: null,
+      lastStatus: "idle",
+    };
+  });
+
   await saveProactiveScheduleCards(normalized);
   return normalized;
 }

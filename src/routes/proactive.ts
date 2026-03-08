@@ -13,6 +13,27 @@ function normalizeScanSource(value: unknown): "cold-start" | "reconnect" | "alar
   return "manual";
 }
 
+function isTrustedProactiveOrigin(req: http.IncomingMessage): boolean {
+  const origin = String(req.headers?.origin || "").trim();
+  if (!origin) return true;
+
+  return /^(?:chrome-extension|edge-extension|moz-extension):\/\//i.test(origin)
+    || /^https?:\/\/(?:127\.0\.0\.1|localhost)(?::\d+)?$/i.test(origin);
+}
+
+function rejectUntrustedProactiveOrigin(
+  req: http.IncomingMessage,
+  res: http.ServerResponse,
+  jsonRes: ProactiveRouteDeps["jsonRes"],
+): boolean {
+  if (isTrustedProactiveOrigin(req)) return false;
+  jsonRes(res, 403, {
+    ok: false,
+    error: "Proactive routes only accept extension or local trusted origins.",
+  });
+  return true;
+}
+
 export function registerProactiveRoutes(routes: RouteTable, deps: ProactiveRouteDeps): void {
   const { jsonRes, readJsonBody, log, proactive } = deps;
 
@@ -42,6 +63,8 @@ export function registerProactiveRoutes(routes: RouteTable, deps: ProactiveRoute
   };
 
   routes["POST /api/proactive/briefing"] = async (req, res) => {
+    if (rejectUntrustedProactiveOrigin(req, res, jsonRes)) return;
+
     const body = await readJsonBody(req, res, { allowEmpty: true }) as { prompt?: unknown } | null;
     if (!body) return;
     log("PROACTIVE", "Generating daily briefing...");
@@ -55,6 +78,8 @@ export function registerProactiveRoutes(routes: RouteTable, deps: ProactiveRoute
   };
 
   routes["POST /api/proactive/deadlines"] = async (req, res) => {
+    if (rejectUntrustedProactiveOrigin(req, res, jsonRes)) return;
+
     const body = await readJsonBody(req, res, { allowEmpty: true }) as { prompt?: unknown } | null;
     if (!body) return;
     log("PROACTIVE", "Scanning for deadlines...");
@@ -68,6 +93,8 @@ export function registerProactiveRoutes(routes: RouteTable, deps: ProactiveRoute
   };
 
   routes["POST /api/proactive/ghosts"] = async (req, res) => {
+    if (rejectUntrustedProactiveOrigin(req, res, jsonRes)) return;
+
     const body = await readJsonBody(req, res, { allowEmpty: true }) as { prompt?: unknown } | null;
     if (!body) return;
     log("PROACTIVE", "Detecting unreplied emails...");
@@ -81,6 +108,8 @@ export function registerProactiveRoutes(routes: RouteTable, deps: ProactiveRoute
   };
 
   routes["POST /api/proactive/meeting-prep"] = async (req, res) => {
+    if (rejectUntrustedProactiveOrigin(req, res, jsonRes)) return;
+
     const body = await readJsonBody(req, res, { allowEmpty: true }) as { prompt?: unknown } | null;
     if (!body) return;
     log("PROACTIVE", "Preparing meeting context...");
@@ -94,6 +123,8 @@ export function registerProactiveRoutes(routes: RouteTable, deps: ProactiveRoute
   };
 
   routes["POST /api/proactive/scan-all"] = async (req, res) => {
+    if (rejectUntrustedProactiveOrigin(req, res, jsonRes)) return;
+
     const body = await readJsonBody(req, res, { allowEmpty: true }) as { source?: unknown } | null;
     if (!body) return;
 

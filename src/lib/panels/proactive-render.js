@@ -83,6 +83,23 @@
       if (el) el.textContent = String(count || 0);
     }
 
+    function renderDataAvailabilityStatus(message, isLive) {
+      const el = document.getElementById("notif-data-status");
+      if (!el) return;
+
+      const text = typeof message === "string" ? message.trim() : "";
+      if (!text) {
+        el.textContent = "";
+        el.style.display = "none";
+        el.classList.remove("is-live");
+        return;
+      }
+
+      el.textContent = text;
+      el.style.display = "block";
+      el.classList.toggle("is-live", Boolean(isLive));
+    }
+
     function renderBriefing(data) {
       hideSectionLoading("briefing");
       hideSectionError("briefing");
@@ -298,6 +315,9 @@
       resultContainer.className = "proactive-schedule-card-result";
 
       const agentLabel = { briefing: "晨報", deadlines: "截止日", ghosts: "未回覆", "meeting-prep": "會議準備" }[agent] || agent;
+      const resultNote = typeof resultData?.text === "string" ? resultData.text.trim() : "";
+      const unavailable = resultData?.unavailable === true;
+      const liveDataConfirmed = resultData?.liveDataConfirmed === true;
       let itemsHtml = "";
 
       const buildResultSection = (title, items) => {
@@ -375,8 +395,10 @@
       resultContainer.innerHTML = `
         <div class="proactive-schedule-card-result-header">
           <span>📊 查詢結果 (${agentLabel})</span>
+          ${liveDataConfirmed ? "" : '<span class="proactive-live-data-badge">No live data</span>'}
           <button class="proactive-schedule-card-result-toggle" data-action="toggle-card-result">收合</button>
         </div>
+        ${resultNote ? `<div class="proactive-result-note${unavailable ? "" : " is-live"}">${escapeHtml(resultNote)}</div>` : ""}
         <div class="insight-items">${itemsHtml}</div>
       `;
 
@@ -466,6 +488,7 @@
       renderGhosts,
       renderMeetingPrep,
       renderScheduleCardResult,
+      renderDataAvailabilityStatus,
       handleInsightAction,
       bindInsightSectionToggles,
       bindDelegatedEvents,
