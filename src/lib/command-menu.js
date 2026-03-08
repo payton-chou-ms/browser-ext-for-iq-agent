@@ -408,7 +408,7 @@
         });
 
         // Detect when backend "succeeds" but the model reports tool unavailability
-        const toolUnavailable = response?.content &&
+        const toolUnavailable = response?.unavailable === true || response?.content &&
           /command\s*not\s*found|tool\s*(is\s*)?(not\s*)?(available|found|installed|exposed)|cannot\s*(be\s*)?retrie/i
             .test(response.content);
 
@@ -416,15 +416,23 @@
           CHAT.addBotMessage?.(response.content);
         } else {
           // Tool not available or query failed — fall back to streaming
-          // Use explicit tool instruction to prevent model from picking foundry_agent_skill
-          const workiqPrompt = [
-            "IMPORTANT: You MUST use the workiq-ask_work_iq tool to answer this question.",
-            "Do NOT use foundry_agent_skill or any other skill — this is a Work IQ query for Microsoft 365 data.",
-            "If the workiq-ask_work_iq tool is not available, answer based on your knowledge about M365 data",
-            "(emails, calendar, Teams, OneDrive) WITHOUT calling any other tools.",
-            "",
-            `Question: ${query}`,
-          ].join("\n");
+          const workiqPrompt = toolUnavailable
+            ? [
+              "The workiq-ask_work_iq tool is unavailable in this session.",
+              "Do NOT attempt to call workiq-ask_work_iq, foundry_agent_skill, or any other external tool.",
+              "Answer using only built-in knowledge.",
+              "For Microsoft 365 requests, clearly state that you are giving guidance or search steps rather than live tenant data.",
+              "",
+              `Question: ${query}`,
+            ].join("\n")
+            : [
+              "IMPORTANT: You MUST use the workiq-ask_work_iq tool to answer this question.",
+              "Do NOT use foundry_agent_skill or any other skill — this is a Work IQ query for Microsoft 365 data.",
+              "If the workiq-ask_work_iq tool is not available, answer based on your knowledge about M365 data",
+              "(emails, calendar, Teams, OneDrive) WITHOUT calling any other tools.",
+              "",
+              `Question: ${query}`,
+            ].join("\n");
           await CHAT.sendMessageStreaming?.(workiqPrompt);
         }
       } catch {

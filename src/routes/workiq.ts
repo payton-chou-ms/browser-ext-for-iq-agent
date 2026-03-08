@@ -2,6 +2,12 @@ import type { RouteTable, WorkiqRouteDeps } from "../shared/types.js";
 import type { CopilotSession } from "@github/copilot-sdk";
 import { Schemas, type WorkiqQueryInput } from "./schemas.js";
 
+const WORKIQ_TOOL_UNAVAILABLE_RE = /(?:workiq-ask_work_iq\s+is\s+not\s+available(?:\s+in\s+this\s+session)?|work\s*iq(?:\s+tool)?\s+is\s+not\s+available(?:\s+in\s+this\s+session)?|enable\/provide\s+the\s+work\s*iq\s+tool|won['’]t\s+fabricate\s+m365\s+search\s+results|tool\s+isn['’]t\s+available\s+in\s+this\s+session)/i;
+
+export function isWorkIqToolUnavailable(content: string): boolean {
+  return WORKIQ_TOOL_UNAVAILABLE_RE.test(content);
+}
+
 export function registerWorkiqRoutes(routes: RouteTable, deps: WorkiqRouteDeps): void {
   const { ensureClient: _ensureClient, jsonRes, readJsonBody, log, getSessionOrResume, sessions } = deps;
 
@@ -68,8 +74,13 @@ export function registerWorkiqRoutes(routes: RouteTable, deps: WorkiqRouteDeps):
 
       const content = result?.data?.content ?? "";
       const messageId = result?.data?.messageId ?? null;
+      const unavailable = isWorkIqToolUnavailable(content);
 
       log("WORKIQ", `Response received (${content.length} chars)`);
+
+      if (unavailable) {
+        log("WORKIQ", "Tool reported unavailable in current session");
+      }
 
       jsonRes(res, 200, {
         ok: true,
@@ -77,6 +88,7 @@ export function registerWorkiqRoutes(routes: RouteTable, deps: WorkiqRouteDeps):
         messageId,
         query,
         toolUsed: "workiq-ask_work_iq",
+        unavailable,
       });
     } catch (err) {
       const error = err as Error;
