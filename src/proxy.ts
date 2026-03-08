@@ -14,7 +14,6 @@ import { registerFoundryRoutes } from "./routes/foundry.js";
 import { registerProactiveRoutes } from "./routes/proactive.js";
 import { registerWorkiqRoutes } from "./routes/workiq.js";
 import { readBody, readJsonBody as readJsonBodyInternal } from "./lib/proxy-body.js";
-import { normalizeProactiveResult } from "./lib/proactive-result.js";
 import { resolveProactiveWorkIqResult } from "./lib/proactive-workiq.js";
 
 const args = process.argv.slice(2);

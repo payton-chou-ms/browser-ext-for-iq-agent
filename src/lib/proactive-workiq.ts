@@ -53,37 +53,40 @@ export async function resolveProactiveWorkIqResult({
   execFile,
   log,
 }: ResolveProactiveWorkIqArgs): Promise<{ content: string; data: Record<string, unknown>; usedCliFallback: boolean }> {
-  let content = "";
-  let normalized = createUnavailableProactiveResult(kind, "Live Work IQ / M365 data is unavailable in this session.");
-  let shouldFallback = false;
-  let usedCliFallback = false;
-
   try {
     const result = await sendPrompt(prompt);
-    content = result?.data?.content ?? "";
-    normalized = normalizeProactiveResult(kind, content, promptOverride);
-    shouldFallback = !content.trim() || normalized.unavailable === true || normalized._parseError === true;
+    const content = result?.data?.content ?? "";
+    const normalized = normalizeProactiveResult(kind, content, promptOverride);
+    const shouldFallback = !content.trim() || normalized.unavailable === true || normalized._parseError === true;
+
+    if (!shouldFallback) {
+      return {
+        content,
+        data: finalizeProactiveData(normalized),
+        usedCliFallback: false,
+      };
+    }
   } catch (err) {
-    shouldFallback = true;
     log?.("WARN", `Proactive Work IQ headless path failed; trying direct CLI fallback: ${(err as Error).message}`);
   }
 
-  if (shouldFallback) {
-    try {
-      const fallbackContent = await runDirectCliPrompt(prompt, execFile);
-      if (fallbackContent.trim()) {
-        content = fallbackContent;
-        normalized = normalizeProactiveResult(kind, fallbackContent, promptOverride);
-        usedCliFallback = true;
-      }
-    } catch (err) {
-      log?.("WARN", `Proactive Work IQ direct CLI fallback failed: ${(err as Error).message}`);
+  try {
+    const fallbackContent = await runDirectCliPrompt(prompt, execFile);
+    if (fallbackContent.trim()) {
+      const normalized = normalizeProactiveResult(kind, fallbackContent, promptOverride);
+      return {
+        content: fallbackContent,
+        data: finalizeProactiveData(normalized),
+        usedCliFallback: true,
+      };
     }
+  } catch (err) {
+    log?.("WARN", `Proactive Work IQ direct CLI fallback failed: ${(err as Error).message}`);
   }
 
   return {
-    content,
-    data: finalizeProactiveData(normalized),
-    usedCliFallback,
+    content: "",
+    data: finalizeProactiveData(createUnavailableProactiveResult(kind, "Live Work IQ / M365 data is unavailable in this session.")),
+    usedCliFallback: false,
   };
 }
