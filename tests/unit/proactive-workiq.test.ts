@@ -35,6 +35,14 @@ describe("proactive Work IQ direct CLI", () => {
         liveDataSource: "skill",
       }),
     );
+    expect(result.meta).toEqual(
+      expect.objectContaining({
+        toolUsed: "/workiq:workiq via copilot -p",
+        unavailable: false,
+        liveDataConfirmed: true,
+        liveDataSource: "skill",
+      }),
+    );
   });
 
   test("preserves normalized unavailable state when direct CLI returns unavailable content", async () => {
@@ -58,6 +66,13 @@ describe("proactive Work IQ direct CLI", () => {
         liveDataSource: "none",
       }),
     );
+    expect(result.meta).toEqual(
+      expect.objectContaining({
+        unavailable: true,
+        liveDataConfirmed: false,
+        liveDataSource: "none",
+      }),
+    );
   });
 
   test("keeps unavailable state when direct CLI execution fails", async () => {
@@ -74,6 +89,13 @@ describe("proactive Work IQ direct CLI", () => {
     });
 
     expect(result.data).toEqual(
+      expect.objectContaining({
+        unavailable: true,
+        liveDataConfirmed: false,
+        liveDataSource: "none",
+      }),
+    );
+    expect(result.meta).toEqual(
       expect.objectContaining({
         unavailable: true,
         liveDataConfirmed: false,

@@ -1,6 +1,6 @@
-import { describe, expect, test, vi } from "vitest";
+import { beforeEach, describe, expect, test, vi } from "vitest";
 
-import { isWorkIqToolUnavailable, registerWorkiqRoutes } from "../../src/routes/workiq";
+import { isWorkIqToolUnavailable, registerWorkiqRoutes, resetWorkIqStatusCacheForTests } from "../../src/routes/workiq";
 import type { RouteTable, WorkiqRouteDeps } from "../../src/shared/types";
 import { WORKIQ_CLI_TIMEOUT_MS } from "../../src/lib/workiq-cli";
 
@@ -47,6 +47,10 @@ function createDeps(captured: Captured, sessionResponse: { data?: { content?: st
 }
 
 describe("workiq routes", () => {
+  beforeEach(() => {
+    resetWorkIqStatusCacheForTests();
+  });
+
   test("detects unavailable tool wording from model refusal", () => {
     expect(isWorkIqToolUnavailable("workiq-ask_work_iq is not available in this session")).toBe(true);
     expect(isWorkIqToolUnavailable("I won’t fabricate M365 search results.")).toBe(true);
@@ -89,6 +93,12 @@ describe("workiq routes", () => {
     expect(captured.body).toEqual(
       expect.objectContaining({
         ok: true,
+        meta: expect.objectContaining({
+          toolUsed: "/workiq:workiq via copilot -p",
+          unavailable: true,
+          liveDataConfirmed: false,
+          liveDataSource: "none",
+        }),
         unavailable: true,
         toolUsed: "/workiq:workiq via copilot -p",
         liveDataSource: "none",
@@ -119,6 +129,10 @@ describe("workiq routes", () => {
     expect(captured.body).toEqual(
       expect.objectContaining({
         ok: true,
+        meta: expect.objectContaining({
+          unavailable: true,
+          liveDataConfirmed: false,
+        }),
         unavailable: true,
         liveDataConfirmed: false,
         liveDataSource: "none",
@@ -148,6 +162,12 @@ describe("workiq routes", () => {
     expect(captured.body).toEqual(
       expect.objectContaining({
         ok: true,
+        meta: expect.objectContaining({
+          toolUsed: "/workiq:workiq via copilot -p",
+          unavailable: false,
+          liveDataConfirmed: true,
+          liveDataSource: "skill",
+        }),
         unavailable: false,
         toolUsed: "/workiq:workiq via copilot -p",
         liveDataConfirmed: true,
@@ -179,6 +199,10 @@ describe("workiq routes", () => {
     expect(captured.body).toEqual(
       expect.objectContaining({
         ok: true,
+        meta: expect.objectContaining({
+          unavailable: false,
+          liveDataConfirmed: true,
+        }),
         toolUsed: "/workiq:workiq via copilot -p",
         unavailable: false,
         liveDataConfirmed: true,
@@ -305,5 +329,31 @@ describe("workiq routes", () => {
         route: "/workiq:workiq via copilot -p",
       })
     );
+  });
+
+  test("status uses short ttl cache while probe endpoint forces refresh", async () => {
+    const routes: RouteTable = {};
+    const captured: Captured = {};
+    const deps = createDeps(captured, {
+      data: {
+        content: "WORKIQ_AVAILABLE",
+        messageId: "msg-cache",
+      },
+    });
+    deps.execFile = vi.fn((_file, _args, _options, callback) => {
+      callback(null, "WORKIQ_AVAILABLE", "");
+      return {} as never;
+    }) as never;
+
+    registerWorkiqRoutes(routes, deps);
+
+    await routes["GET /api/workiq/status"]!({ url: "/api/workiq/status" } as never, {} as never);
+    await routes["GET /api/workiq/status"]!({ url: "/api/workiq/status" } as never, {} as never);
+
+    expect(deps.execFile).toHaveBeenCalledTimes(1);
+
+    await routes["POST /api/workiq/probe"]!({} as never, {} as never);
+
+    expect(deps.execFile).toHaveBeenCalledTimes(2);
   });
 });

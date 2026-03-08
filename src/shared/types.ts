@@ -142,6 +142,25 @@ export interface ProactiveConfig {
   model: string;
 }
 
+export interface WorkIqExecutionMeta {
+  toolUsed: string;
+  unavailable: boolean;
+  liveDataConfirmed: boolean;
+  liveDataSource: "none" | "skill";
+}
+
+export interface ProactiveExecutionResponse {
+  ok: boolean;
+  data?: Record<string, unknown>;
+  raw?: string;
+  error?: string;
+  meta?: WorkIqExecutionMeta;
+  toolUsed?: string;
+  unavailable?: boolean;
+  liveDataConfirmed?: boolean;
+  liveDataSource?: "none" | "skill";
+}
+
 // ===== Route Handler Types =====
 
 import type http from "node:http";
@@ -227,10 +246,10 @@ export interface FoundryRouteDeps {
 export interface ProactiveModule {
   getConfig: () => ProactiveConfig;
   setConfig: (next: ProactiveConfig) => void;
-  runBriefing: (promptOverride?: string) => Promise<{ ok: boolean; data?: Record<string, unknown>; raw?: string; error?: string }>;
-  runDeadlines: (promptOverride?: string) => Promise<{ ok: boolean; data?: Record<string, unknown>; raw?: string; error?: string }>;
-  runGhosts: (promptOverride?: string) => Promise<{ ok: boolean; data?: Record<string, unknown>; raw?: string; error?: string }>;
-  runMeetingPrep: (promptOverride?: string) => Promise<{ ok: boolean; data?: Record<string, unknown>; raw?: string; error?: string }>;
+  runBriefing: (promptOverride?: string) => Promise<ProactiveExecutionResponse>;
+  runDeadlines: (promptOverride?: string) => Promise<ProactiveExecutionResponse>;
+  runGhosts: (promptOverride?: string) => Promise<ProactiveExecutionResponse>;
+  runMeetingPrep: (promptOverride?: string) => Promise<ProactiveExecutionResponse>;
 }
 
 export interface ProactiveRouteDeps {

@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
+import { PROACTIVE_ROUTE_TIMEOUT_MS, WORKIQ_QUERY_TIMEOUT_MS } from "../../src/shared/runtime-constants.js";
 
 const fetchMock = vi.fn();
 
@@ -43,7 +44,7 @@ describe("COPILOT_RPC proactive timeouts", () => {
         body: JSON.stringify({ source: "manual" }),
       }),
     );
-    expect(setTimeoutSpy).toHaveBeenCalledWith(expect.any(Function), 180000);
+    expect(setTimeoutSpy).toHaveBeenCalledWith(expect.any(Function), PROACTIVE_ROUTE_TIMEOUT_MS);
 
     setTimeoutSpy.mockRestore();
   });
@@ -62,7 +63,25 @@ describe("COPILOT_RPC proactive timeouts", () => {
         body: JSON.stringify({ prompt: "focus on foundry" }),
       }),
     );
-    expect(setTimeoutSpy).toHaveBeenCalledWith(expect.any(Function), 180000);
+    expect(setTimeoutSpy).toHaveBeenCalledWith(expect.any(Function), PROACTIVE_ROUTE_TIMEOUT_MS);
+
+    setTimeoutSpy.mockRestore();
+  });
+
+  test("uses centralized timeout for WorkIQ status requests", async () => {
+    const setTimeoutSpy = vi.spyOn(globalThis, "setTimeout");
+    fetchMock.mockResolvedValueOnce(okJsonResponse({ ok: true, available: true }));
+
+    const rpc = await loadRpc();
+    await rpc.getWorkiqStatus();
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://127.0.0.1:8321/api/workiq/status",
+      expect.objectContaining({
+        method: "GET",
+      }),
+    );
+    expect(setTimeoutSpy).toHaveBeenCalledWith(expect.any(Function), WORKIQ_QUERY_TIMEOUT_MS);
 
     setTimeoutSpy.mockRestore();
   });

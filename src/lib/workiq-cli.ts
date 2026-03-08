@@ -1,9 +1,10 @@
 import type child_process from "node:child_process";
 
 import { execFileAsync } from "../routes/core.js";
+import { WORKIQ_CLI_TIMEOUT_MS } from "../shared/runtime-constants.js";
 
 export const WORKIQ_SKILL_COMMAND = "/workiq:workiq";
-export const WORKIQ_CLI_TIMEOUT_MS = 180000;
+export { WORKIQ_CLI_TIMEOUT_MS };
 
 type RunWorkIqCliPromptArgs = {
   prompt: string;

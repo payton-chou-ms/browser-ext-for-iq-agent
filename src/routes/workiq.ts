@@ -1,7 +1,9 @@
 import type http from "node:http";
 import type { RouteTable, WorkiqRouteDeps } from "../shared/types.js";
 import { Schemas, type WorkiqQueryInput } from "./schemas.js";
+import { createWorkIqExecutionMeta, withWorkIqExecutionMeta } from "../lib/workiq-execution.js";
 import { runWorkIqCliPrompt, WORKIQ_CLI_TIMEOUT_MS, WORKIQ_SKILL_COMMAND } from "../lib/workiq-cli.js";
+import { WORKIQ_STATUS_CACHE_TTL_MS, WORKIQ_STATUS_UNAVAILABLE_CACHE_TTL_MS } from "../shared/runtime-constants.js";
 
 const WORKIQ_TOOL_UNAVAILABLE_RE = /(?:workiq-ask_work_iq\s+is\s+not\s+available(?:\s+in\s+this\s+session)?|work\s*iq(?:\s+tool)?\s+is\s+not\s+available(?:\s+in\s+this\s+session)?|workiq\s+skill\s+is\s+no\s+longer\s+available|no\s+["'`]?workiq["'`]?\s+skill\s+is\s+registered|workiq\s+skill\s+is\s+not\s+(?:registered|listed|available)|available\s+skills?\s+(?:for\s+this\s+session|are|include)\s*:?|not\s+listed\s+among\s+available\s+skills|current\s+skill\s+registry|temporarily\s+loaded\s+earlier|re-?enabled|enable\/provide\s+the\s+work\s*iq\s+tool|won['’]t\s+fabricate\s+m365\s+search\s+results|tool\s+isn['’]t\s+available\s+in\s+this\s+session|work\s*iq\s+技能目前不可用於此會話|workiq\s+skill\s+工具目前無法使用|未在此\s*session\s*的可用技能清單中|可用的技能清單中沒有|可用的技能(?:清單)?(?:中)?沒有\s*["'`]?workiq["'`]?|可用的技能包括)/i;
 const WORKIQ_PROBE_PROMPT = `${WORKIQ_SKILL_COMMAND} availability probe only. Do not query, summarize, or reveal any user data. Reply with exactly WORKIQ_AVAILABLE if the Work IQ skill is available in this session. If it is unavailable, reply with WORKIQ_UNAVAILABLE: followed by a short reason.`;
@@ -9,11 +11,19 @@ const WORKIQ_PROBE_AVAILABLE_RE = /\bWORKIQ_AVAILABLE\b/i;
 
 type WorkIqExecutionResult = {
   content: string;
-  toolUsed: string;
-  unavailable: boolean;
-  liveDataConfirmed: boolean;
-  liveDataSource: "none" | "skill";
+  meta: ReturnType<typeof createWorkIqExecutionMeta>;
 };
+
+type CachedWorkIqProbe = {
+  expiresAt: number;
+  probe: WorkIqProbeResult;
+};
+
+let cachedWorkIqProbe: CachedWorkIqProbe | null = null;
+
+export function resetWorkIqStatusCacheForTests(): void {
+  cachedWorkIqProbe = null;
+}
 
 export function isWorkIqToolUnavailable(content: string): boolean {
   return WORKIQ_TOOL_UNAVAILABLE_RE.test(content);
@@ -23,11 +33,15 @@ function toWorkIqExecutionResult(content: string, toolUsed: string): WorkIqExecu
   const unavailable = isWorkIqToolUnavailable(content) || /WORKIQ_UNAVAILABLE\s*:/i.test(content);
   return {
     content,
-    toolUsed,
-    unavailable,
-    liveDataConfirmed: !unavailable,
-    liveDataSource: unavailable ? "none" : "skill",
+    meta: createWorkIqExecutionMeta({
+      toolUsed,
+      unavailable,
+    }),
   };
+}
+
+function getWorkIqProbeTtlMs(probe: WorkIqProbeResult): number {
+  return probe.available ? WORKIQ_STATUS_CACHE_TTL_MS : WORKIQ_STATUS_UNAVAILABLE_CACHE_TTL_MS;
 }
 
 function isTrustedWorkIqOrigin(req: http.IncomingMessage): boolean {
@@ -91,6 +105,19 @@ async function probeWorkIqAvailability(deps: WorkiqRouteDeps): Promise<WorkIqPro
   }
 }
 
+async function getCachedWorkIqProbe(deps: WorkiqRouteDeps, forceRefresh = false): Promise<WorkIqProbeResult> {
+  if (!forceRefresh && cachedWorkIqProbe && cachedWorkIqProbe.expiresAt > Date.now()) {
+    return cachedWorkIqProbe.probe;
+  }
+
+  const probe = await probeWorkIqAvailability(deps);
+  cachedWorkIqProbe = {
+    probe,
+    expiresAt: Date.now() + getWorkIqProbeTtlMs(probe),
+  };
+  return probe;
+}
+
 export function registerWorkiqRoutes(routes: RouteTable, deps: WorkiqRouteDeps): void {
   const { jsonRes, readJsonBody, log } = deps;
 
@@ -123,16 +150,12 @@ export function registerWorkiqRoutes(routes: RouteTable, deps: WorkiqRouteDeps):
 
       log("WORKIQ", `CLI response received (${content.length} chars)`);
 
-      jsonRes(res, 200, {
+      jsonRes(res, 200, withWorkIqExecutionMeta({
         ok: true,
         content: execution.content,
         messageId: null,
         query,
-        toolUsed: execution.toolUsed,
-        unavailable: execution.unavailable,
-        liveDataConfirmed: execution.liveDataConfirmed,
-        liveDataSource: execution.liveDataSource,
-      });
+      }, execution.meta));
     } catch (err) {
       const error = err as Error;
       log("WORKIQ", `Error: ${error.message}`);
@@ -151,7 +174,8 @@ export function registerWorkiqRoutes(routes: RouteTable, deps: WorkiqRouteDeps):
   routes["GET /api/workiq/status"] = async (_req, res) => {
     if (rejectUntrustedWorkIqOrigin(_req, res, jsonRes)) return;
 
-    const probe = await probeWorkIqAvailability(deps);
+    const forceRefresh = /^(?:1|true|yes)$/i.test(String(new URL(_req.url || "/", "http://127.0.0.1").searchParams.get("refresh") || ""));
+    const probe = await getCachedWorkIqProbe(deps, forceRefresh);
     jsonRes(res, 200, {
       ok: true,
       available: probe.available,
@@ -170,7 +194,7 @@ export function registerWorkiqRoutes(routes: RouteTable, deps: WorkiqRouteDeps):
   routes["POST /api/workiq/probe"] = async (req, res) => {
     if (rejectUntrustedWorkIqOrigin(req, res, jsonRes)) return;
 
-    const probe = await probeWorkIqAvailability(deps);
+    const probe = await getCachedWorkIqProbe(deps, true);
     jsonRes(res, 200, {
       ok: true,
       available: probe.available,

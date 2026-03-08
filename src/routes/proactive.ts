@@ -1,11 +1,12 @@
 import type http from "node:http";
-import type { RouteTable, ProactiveRouteDeps } from "../shared/types.js";
+import type { ProactiveExecutionResponse, RouteTable, ProactiveRouteDeps } from "../shared/types.js";
 import { Schemas, type ProactiveConfigInput } from "./schemas.js";
 
 // ===== Scan-all throttling (A2) =====
 // Prevent re-entry within SCAN_ALL_THROTTLE_MS (default 5 minutes)
 const SCAN_ALL_THROTTLE_MS = 5 * 60 * 1000;
 let lastScanAllTimestamp = 0;
+const proactiveInFlightRequests = new Map<string, Promise<ProactiveExecutionResponse | Record<string, unknown>>>();
 
 function normalizeScanSource(value: unknown): "cold-start" | "reconnect" | "alarm" | "manual" {
   if (value === "cold-start" || value === "reconnect" || value === "alarm") {
@@ -33,6 +34,31 @@ function rejectUntrustedProactiveOrigin(
     error: "Proactive routes only accept extension or local trusted origins.",
   });
   return true;
+}
+
+function toPromptKey(value: unknown): string {
+  return typeof value === "string" && value.trim() ? value.trim() : "__default__";
+}
+
+async function runDedupedProactiveRequest<T extends ProactiveExecutionResponse | Record<string, unknown>>(
+  key: string,
+  run: () => Promise<T>,
+  log: ProactiveRouteDeps["log"],
+): Promise<T> {
+  const existing = proactiveInFlightRequests.get(key) as Promise<T> | undefined;
+  if (existing) {
+    log("PROACTIVE", `Reusing in-flight proactive request: ${key}`);
+    return await existing;
+  }
+
+  const pending = run().finally(() => {
+    if (proactiveInFlightRequests.get(key) === pending) {
+      proactiveInFlightRequests.delete(key);
+    }
+  });
+
+  proactiveInFlightRequests.set(key, pending);
+  return await pending;
 }
 
 export function registerProactiveRoutes(routes: RouteTable, deps: ProactiveRouteDeps): void {
@@ -69,7 +95,8 @@ export function registerProactiveRoutes(routes: RouteTable, deps: ProactiveRoute
     if (!body) return;
     log("PROACTIVE", "Generating daily briefing...");
     try {
-      const result = await proactive.runBriefing(getPromptOverride(body.prompt));
+      const promptOverride = getPromptOverride(body.prompt);
+      const result = await runDedupedProactiveRequest(`briefing:${toPromptKey(promptOverride)}`, () => proactive.runBriefing(promptOverride), log);
       jsonRes(res, 200, result);
     } catch (err) {
       log("ERROR", "Briefing error:", (err as Error).message);
@@ -84,7 +111,8 @@ export function registerProactiveRoutes(routes: RouteTable, deps: ProactiveRoute
     if (!body) return;
     log("PROACTIVE", "Scanning for deadlines...");
     try {
-      const result = await proactive.runDeadlines(getPromptOverride(body.prompt));
+      const promptOverride = getPromptOverride(body.prompt);
+      const result = await runDedupedProactiveRequest(`deadlines:${toPromptKey(promptOverride)}`, () => proactive.runDeadlines(promptOverride), log);
       jsonRes(res, 200, result);
     } catch (err) {
       log("ERROR", "Deadlines error:", (err as Error).message);
@@ -99,7 +127,8 @@ export function registerProactiveRoutes(routes: RouteTable, deps: ProactiveRoute
     if (!body) return;
     log("PROACTIVE", "Detecting unreplied emails...");
     try {
-      const result = await proactive.runGhosts(getPromptOverride(body.prompt));
+      const promptOverride = getPromptOverride(body.prompt);
+      const result = await runDedupedProactiveRequest(`ghosts:${toPromptKey(promptOverride)}`, () => proactive.runGhosts(promptOverride), log);
       jsonRes(res, 200, result);
     } catch (err) {
       log("ERROR", "Ghosts error:", (err as Error).message);
@@ -114,7 +143,8 @@ export function registerProactiveRoutes(routes: RouteTable, deps: ProactiveRoute
     if (!body) return;
     log("PROACTIVE", "Preparing meeting context...");
     try {
-      const result = await proactive.runMeetingPrep(getPromptOverride(body.prompt));
+      const promptOverride = getPromptOverride(body.prompt);
+      const result = await runDedupedProactiveRequest(`meeting-prep:${toPromptKey(promptOverride)}`, () => proactive.runMeetingPrep(promptOverride), log);
       jsonRes(res, 200, result);
     } catch (err) {
       log("ERROR", "Meeting prep error:", (err as Error).message);
@@ -152,28 +182,34 @@ export function registerProactiveRoutes(routes: RouteTable, deps: ProactiveRoute
     lastScanAllTimestamp = now;
     log("PROACTIVE", `Running full proactive scan (parallel, source=${source})...`);
 
-    // Run all scans in parallel for ~4x speedup
-    const [briefing, deadlines, ghosts, meetingPrep] = await Promise.allSettled([
-      proactive.runBriefing(),
-      proactive.runDeadlines(),
-      proactive.runGhosts(),
-      proactive.runMeetingPrep(),
-    ]);
+    const response = await runDedupedProactiveRequest("scan-all", async () => {
+      const [briefing, deadlines, ghosts, meetingPrep] = await Promise.allSettled([
+        proactive.runBriefing(),
+        proactive.runDeadlines(),
+        proactive.runGhosts(),
+        proactive.runMeetingPrep(),
+      ]);
 
-    const unwrap = (
-      result: PromiseSettledResult<{ ok: boolean; data?: Record<string, unknown>; raw?: string; error?: string }>
-    ) =>
-      result.status === "fulfilled"
-        ? result.value
-        : { ok: false, error: result.reason?.message || "Unknown error" };
+      const unwrap = (
+        result: PromiseSettledResult<ProactiveExecutionResponse>
+      ) =>
+        result.status === "fulfilled"
+          ? result.value
+          : { ok: false, error: result.reason?.message || "Unknown error" };
 
-    const results = {
-      briefing: unwrap(briefing),
-      deadlines: unwrap(deadlines),
-      ghosts: unwrap(ghosts),
-      meetingPrep: unwrap(meetingPrep),
-    };
+      return {
+        ok: true,
+        source,
+        results: {
+          briefing: unwrap(briefing),
+          deadlines: unwrap(deadlines),
+          ghosts: unwrap(ghosts),
+          meetingPrep: unwrap(meetingPrep),
+        },
+        scannedAt: new Date().toISOString(),
+      };
+    }, log);
 
-    jsonRes(res, 200, { ok: true, source, results, scannedAt: new Date().toISOString() });
+    jsonRes(res, 200, response);
   };
 }

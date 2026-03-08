@@ -16,6 +16,14 @@ function createJsonResponder(captured: CapturedResponse) {
   });
 }
 
+function createDeferred() {
+  let resolve;
+  const promise = new Promise((res) => {
+    resolve = res;
+  });
+  return { promise, resolve };
+}
+
 describe("routes", () => {
   test("proactive scan-all throttles non-manual calls but allows manual refresh", async () => {
     const routes: RouteTable = {};
@@ -104,5 +112,52 @@ describe("routes", () => {
 
     expect(captured.status).toBe(404);
     expect(captured.body).toEqual({ ok: false, error: "Session missing not found" });
+  });
+
+  test("proactive section routes dedupe in-flight requests for the same prompt", async () => {
+    const routes: RouteTable = {};
+    const responses = [] as Array<{ status: number; body: unknown }>;
+    const briefingDeferred = createDeferred();
+
+    const proactive = {
+      getConfig: vi.fn(() => ({ workiqPrompt: "", model: "gpt-4.1" })),
+      setConfig: vi.fn(),
+      runBriefing: vi.fn(() => briefingDeferred.promise),
+      runDeadlines: vi.fn(async () => ({ ok: true, data: { section: "deadlines" } })),
+      runGhosts: vi.fn(async () => ({ ok: true, data: { section: "ghosts" } })),
+      runMeetingPrep: vi.fn(async () => ({ ok: true, data: { section: "meeting" } })),
+    };
+
+    registerProactiveRoutes(routes, {
+      jsonRes: vi.fn((_res, status: number, data: unknown) => {
+        responses.push({ status, body: data });
+      }),
+      readJsonBody: vi.fn(async () => ({ prompt: "focus on foundry" })),
+      log: vi.fn(),
+      proactive,
+    });
+
+    const handler = routes["POST /api/proactive/briefing"];
+    expect(handler).toBeTypeOf("function");
+
+    const first = handler!({} as never, {} as never);
+    const second = handler!({} as never, {} as never);
+
+    await Promise.resolve();
+
+    expect(proactive.runBriefing).toHaveBeenCalledTimes(1);
+
+    briefingDeferred.resolve({
+      ok: true,
+      data: { section: "briefing" },
+      meta: { toolUsed: "/workiq:workiq via copilot -p", unavailable: false, liveDataConfirmed: true, liveDataSource: "skill" },
+    });
+
+    await Promise.all([first, second]);
+
+    expect(responses).toHaveLength(2);
+    expect(responses[0]).toEqual(expect.objectContaining({ status: 200 }));
+    expect(responses[1]).toEqual(expect.objectContaining({ status: 200 }));
+    expect(responses[0]?.body).toEqual(responses[1]?.body);
   });
 });

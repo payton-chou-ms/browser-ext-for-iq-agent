@@ -2,6 +2,13 @@
 // Communicates with the SDK proxy (proxy.js) via REST API over HTTP.
 // All Copilot SDK calls are handled server-side; this client is a thin HTTP wrapper.
 
+// This file is loaded via importScripts() inside the extension service worker,
+// so it must remain a classic script and cannot use ESM imports.
+const HTTP_DEFAULT_TIMEOUT_MS = 30_000;
+const SKILL_EXECUTE_TIMEOUT_MS = 180_000;
+const WORKIQ_QUERY_TIMEOUT_MS = 180_000;
+const PROACTIVE_ROUTE_TIMEOUT_MS = 180_000;
+
 const COPILOT_RPC = (() => {
   let _baseUrl = "http://127.0.0.1:8321";
   let _connected = false;
@@ -66,21 +73,28 @@ const COPILOT_RPC = (() => {
   }
 
   // ── Core REST call with timeout ──
-  const DEFAULT_TIMEOUT_MS = 30000;
-
-  async function apiCall(path, body = {}, timeoutMs = DEFAULT_TIMEOUT_MS) {
+  async function apiRequest(method, path, body, timeoutMs = HTTP_DEFAULT_TIMEOUT_MS) {
     const url = `${_baseUrl}${path}`;
-    console.log(`[RPC] → POST ${path}`, truncateForLog(redactSensitive(body)));
+    console.log(`[RPC] → ${method} ${path}`, truncateForLog(redactSensitive(body)));
 
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
+    const headers = {};
+    const options = {
+      method,
+      headers,
+      signal: controller.signal,
+    };
+
+    if (body !== undefined) {
+      headers["Content-Type"] = "application/json";
+      options.body = JSON.stringify(body);
+    }
+
     try {
       const res = await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-        signal: controller.signal,
+        ...options,
       });
 
       clearTimeout(timeoutId);
@@ -112,6 +126,14 @@ const COPILOT_RPC = (() => {
       }
       throw err;
     }
+  }
+
+  async function apiCall(path, body = {}, timeoutMs = HTTP_DEFAULT_TIMEOUT_MS) {
+    return await apiRequest("POST", path, body, timeoutMs);
+  }
+
+  async function apiGet(path, timeoutMs = HTTP_DEFAULT_TIMEOUT_MS) {
+    return await apiRequest("GET", path, undefined, timeoutMs);
   }
 
   // ── Streaming via SSE (POST /api/session/send) ──
@@ -198,8 +220,6 @@ const COPILOT_RPC = (() => {
   }
 
   // Skill execution can take a while (e.g., image generation, external API calls)
-  const SKILL_EXECUTE_TIMEOUT_MS = 180000; // 3 minutes
-
   async function executeSkill(skillName, command = "status", payload = {}) {
     return await apiCall("/api/skills/execute", { skillName, command, payload }, SKILL_EXECUTE_TIMEOUT_MS);
   }
@@ -210,18 +230,13 @@ const COPILOT_RPC = (() => {
   }
 
   // WorkIQ queries can be slow due to M365 data access
-  const WORKIQ_TIMEOUT_MS = 180000; // 3 minutes
-  const PROACTIVE_TIMEOUT_MS = 180000; // 3 minutes
-
   async function workiqQuery(query, sessionId) {
-    return await apiCall("/api/workiq/query", { query, sessionId }, WORKIQ_TIMEOUT_MS);
+    return await apiCall("/api/workiq/query", { query, sessionId }, WORKIQ_QUERY_TIMEOUT_MS);
   }
 
   async function getWorkiqStatus() {
     try {
-      const res = await fetch(`${_baseUrl}/api/workiq/status`);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      return await res.json();
+      return await apiGet("/api/workiq/status", WORKIQ_QUERY_TIMEOUT_MS);
     } catch (err) {
       return {
         ok: false,
@@ -353,23 +368,23 @@ const COPILOT_RPC = (() => {
 
   // ── Proactive Agent APIs ──
   async function proactiveBriefing(prompt = "") {
-    return await apiCall("/api/proactive/briefing", { prompt }, PROACTIVE_TIMEOUT_MS);
+    return await apiCall("/api/proactive/briefing", { prompt }, PROACTIVE_ROUTE_TIMEOUT_MS);
   }
 
   async function proactiveDeadlines(prompt = "") {
-    return await apiCall("/api/proactive/deadlines", { prompt }, PROACTIVE_TIMEOUT_MS);
+    return await apiCall("/api/proactive/deadlines", { prompt }, PROACTIVE_ROUTE_TIMEOUT_MS);
   }
 
   async function proactiveGhosts(prompt = "") {
-    return await apiCall("/api/proactive/ghosts", { prompt }, PROACTIVE_TIMEOUT_MS);
+    return await apiCall("/api/proactive/ghosts", { prompt }, PROACTIVE_ROUTE_TIMEOUT_MS);
   }
 
   async function proactiveMeetingPrep(prompt = "") {
-    return await apiCall("/api/proactive/meeting-prep", { prompt }, PROACTIVE_TIMEOUT_MS);
+    return await apiCall("/api/proactive/meeting-prep", { prompt }, PROACTIVE_ROUTE_TIMEOUT_MS);
   }
 
   async function proactiveScanAll(source = "manual") {
-    return await apiCall("/api/proactive/scan-all", { source }, PROACTIVE_TIMEOUT_MS);
+    return await apiCall("/api/proactive/scan-all", { source }, PROACTIVE_ROUTE_TIMEOUT_MS);
   }
 
   async function getProactiveConfig() {
