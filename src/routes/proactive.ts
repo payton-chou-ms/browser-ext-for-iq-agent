@@ -1,3 +1,4 @@
+import type http from "node:http";
 import type { RouteTable, ProactiveRouteDeps } from "../shared/types.js";
 import { Schemas, type ProactiveConfigInput } from "./schemas.js";
 

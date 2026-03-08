@@ -14,7 +14,7 @@ type ResolveProactiveWorkIqArgs = {
   kind: ProactiveKind;
   prompt: string;
   promptOverride?: string;
-  sendPrompt: (prompt: string) => Promise<SendPromptResult>;
+  sendPrompt: (prompt: string) => Promise<SendPromptResult | undefined>;
   execFile: typeof child_process.execFile;
   log?: (tag: string, ...msg: unknown[]) => void;
 };
