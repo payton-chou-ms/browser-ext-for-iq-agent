@@ -4,7 +4,7 @@
  * UI-only tests — no live proxy streaming needed.
  */
 import { test, expect } from "@playwright/test";
-import { launchExtension, goToChat, skipWithoutProxy, CONNECTION_TIMEOUT } from "./demo-helper.js";
+import { launchExtension, goToChat, skipWithoutProxy } from "./demo-helper.js";
 
 test.describe("Demo Panels", () => {
   test.describe.configure({ mode: "serial" });
@@ -82,7 +82,7 @@ test.describe("Demo Panels", () => {
 
     const refreshResult = await page.evaluate(async () => {
       const button = document.querySelector('.proactive-schedule-card button[data-action="refresh-apply-card"]');
-      if (!(button instanceof HTMLButtonElement)) {
+      if (!button || button.tagName !== "BUTTON") {
         return { ok: false, text: "missing refresh button" };
       }
 
@@ -91,7 +91,7 @@ test.describe("Demo Panels", () => {
       const startedAt = Date.now();
       while (Date.now() - startedAt < 90000) {
         const result = document.querySelector(".proactive-schedule-card .proactive-schedule-card-result");
-        if (result instanceof HTMLElement) {
+        if (result && typeof result.textContent === "string") {
           return { ok: true, text: result.textContent || "" };
         }
         await new Promise((resolve) => setTimeout(resolve, 500));
