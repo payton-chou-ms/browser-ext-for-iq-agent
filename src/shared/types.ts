@@ -227,7 +227,6 @@ export interface FoundryRouteDeps {
 export interface ProactiveModule {
   getConfig: () => ProactiveConfig;
   setConfig: (next: ProactiveConfig) => void;
-  invalidateSession: (reason: string) => void;
   runBriefing: (promptOverride?: string) => Promise<{ ok: boolean; data?: Record<string, unknown>; raw?: string; error?: string }>;
   runDeadlines: (promptOverride?: string) => Promise<{ ok: boolean; data?: Record<string, unknown>; raw?: string; error?: string }>;
   runGhosts: (promptOverride?: string) => Promise<{ ok: boolean; data?: Record<string, unknown>; raw?: string; error?: string }>;

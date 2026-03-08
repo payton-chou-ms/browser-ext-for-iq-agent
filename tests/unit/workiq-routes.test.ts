@@ -2,6 +2,7 @@ import { describe, expect, test, vi } from "vitest";
 
 import { isWorkIqToolUnavailable, registerWorkiqRoutes } from "../../src/routes/workiq";
 import type { RouteTable, WorkiqRouteDeps } from "../../src/shared/types";
+import { WORKIQ_CLI_TIMEOUT_MS } from "../../src/lib/workiq-cli";
 
 type Captured = {
   status?: number;
@@ -75,6 +76,16 @@ describe("workiq routes", () => {
     await routes["POST /api/workiq/query"]!({} as never, {} as never);
 
     expect(captured.status).toBe(200);
+    expect(deps.execFile).toHaveBeenCalledWith(
+      "copilot",
+      ["-p", "/workiq:workiq Find latest AKS deck", "--allow-all-tools", "--silent"],
+      expect.objectContaining({
+        cwd: process.cwd(),
+        timeout: WORKIQ_CLI_TIMEOUT_MS,
+        env: process.env,
+      }),
+      expect.any(Function),
+    );
     expect(captured.body).toEqual(
       expect.objectContaining({
         ok: true,

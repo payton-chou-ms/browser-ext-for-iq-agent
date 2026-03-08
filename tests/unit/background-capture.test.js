@@ -25,6 +25,8 @@ function createChromeMock(overrides = {}) {
     },
     alarms: {
       get: vi.fn(() => Promise.resolve(null)),
+      getAll: vi.fn(() => Promise.resolve([])),
+      clear: vi.fn(() => Promise.resolve(true)),
       create: vi.fn(),
       onAlarm: {
         addListener: vi.fn(),

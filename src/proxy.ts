@@ -281,12 +281,6 @@ function withPromptOverride(lines: string[], promptOverride?: string): string[] 
   ];
 }
 
-function invalidateProactiveSession(reason = "") {
-  if (reason) {
-    log("PROACTIVE", `Skipping proactive session invalidation (${reason}) because proactive WorkIQ now runs via direct CLI only`);
-  }
-}
-
 async function runProactiveBriefing(promptOverride = "") {
   const hasPromptOverride = (promptOverride || "").trim().length > 0;
   const promptBody = withPromptOverride(withWorkIqPrompt([
@@ -450,7 +444,6 @@ registerProactiveRoutes(routes, {
     setConfig: (next: ProactiveConfig) => {
       proactiveConfig = { ...next };
     },
-    invalidateSession: (reason: string) => invalidateProactiveSession(reason),
     runBriefing: (promptOverride?: string) => runProactiveBriefing(promptOverride || ""),
     runDeadlines: (promptOverride?: string) => runProactiveDeadlines(promptOverride || ""),
     runGhosts: (promptOverride?: string) => runProactiveGhosts(promptOverride || ""),

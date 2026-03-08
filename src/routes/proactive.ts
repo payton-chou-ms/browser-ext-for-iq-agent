@@ -58,7 +58,6 @@ export function registerProactiveRoutes(routes: RouteTable, deps: ProactiveRoute
       typeof body.model === "string" && body.model.trim() ? body.model.trim() : current.model;
 
     proactive.setConfig({ workiqPrompt: nextPrompt, model: nextModel });
-    proactive.invalidateSession("config updated");
 
     jsonRes(res, 200, { ok: true, config: proactive.getConfig() });
   };

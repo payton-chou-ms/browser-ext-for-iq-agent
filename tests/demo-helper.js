@@ -17,6 +17,8 @@ export const PROXY_URL = "http://127.0.0.1:8321";
 export const STREAM_TIMEOUT = 60_000;
 export const AGENT_TIMEOUT = 180_000; // Increased for image generation which can be slow
 export const CONNECTION_TIMEOUT = 45_000; // Increased from 30s to 45s for slower environments
+const EXTENSION_BOOT_TIMEOUT = 90_000;
+const EXTENSION_BOOT_ATTEMPTS = 2;
 
 /* ── Proxy health check ──────────────────────────────────────────────── */
 
@@ -74,43 +76,67 @@ export async function launchExtension() {
   const isCi = Boolean(process.env.CI);
   const extensionPath = path.resolve(__dirname, "..");
 
-  const context = await chromium.launchPersistentContext("", {
-    headless: isCi,
-    args: [
-      ...(isCi ? ["--headless=new"] : []),
-      `--disable-extensions-except=${extensionPath}`,
-      `--load-extension=${extensionPath}`,
-    ],
-  });
+  let lastError;
+  for (let attempt = 1; attempt <= EXTENSION_BOOT_ATTEMPTS; attempt += 1) {
+    let context;
+    try {
+      context = await chromium.launchPersistentContext("", {
+        headless: isCi,
+        args: [
+          ...(isCi ? ["--headless=new"] : []),
+          `--disable-extensions-except=${extensionPath}`,
+          `--load-extension=${extensionPath}`,
+        ],
+      });
 
-  let [background] = context.serviceWorkers();
-  if (!background) background = await context.waitForEvent("serviceworker");
+      let [background] = context.serviceWorkers();
+      if (!background) {
+        background = await Promise.race([
+          context.waitForEvent("serviceworker"),
+          new Promise((_, reject) => setTimeout(() => reject(new Error("Timed out waiting for extension service worker")), EXTENSION_BOOT_TIMEOUT)),
+        ]);
+      }
 
-  const extensionId = background.url().split("/")[2];
-  console.log(`[demo-helper] Extension ID: ${extensionId}`);
+      const extensionId = background.url().split("/")[2];
+      console.log(`[demo-helper] Extension ID: ${extensionId} (attempt ${attempt})`);
 
-  const page = await context.newPage();
-  await page.goto(`chrome-extension://${extensionId}/src/sidebar.html`);
+      const page = await context.newPage();
+      await page.goto(`chrome-extension://${extensionId}/src/sidebar.html`, {
+        waitUntil: "domcontentloaded",
+        timeout: EXTENSION_BOOT_TIMEOUT,
+      });
 
-  // Wait for basic UI readiness
-  await expect(page.locator("#chat-input")).toBeVisible({ timeout: CONNECTION_TIMEOUT });
+      await page.waitForFunction(
+        () => Boolean(window.IQ && window.IQ.utils && document.getElementById("chat-input")),
+        null,
+        { timeout: CONNECTION_TIMEOUT },
+      );
 
-  // Wait for either welcome message OR chat-messages container to be ready
-  // (persistent context may not show welcome if session was already initialized)
-  try {
-    await expect(page.locator("#chat-messages .message.bot").first()).toContainText(
-      /IQ Copilot|✦|你好/,
-      { timeout: 15000 },
-    );
-  } catch {
-    // No welcome message, just wait for chat container to be stable
-    await expect(page.locator("#chat-messages")).toBeVisible({ timeout: 5000 });
+      await expect(page.locator("#chat-input")).toBeVisible({ timeout: CONNECTION_TIMEOUT });
+
+      try {
+        await expect(page.locator("#chat-messages .message.bot").first()).toContainText(
+          /IQ Copilot|✦|你好/,
+          { timeout: 15000 },
+        );
+      } catch {
+        await expect(page.locator("#chat-messages")).toBeVisible({ timeout: 5000 });
+      }
+
+      await page.waitForTimeout(2000);
+      return { context, page, extensionId };
+    } catch (error) {
+      lastError = error;
+      if (context) {
+        await context.close().catch(() => {});
+      }
+      if (attempt === EXTENSION_BOOT_ATTEMPTS) {
+        break;
+      }
+    }
   }
 
-  // Buffer for background init (session, tools cache)
-  await page.waitForTimeout(2000);
-
-  return { context, page, extensionId };
+  throw lastError;
 }
 
 /* ── Chat helpers ────────────────────────────────────────────────────── */

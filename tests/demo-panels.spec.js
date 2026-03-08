@@ -12,7 +12,7 @@ test.describe("Demo Panels", () => {
   let context, page;
 
   test.beforeAll(async () => {
-    test.setTimeout(CONNECTION_TIMEOUT + 30000); // Extra buffer for browser launch
+    test.setTimeout(180000);
     await skipWithoutProxy(test);
     ({ context, page } = await launchExtension());
   });
@@ -29,6 +29,82 @@ test.describe("Demo Panels", () => {
     );
     await expect(page.locator("#btn-refresh-proactive")).toBeVisible();
     await expect(page.locator("#proactive-schedule-cards-card")).toBeVisible();
+  });
+
+  test("3-b Proactive refresh completes", async () => {
+    test.setTimeout(120000);
+
+    await page.locator('.nav-btn[data-panel="notifications"]').click();
+    await expect(page.locator("#panel-notifications")).toHaveClass(/active/);
+
+    const scanResult = await page.evaluate(async () => {
+      try {
+        const response = await window.IQ.utils.sendToBackground({
+          type: "PROACTIVE_SCAN_ALL",
+          source: "manual",
+        });
+        return {
+          ok: response?.ok === true,
+          hasResults: Boolean(response?.results),
+          scannedAt: response?.scannedAt || null,
+          error: response?.error || null,
+        };
+      } catch (err) {
+        return {
+          ok: false,
+          hasResults: false,
+          scannedAt: null,
+          error: err?.message || String(err),
+        };
+      }
+    });
+
+    expect(scanResult).toEqual({
+      ok: true,
+      hasResults: true,
+      scannedAt: expect.any(String),
+      error: null,
+    });
+  });
+
+  test("3-c Schedule card refresh renders result", async () => {
+    test.setTimeout(120000);
+
+    await page.locator('.nav-btn[data-panel="notifications"]').click();
+    await expect(page.locator("#panel-notifications")).toHaveClass(/active/);
+
+    const firstCard = page.locator(".proactive-schedule-card").first();
+    await expect(firstCard).toBeVisible({ timeout: 20000 });
+
+    const refreshButton = firstCard.locator('button[data-action="refresh-apply-card"]').first();
+    await expect(refreshButton).toBeVisible();
+    await expect(refreshButton).toBeEnabled({ timeout: 20000 });
+
+    const refreshResult = await page.evaluate(async () => {
+      const button = document.querySelector('.proactive-schedule-card button[data-action="refresh-apply-card"]');
+      if (!(button instanceof HTMLButtonElement)) {
+        return { ok: false, text: "missing refresh button" };
+      }
+
+      button.click();
+
+      const startedAt = Date.now();
+      while (Date.now() - startedAt < 90000) {
+        const result = document.querySelector(".proactive-schedule-card .proactive-schedule-card-result");
+        if (result instanceof HTMLElement) {
+          return { ok: true, text: result.textContent || "" };
+        }
+        await new Promise((resolve) => setTimeout(resolve, 500));
+      }
+
+      return {
+        ok: false,
+        text: document.getElementById("notif-last-scan")?.textContent || "timeout",
+      };
+    });
+
+    expect(refreshResult.ok).toBe(true);
+    expect(refreshResult.text).toMatch(/查詢結果|此次查詢無資料|No live data/);
   });
 
   /* ── 7. Quick Prompts ────────────────────────────────────────────── */

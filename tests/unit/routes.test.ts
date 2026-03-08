@@ -24,7 +24,6 @@ describe("routes", () => {
     const proactive = {
       getConfig: vi.fn(() => ({ workiqPrompt: "", model: "gpt-4.1" })),
       setConfig: vi.fn(),
-      invalidateSession: vi.fn(),
       runBriefing: vi.fn(async () => ({ ok: true, data: { section: "briefing" } })),
       runDeadlines: vi.fn(async () => ({ ok: true, data: { section: "deadlines" } })),
       runGhosts: vi.fn(async () => ({ ok: true, data: { section: "ghosts" } })),

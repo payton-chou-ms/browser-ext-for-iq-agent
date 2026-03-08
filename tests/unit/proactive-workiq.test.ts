@@ -1,6 +1,7 @@
 import { describe, expect, test, vi } from "vitest";
 
 import { resolveProactiveWorkIqResult } from "../../src/lib/proactive-workiq";
+import { WORKIQ_CLI_TIMEOUT_MS } from "../../src/lib/workiq-cli";
 
 describe("proactive Work IQ direct CLI", () => {
   test("always uses direct CLI result for proactive deadlines", async () => {
@@ -17,7 +18,16 @@ describe("proactive Work IQ direct CLI", () => {
     });
 
     expect(execFile).toHaveBeenCalledTimes(1);
-    expect(result.usedCliFallback).toBe(false);
+    expect(execFile).toHaveBeenCalledWith(
+      "copilot",
+      ["-p", "/workiq:workiq test proactive", "--allow-all-tools", "--silent"],
+      expect.objectContaining({
+        cwd: process.cwd(),
+        timeout: WORKIQ_CLI_TIMEOUT_MS,
+        env: process.env,
+      }),
+      expect.any(Function),
+    );
     expect(result.data).toEqual(
       expect.objectContaining({
         deadlines: [expect.objectContaining({ title: "Submit expense report" })],
@@ -41,7 +51,6 @@ describe("proactive Work IQ direct CLI", () => {
     });
 
     expect(execFile).toHaveBeenCalledTimes(1);
-    expect(result.usedCliFallback).toBe(false);
     expect(result.data).toEqual(
       expect.objectContaining({
         unavailable: true,
@@ -64,7 +73,6 @@ describe("proactive Work IQ direct CLI", () => {
       log: vi.fn(),
     });
 
-    expect(result.usedCliFallback).toBe(false);
     expect(result.data).toEqual(
       expect.objectContaining({
         unavailable: true,
