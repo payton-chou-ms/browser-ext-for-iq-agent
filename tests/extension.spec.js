@@ -124,22 +124,44 @@ test.describe('Extension Sidebar', () => {
   });
 
   test('Explicit /workiq Chinese query shows WorkIQ badge', async () => {
+    test.setTimeout(120000);
+
+    await page.click('.nav-btn[data-panel="config"]');
+    await page.click('#btn-check-workiq-status');
+    await expect(page.locator('#config-workiq-status-text')).toContainText(/Work IQ/, { timeout: 30000 });
+    await page.click('.nav-btn[data-panel="chat"]');
+    await expect(page.locator('#panel-chat')).toHaveClass(/active/);
+
     const userMessages = page.locator('#chat-messages .message.user');
     const botMessages = page.locator('#chat-messages .message.bot');
     const userCountBefore = await userMessages.count();
     const botCountBefore = await botMessages.count();
 
-    await page.locator('#chat-input').fill('/workiq 給我跟 aks 主題相關的投影片');
-    await page.locator('#btn-send').click();
+    const workiqResult = await page.evaluate(async () => {
+      const handled = await window.IQ.commandMenu.handleSlashCommand('/workiq 給我跟 aks 主題相關的投影片');
+      const chatHistory = window.IQ.chat.getState().chatHistory || [];
+      const lastMessage = chatHistory[chatHistory.length - 1] || null;
+      return {
+        handled,
+        lastRole: lastMessage?.role || null,
+        lastSourceLabel: lastMessage?.sourceLabel || null,
+      };
+    });
+
+    expect(workiqResult).toEqual({
+      handled: true,
+      lastRole: 'bot',
+      lastSourceLabel: 'WorkIQ',
+    });
 
     await expect(userMessages).toHaveCount(userCountBefore + 1, { timeout: 10000 });
-    await expect(botMessages).toHaveCount(botCountBefore + 1, { timeout: 30000 });
+    await expect(botMessages).toHaveCount(botCountBefore + 1, { timeout: 90000 });
 
     const lastBot = botMessages.last();
-    await expect(lastBot.locator('.msg-source-badge')).toHaveText('WorkIQ', { timeout: 10000 });
-    await expect(lastBot.locator('.msg-content')).not.toContainText('命令執行失敗', { timeout: 10000 });
-    await expect(lastBot.locator('.msg-content')).not.toContainText('目前未連線', { timeout: 10000 });
-    await expect(lastBot.locator('.msg-content')).toContainText(/.+/, { timeout: 10000 });
+    await expect(lastBot.locator('.msg-source-badge')).toHaveText('WorkIQ', { timeout: 30000 });
+    await expect(lastBot.locator('.msg-content')).not.toContainText('命令執行失敗', { timeout: 30000 });
+    await expect(lastBot.locator('.msg-content')).not.toContainText('目前未連線', { timeout: 30000 });
+    await expect(lastBot.locator('.msg-content')).toContainText(/.+/, { timeout: 30000 });
   });
 
   test('Config model dropdown triggers model switch flow', async () => {

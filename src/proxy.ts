@@ -255,7 +255,6 @@ function buildPromptWithAttachments(prompt: string, attachments: readonly Attach
   return `${parts.join("\n\n")}\n\n${prompt}`;
 }
 
-let proactiveSession: CopilotSession | null = null;
 let proactiveConfig: ProactiveConfig = {
   workiqPrompt: "",
   model: process.env.PROACTIVE_MODEL || "gpt-4.1",
@@ -283,61 +282,13 @@ function withPromptOverride(lines: string[], promptOverride?: string): string[] 
 }
 
 function invalidateProactiveSession(reason = "") {
-  if (proactiveSession?.sessionId) {
-    sessions.delete(proactiveSession.sessionId);
-    log("PROACTIVE", `Invalidated proactive session${reason ? ` (${reason})` : ""}: ${proactiveSession.sessionId}`);
+  if (reason) {
+    log("PROACTIVE", `Skipping proactive session invalidation (${reason}) because proactive WorkIQ now runs via direct CLI only`);
   }
-  proactiveSession = null;
-}
-
-async function ensureProactiveSession() {
-  if (proactiveSession) return proactiveSession;
-
-  const c = await ensureClient();
-  const customPrompt = (proactiveConfig.workiqPrompt || "").trim();
-  const customPromptLine = customPrompt ? `Additional user guidance for WorkIQ: ${customPrompt}` : "";
-
-  proactiveSession = await c.createSession({
-    model: proactiveConfig.model || "gpt-4.1",
-    systemMessage: {
-      content: [
-        "You are a Proactive Agent for IQ Copilot. Your job is to analyze the user's M365 data (Email, Calendar, Tasks, Teams) and generate structured insights.",
-        "ALWAYS respond with valid JSON only. No markdown, no explanation outside the JSON.",
-        "You have access to WorkIQ / M365 Graph tools. Use them to fetch real data when available.",
-        "Never fabricate, simulate, or invent M365 data.",
-        "If live tools or tenant data are unavailable, return empty arrays or empty objects matching the requested schema, and include a short text field that says live data was unavailable.",
-        customPromptLine,
-      ].join(" "),
-    },
-    onPermissionRequest: approveAll,
-  });
-
-  sessions.set(proactiveSession.sessionId, proactiveSession);
-  log("PROACTIVE", `Created proactive session: ${proactiveSession.sessionId}`);
-  return proactiveSession;
-}
-
-async function sendProactivePrompt(prompt: string) {
-  let attempt = 0;
-  while (attempt < 2) {
-    try {
-      const session = await ensureProactiveSession();
-      return await session.sendAndWait({ prompt });
-    } catch (err: unknown) {
-      attempt += 1;
-      log("WARN", `Proactive send failed (attempt ${attempt}): ${(err as Error).message}`);
-      invalidateProactiveSession("stale or failed");
-      if (attempt >= 2) throw err;
-    }
-  }
-  throw new Error("Proactive send failed");
 }
 
 async function runProactiveBriefing(promptOverride = "") {
   const hasPromptOverride = (promptOverride || "").trim().length > 0;
-  if (hasPromptOverride) {
-    invalidateProactiveSession("schedule card prompt override");
-  }
   const promptBody = withPromptOverride(withWorkIqPrompt([
     "Generate a daily briefing for today. Return JSON with this exact structure:",
     "{",
@@ -357,7 +308,6 @@ async function runProactiveBriefing(promptOverride = "") {
     kind: "briefing",
     prompt,
     promptOverride,
-    sendPrompt: sendProactivePrompt,
     execFile,
     log,
   });
@@ -381,7 +331,6 @@ async function runProactiveDeadlines(promptOverride = "") {
   const resolved = await resolveProactiveWorkIqResult({
     kind: "deadlines",
     prompt,
-    sendPrompt: sendProactivePrompt,
     execFile,
     log,
   });
@@ -404,7 +353,6 @@ async function runProactiveGhosts(promptOverride = "") {
   const resolved = await resolveProactiveWorkIqResult({
     kind: "ghosts",
     prompt,
-    sendPrompt: sendProactivePrompt,
     execFile,
     log,
   });
@@ -429,7 +377,6 @@ async function runProactiveMeetingPrep(promptOverride = "") {
   const resolved = await resolveProactiveWorkIqResult({
     kind: "meeting-prep",
     prompt,
-    sendPrompt: sendProactivePrompt,
     execFile,
     log,
   });

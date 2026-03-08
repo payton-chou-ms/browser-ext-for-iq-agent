@@ -390,12 +390,6 @@
         return true;
       }
 
-      if (!CONN.isConnected?.()) {
-        CHAT.addBotMessage?.("目前未連線 Copilot CLI，請先連線後再使用 `/workiq`。");
-        PANELS.usage?.updateStats?.();
-        return true;
-      }
-
       // Route through background.js WORKIQ_QUERY → proxy /api/workiq/query first.
       // If the server-side workiq-ask_work_iq tool is unavailable, fall back to
       // regular streaming with a Work IQ context prefix so Copilot can still answer.
@@ -438,7 +432,7 @@
             ].join("\n");
           await CHAT.sendMessageStreaming?.(workiqPrompt);
         }
-      } catch {
+      } catch (err) {
         // Network / timeout error — also fall back to streaming
         try {
           const fallbackPrompt = [
@@ -450,7 +444,9 @@
           ].join("\n");
           await CHAT.sendMessageStreaming?.(fallbackPrompt);
         } catch (streamErr) {
-          CHAT.addBotMessage?.(`⚠ ${localizeRuntimeMessage("命令執行失敗")}: ${streamErr?.message || String(streamErr)}`);
+          const primaryError = err?.message || String(err);
+          const fallbackError = streamErr?.message || String(streamErr);
+          CHAT.addBotMessage?.(`⚠ ${localizeRuntimeMessage("命令執行失敗")}: ${fallbackError} (primary: ${primaryError})`);
         }
       }
 

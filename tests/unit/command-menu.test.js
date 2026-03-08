@@ -115,4 +115,31 @@ describe("command menu /workiq routing", () => {
     });
     expect(sendMessageStreaming).not.toHaveBeenCalled();
   });
+
+  test("does not block explicit /workiq on stale disconnected UI state", async () => {
+    const {
+      commandMenu,
+      sendToBackground,
+      addBotMessage,
+    } = await loadCommandMenu();
+
+    window.IQ.connection.isConnected.mockReturnValue(false);
+    sendToBackground.mockResolvedValue({
+      ok: true,
+      content: "找到 2 份 AKS 相關文件",
+    });
+
+    const handled = await commandMenu.handleSlashCommand("/workiq 給我跟 aks 主題相關的文件");
+
+    expect(handled).toBe(true);
+    expect(sendToBackground).toHaveBeenCalledWith({
+      type: "WORKIQ_QUERY",
+      query: "給我跟 aks 主題相關的文件",
+      sessionId: "session-1",
+    });
+    expect(addBotMessage).toHaveBeenCalledWith("找到 2 份 AKS 相關文件", {
+      source: "workiq",
+      sourceLabel: "WorkIQ",
+    });
+  });
 });

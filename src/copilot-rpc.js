@@ -211,6 +211,7 @@ const COPILOT_RPC = (() => {
 
   // WorkIQ queries can be slow due to M365 data access
   const WORKIQ_TIMEOUT_MS = 180000; // 3 minutes
+  const PROACTIVE_TIMEOUT_MS = 180000; // 3 minutes
 
   async function workiqQuery(query, sessionId) {
     return await apiCall("/api/workiq/query", { query, sessionId }, WORKIQ_TIMEOUT_MS);
@@ -352,23 +353,23 @@ const COPILOT_RPC = (() => {
 
   // ── Proactive Agent APIs ──
   async function proactiveBriefing(prompt = "") {
-    return await apiCall("/api/proactive/briefing", { prompt });
+    return await apiCall("/api/proactive/briefing", { prompt }, PROACTIVE_TIMEOUT_MS);
   }
 
   async function proactiveDeadlines(prompt = "") {
-    return await apiCall("/api/proactive/deadlines", { prompt });
+    return await apiCall("/api/proactive/deadlines", { prompt }, PROACTIVE_TIMEOUT_MS);
   }
 
   async function proactiveGhosts(prompt = "") {
-    return await apiCall("/api/proactive/ghosts", { prompt });
+    return await apiCall("/api/proactive/ghosts", { prompt }, PROACTIVE_TIMEOUT_MS);
   }
 
   async function proactiveMeetingPrep(prompt = "") {
-    return await apiCall("/api/proactive/meeting-prep", { prompt });
+    return await apiCall("/api/proactive/meeting-prep", { prompt }, PROACTIVE_TIMEOUT_MS);
   }
 
   async function proactiveScanAll(source = "manual") {
-    return await apiCall("/api/proactive/scan-all", { source });
+    return await apiCall("/api/proactive/scan-all", { source }, PROACTIVE_TIMEOUT_MS);
   }
 
   async function getProactiveConfig() {

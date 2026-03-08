@@ -4,17 +4,10 @@ import { createUnavailableProactiveResult, normalizeProactiveResult } from "./pr
 
 type ProactiveKind = "briefing" | "deadlines" | "ghosts" | "meeting-prep";
 
-type SendPromptResult = {
-  data?: {
-    content?: string;
-  };
-};
-
 type ResolveProactiveWorkIqArgs = {
   kind: ProactiveKind;
   prompt: string;
   promptOverride?: string;
-  sendPrompt: (prompt: string) => Promise<SendPromptResult | undefined>;
   execFile: typeof child_process.execFile;
   log?: (tag: string, ...msg: unknown[]) => void;
 };
@@ -49,39 +42,19 @@ export async function resolveProactiveWorkIqResult({
   kind,
   prompt,
   promptOverride = "",
-  sendPrompt,
   execFile,
   log,
 }: ResolveProactiveWorkIqArgs): Promise<{ content: string; data: Record<string, unknown>; usedCliFallback: boolean }> {
   try {
-    const result = await sendPrompt(prompt);
-    const content = result?.data?.content ?? "";
+    const content = await runDirectCliPrompt(prompt, execFile);
     const normalized = normalizeProactiveResult(kind, content, promptOverride);
-    const shouldFallback = !content.trim() || normalized.unavailable === true || normalized._parseError === true;
-
-    if (!shouldFallback) {
-      return {
-        content,
-        data: finalizeProactiveData(normalized),
-        usedCliFallback: false,
-      };
-    }
+    return {
+      content,
+      data: finalizeProactiveData(normalized),
+      usedCliFallback: false,
+    };
   } catch (err) {
-    log?.("WARN", `Proactive Work IQ headless path failed; trying direct CLI fallback: ${(err as Error).message}`);
-  }
-
-  try {
-    const fallbackContent = await runDirectCliPrompt(prompt, execFile);
-    if (fallbackContent.trim()) {
-      const normalized = normalizeProactiveResult(kind, fallbackContent, promptOverride);
-      return {
-        content: fallbackContent,
-        data: finalizeProactiveData(normalized),
-        usedCliFallback: true,
-      };
-    }
-  } catch (err) {
-    log?.("WARN", `Proactive Work IQ direct CLI fallback failed: ${(err as Error).message}`);
+    log?.("WARN", `Proactive Work IQ direct CLI failed: ${(err as Error).message}`);
   }
 
   return {
