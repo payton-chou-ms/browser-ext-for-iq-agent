@@ -12,6 +12,8 @@ node_modules/
 # OS files
 .DS_Store
 Thumbs.db
+__pycache__/
+*.pyc
 
 # Editor
 .vscode/

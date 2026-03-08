@@ -7,6 +7,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SKILL_DIR="$(dirname "$SCRIPT_DIR")"
 VENV_DIR="$SKILL_DIR/.venv"
+REQUIREMENTS_FILE="$SKILL_DIR/requirements.txt"
 
 # Find Python executable
 find_python() {
@@ -45,7 +46,11 @@ setup_venv() {
   # Check if dependencies are installed
   if ! "$VENV_DIR/bin/python" -c "import azure.ai.projects" 2>/dev/null; then
     echo "Installing dependencies..." >&2
-    "$VENV_DIR/bin/pip" install -q "azure-ai-projects>=2.0.0b4" azure-identity python-dotenv openai
+    if [[ -f "$REQUIREMENTS_FILE" ]]; then
+      "$VENV_DIR/bin/pip" install -q -r "$REQUIREMENTS_FILE"
+    else
+      "$VENV_DIR/bin/pip" install -q "azure-ai-projects>=2.0.0b4" azure-identity python-dotenv openai
+    fi
   fi
   
   echo "$VENV_DIR/bin/python"

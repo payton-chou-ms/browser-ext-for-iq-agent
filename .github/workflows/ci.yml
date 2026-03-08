@@ -118,6 +118,9 @@ jobs:
     needs: validate
     outputs:
       version: ${{ steps.version.outputs.version }}
+      artifact_label: ${{ steps.artifact_meta.outputs.artifact_label }}
+      extension_zip: ${{ steps.artifact_meta.outputs.extension_zip }}
+      local_proxy_zip: ${{ steps.artifact_meta.outputs.local_proxy_zip }}
     steps:
       - uses: actions/checkout@v4
 
@@ -144,12 +147,23 @@ jobs:
           ")
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
 
+      - name: Compute artifact names
+        id: artifact_meta
+        run: |
+          REF_NAME="${GITHUB_HEAD_REF:-${GITHUB_REF_NAME}}"
+          SAFE_REF=$(printf '%s' "$REF_NAME" | sed 's#[^A-Za-z0-9._-]#-#g')
+          SHORT_SHA=$(printf '%.6s' "$GITHUB_SHA")
+          ARTIFACT_LABEL="${SAFE_REF}-${SHORT_SHA}"
+          echo "artifact_label=${ARTIFACT_LABEL}" >> "$GITHUB_OUTPUT"
+          echo "extension_zip=iq-copilot-extension-${ARTIFACT_LABEL}.zip" >> "$GITHUB_OUTPUT"
+          echo "local_proxy_zip=iq-copilot-local_proxy-${ARTIFACT_LABEL}.zip" >> "$GITHUB_OUTPUT"
+
       # ── Phase 3: Package ──
 
       - name: Package extension artifact
         run: |
-          VERSION=${{ steps.version.outputs.version }}
-          zip -r "iq-copilot-extension-${VERSION}.zip" \
+          EXTENSION_ZIP="${{ steps.artifact_meta.outputs.extension_zip }}"
+          zip -r "$EXTENSION_ZIP" \
             manifest.json \
             icons/ \
             src/background.js \
@@ -162,39 +176,72 @@ jobs:
             src/lib/ \
             -x "*.DS_Store" "*.map"
           echo "📦 Extension zip contents:"
-          unzip -l "iq-copilot-extension-${VERSION}.zip"
+          unzip -l "$EXTENSION_ZIP"
 
       - name: Verify extension zip has no secrets
         run: |
-          VERSION=${{ steps.version.outputs.version }}
+          EXTENSION_ZIP="${{ steps.artifact_meta.outputs.extension_zip }}"
           echo "🔍 Verifying zip contains no .env or secret files..."
-          if unzip -l "iq-copilot-extension-${VERSION}.zip" | grep -iE '\.env|\.key|\.pem|secret'; then
+          if unzip -l "$EXTENSION_ZIP" | grep -iE '\.env|\.key|\.pem|secret'; then
             echo "❌ Sensitive files found in extension zip!"
             exit 1
           fi
           echo "✅ Extension zip looks clean"
 
-      - name: Package companion artifact
+      - name: Package local_proxy artifact
         run: |
-          VERSION=${{ steps.version.outputs.version }}
-          zip -r "iq-copilot-companion-${VERSION}.zip" \
+          LOCAL_PROXY_ZIP="${{ steps.artifact_meta.outputs.local_proxy_zip }}"
+          zip -r "$LOCAL_PROXY_ZIP" \
             dist/proxy.js \
             start.sh \
-            README.md
-          echo "📦 Companion zip contents:"
-          unzip -l "iq-copilot-companion-${VERSION}.zip"
+            README.md \
+            package.json \
+            package-lock.json \
+            src/scripts/fix-vscode-jsonrpc-subpath.mjs \
+            .github/skills/foundry_agent_skill/ \
+            .github/skills/gen-img/ \
+            -x "*.DS_Store" \
+               "*.pyc" \
+              "*/__pycache__" \
+               "*/__pycache__/*" \
+               ".github/skills/*/.env" \
+              ".github/skills/*/.venv" \
+               ".github/skills/*/.venv/*" \
+              ".github/skills/*/output" \
+               ".github/skills/*/output/*"
+          echo "📦 local_proxy zip contents:"
+          unzip -l "$LOCAL_PROXY_ZIP"
+
+      - name: Verify local_proxy zip has no secrets
+        run: |
+          LOCAL_PROXY_ZIP="${{ steps.artifact_meta.outputs.local_proxy_zip }}"
+          echo "🔍 Verifying local_proxy zip contains no .env or secret files..."
+          if unzip -l "$LOCAL_PROXY_ZIP" | grep -iE '\.env$|\.venv/|\.key|\.pem|secret|/output/'; then
+            echo "❌ Sensitive or local-only files found in local_proxy zip!"
+            exit 1
+          fi
+          echo "✅ local_proxy zip looks clean"
+
+      - name: Verify local_proxy zip has runtime metadata
+        run: |
+          LOCAL_PROXY_ZIP="${{ steps.artifact_meta.outputs.local_proxy_zip }}"
+          echo "🔍 Verifying local_proxy zip includes runtime install metadata..."
+          unzip -l "$LOCAL_PROXY_ZIP" | grep -q 'package.json$'
+          unzip -l "$LOCAL_PROXY_ZIP" | grep -q 'package-lock.json$'
+          unzip -l "$LOCAL_PROXY_ZIP" | grep -q 'src/scripts/fix-vscode-jsonrpc-subpath.mjs$'
+          echo "✅ local_proxy zip includes runtime install metadata"
 
       - name: Upload extension artifact
         uses: actions/upload-artifact@v4
         with:
-          name: iq-copilot-extension-${{ steps.version.outputs.version }}
-          path: iq-copilot-extension-${{ steps.version.outputs.version }}.zip
+          name: ${{ steps.artifact_meta.outputs.extension_zip }}
+          path: ${{ steps.artifact_meta.outputs.extension_zip }}
 
-      - name: Upload companion artifact
+      - name: Upload local_proxy artifact
         uses: actions/upload-artifact@v4
         with:
-          name: iq-copilot-companion-${{ steps.version.outputs.version }}
-          path: iq-copilot-companion-${{ steps.version.outputs.version }}.zip
+          name: ${{ steps.artifact_meta.outputs.local_proxy_zip }}
+          path: ${{ steps.artifact_meta.outputs.local_proxy_zip }}
 
   # ── Phase 4A: Nightly prerelease (push to main) ──
   prerelease:
@@ -203,15 +250,17 @@ jobs:
     needs: build
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     steps:
+      - uses: actions/checkout@v4
+
       - name: Download extension artifact
         uses: actions/download-artifact@v4
         with:
-          name: iq-copilot-extension-${{ needs.build.outputs.version }}
+          name: ${{ needs.build.outputs.extension_zip }}
 
-      - name: Download companion artifact
+      - name: Download local_proxy artifact
         uses: actions/download-artifact@v4
         with:
-          name: iq-copilot-companion-${{ needs.build.outputs.version }}
+          name: ${{ needs.build.outputs.local_proxy_zip }}
 
       - name: Compute prerelease metadata
         id: prerelease_meta
@@ -229,10 +278,12 @@ jobs:
           tag_name: ${{ steps.prerelease_meta.outputs.tag }}
           name: ${{ steps.prerelease_meta.outputs.name }}
           generate_release_notes: true
+          append_body: true
+          body_path: docs/RELEASE_NOTES.md
           prerelease: true
           files: |
-            iq-copilot-extension-${{ needs.build.outputs.version }}.zip
-            iq-copilot-companion-${{ needs.build.outputs.version }}.zip
+            ${{ needs.build.outputs.extension_zip }}
+            ${{ needs.build.outputs.local_proxy_zip }}
 
   # ── Phase 4B: Formal release (push version tag) ──
   release:
@@ -241,15 +292,17 @@ jobs:
     needs: build
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
     steps:
+      - uses: actions/checkout@v4
+
       - name: Download extension artifact
         uses: actions/download-artifact@v4
         with:
-          name: iq-copilot-extension-${{ needs.build.outputs.version }}
+          name: ${{ needs.build.outputs.extension_zip }}
 
-      - name: Download companion artifact
+      - name: Download local_proxy artifact
         uses: actions/download-artifact@v4
         with:
-          name: iq-copilot-companion-${{ needs.build.outputs.version }}
+          name: ${{ needs.build.outputs.local_proxy_zip }}
 
       - name: Create formal release
         uses: softprops/action-gh-release@v2
@@ -257,7 +310,9 @@ jobs:
           tag_name: ${{ github.ref_name }}
           name: ${{ github.ref_name }}
           generate_release_notes: true
+          append_body: true
+          body_path: docs/RELEASE_NOTES.md
           prerelease: false
           files: |
-            iq-copilot-extension-${{ needs.build.outputs.version }}.zip
-            iq-copilot-companion-${{ needs.build.outputs.version }}.zip
+            ${{ needs.build.outputs.extension_zip }}
+            ${{ needs.build.outputs.local_proxy_zip }}

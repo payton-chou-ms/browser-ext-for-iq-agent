@@ -23,7 +23,7 @@
 ## 1) 安裝
 
 ```bash
-pip install "azure-ai-projects>=2.0.0b4" azure-identity python-dotenv
+pip install -r requirements.txt
 ```
 
 ## 2) 設定環境

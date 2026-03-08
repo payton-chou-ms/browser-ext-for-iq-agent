@@ -25,6 +25,8 @@ CLI_PORT="${CLI_PORT:-4321}"
 HTTP_PORT="${HTTP_PORT:-8321}"
 DEBUG=false
 [[ "${1:-}" == "--debug" ]] && DEBUG=true
+PROXY_ENTRY="src/proxy.js"
+[[ -f "$PROXY_ENTRY" ]] || PROXY_ENTRY="dist/proxy.js"
 
 # ── Colors ──
 RED='\033[0;31m'
@@ -48,6 +50,32 @@ log()   { echo -e "${DIM}[$(ts)]${NC} $*"; }
 debug() { $DEBUG && echo -e "${DIM}[$(ts)]${NC} ${DIM}[DEBUG]${NC} $*" || true; }
 err()   { echo -e "${DIM}[$(ts)]${NC} ${RED}[ERROR]${NC} $*" >&2; }
 ok()    { echo -e "${DIM}[$(ts)]${NC} ${GREEN}${BOLD}✔ $*${NC}"; }
+
+ensure_proxy_runtime() {
+  if [[ ! -f "$PROXY_ENTRY" ]]; then
+    err "Cannot find proxy entrypoint (checked src/proxy.js and dist/proxy.js)."
+    exit 1
+  fi
+
+  if [[ -d node_modules ]]; then
+    debug "Node runtime dependencies already present"
+    return 0
+  fi
+
+  if [[ ! -f package.json ]]; then
+    debug "package.json not found; assuming dependencies are managed externally"
+    return 0
+  fi
+
+  if ! command -v npm &>/dev/null; then
+    err "npm is required to install local_proxy runtime dependencies."
+    exit 1
+  fi
+
+  log "${P_SYS} Installing local_proxy runtime dependencies..."
+  npm install --omit=dev
+  ok "local_proxy runtime dependencies ready"
+}
 
 # Kill any process occupying a given port
 free_port() {
@@ -106,6 +134,7 @@ echo ""
 # ── Python venv setup for Foundry Agent Skill ──
 SKILL_DIR=".github/skills/foundry_agent_skill"
 VENV_DIR="$SKILL_DIR/.venv"
+REQUIREMENTS_FILE="$SKILL_DIR/requirements.txt"
 
 if [[ -d "$SKILL_DIR" ]]; then
   log "${P_SYS} Setting up Python venv for Foundry Agent Skill..."
@@ -134,7 +163,11 @@ if [[ -d "$SKILL_DIR" ]]; then
     # Check if dependencies are installed (quick check for azure-ai-projects)
     if ! "$VENV_DIR/bin/python" -c "import azure.ai.projects" 2>/dev/null; then
       log "${P_SYS} Installing Foundry Agent Skill dependencies..."
-      "$VENV_DIR/bin/pip" install -q "azure-ai-projects>=2.0.0b4" azure-identity python-dotenv openai
+      if [[ -f "$REQUIREMENTS_FILE" ]]; then
+        "$VENV_DIR/bin/pip" install -q -r "$REQUIREMENTS_FILE"
+      else
+        "$VENV_DIR/bin/pip" install -q "azure-ai-projects>=2.0.0b4" azure-identity python-dotenv openai
+      fi
       ok "Dependencies installed"
     else
       debug "Foundry Agent Skill dependencies already installed"
@@ -150,6 +183,9 @@ fi
 log "${P_SYS} Checking ports..."
 free_port "$CLI_PORT"
 free_port "$HTTP_PORT"
+
+# Ensure runtime dependencies are available for the selected proxy entrypoint
+ensure_proxy_runtime
 
 # 2) Start Copilot CLI
 log "${P_CLI} Starting copilot --headless --port $CLI_PORT"
@@ -180,8 +216,8 @@ fi
 ok "${P_CLI} Copilot CLI ready (PID $CLI_PID, port $CLI_PORT)"
 
 # 3) Start HTTP proxy
-log "${P_PROXY} Starting node src/proxy.js --cli-port $CLI_PORT --http-port $HTTP_PORT"
-node src/proxy.js --cli-port "$CLI_PORT" --http-port "$HTTP_PORT" > >(
+log "${P_PROXY} Starting node $PROXY_ENTRY --cli-port $CLI_PORT --http-port $HTTP_PORT"
+node "$PROXY_ENTRY" --cli-port "$CLI_PORT" --http-port "$HTTP_PORT" > >(
   while IFS= read -r line; do
     echo -e "${DIM}[$(ts)]${NC} ${P_PROXY} $line"
   done
@@ -275,7 +311,7 @@ while true; do
     fi
     log "${P_PROXY} ⚠ Proxy died (attempt $PROXY_RESTART_COUNT/$MAX_PROXY_RESTARTS). Restarting..."
     sleep 2
-    node src/proxy.js --cli-port "$CLI_PORT" --http-port "$HTTP_PORT" > >(
+    node "$PROXY_ENTRY" --cli-port "$CLI_PORT" --http-port "$HTTP_PORT" > >(
       while IFS= read -r line; do
         echo -e "${DIM}[$(ts)]${NC} ${P_PROXY} $line"
       done

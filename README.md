@@ -183,6 +183,35 @@ The local proxy is expected at `http://127.0.0.1:8321`.
 
 ---
 
+## Release Assets
+
+Each GitHub Release publishes two primary zip assets:
+
+- `iq-copilot-extension-<ref>-<sha6>.zip`: the Edge extension package
+- `iq-copilot-local_proxy-<ref>-<sha6>.zip`: the local backend proxy package
+
+The `local_proxy` zip contains:
+
+- `dist/proxy.js`
+- `start.sh`
+- `package.json`
+- `package-lock.json`
+- `.github/skills/foundry_agent_skill/`
+- `.github/skills/gen-img/`
+
+If you only download the extension, the WorkIQ, Foundry, and Copilot SDK flows will not work end to end. The intended setup is to start `local_proxy` first and then load the browser extension.
+
+Recommended flow:
+
+1. Extract the `local_proxy` zip.
+2. Run `./start.sh` in that directory.
+3. `start.sh` installs the required `local_proxy` Node runtime dependencies when needed.
+4. If you want to run the Python skills separately, create their environments from each skill's `requirements.txt`.
+
+If a skill package does not include `.venv/`, create the Python environment from the skill-local `requirements.txt` first.
+
+---
+
 ## How to Use the Edge Extension
 
 1. Open `edge://extensions`.
