@@ -28,9 +28,20 @@ export async function isProxyReachable() {
   try {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 3_000);
-    const res = await fetch(`${PROXY_URL}/api/health`, { signal: controller.signal });
+    const urls = [`${PROXY_URL}/health`, `${PROXY_URL}/api/health`];
+    for (const url of urls) {
+      try {
+        const res = await fetch(url, { signal: controller.signal });
+        if (res.ok) {
+          clearTimeout(timer);
+          return true;
+        }
+      } catch {
+        // try next endpoint
+      }
+    }
     clearTimeout(timer);
-    return res.ok;
+    return false;
   } catch {
     return false;
   }

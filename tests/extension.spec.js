@@ -105,6 +105,43 @@ test.describe('Extension Sidebar', () => {
     await expect(page.locator('#panel-title')).toHaveText(/設定|Settings|Config/);
   });
 
+  test('Config panel shows WorkIQ status and query result', async () => {
+    await page.click('.nav-btn[data-panel="config"]');
+
+    await expect(page.locator('#btn-check-workiq-status')).toBeVisible();
+    await expect(page.locator('#config-workiq-query')).toBeVisible();
+
+    await page.click('#btn-check-workiq-status');
+    await expect(page.locator('#config-workiq-status-text')).toContainText(/Work IQ/, { timeout: 30000 });
+    await expect(page.locator('#config-workiq-status-pill')).toContainText(/可用|不可用/, { timeout: 30000 });
+
+    await page.locator('#config-workiq-query').fill('check latest microsoft foundry deck');
+    await page.click('#btn-run-workiq-query');
+
+    await expect(page.locator('#config-workiq-query-result')).not.toContainText('尚未執行', { timeout: 30000 });
+    await expect(page.locator('#config-workiq-query-result')).not.toContainText('查詢中...', { timeout: 30000 });
+    await expect(page.locator('#config-workiq-query-result')).toContainText(/ok:|Title:|WORKIQ_/i, { timeout: 30000 });
+  });
+
+  test('Explicit /workiq Chinese query shows WorkIQ badge', async () => {
+    const userMessages = page.locator('#chat-messages .message.user');
+    const botMessages = page.locator('#chat-messages .message.bot');
+    const userCountBefore = await userMessages.count();
+    const botCountBefore = await botMessages.count();
+
+    await page.locator('#chat-input').fill('/workiq 給我跟 aks 主題相關的投影片');
+    await page.locator('#btn-send').click();
+
+    await expect(userMessages).toHaveCount(userCountBefore + 1, { timeout: 10000 });
+    await expect(botMessages).toHaveCount(botCountBefore + 1, { timeout: 30000 });
+
+    const lastBot = botMessages.last();
+    await expect(lastBot.locator('.msg-source-badge')).toHaveText('WorkIQ', { timeout: 10000 });
+    await expect(lastBot.locator('.msg-content')).not.toContainText('命令執行失敗', { timeout: 10000 });
+    await expect(lastBot.locator('.msg-content')).not.toContainText('目前未連線', { timeout: 10000 });
+    await expect(lastBot.locator('.msg-content')).toContainText(/.+/, { timeout: 10000 });
+  });
+
   test('Config model dropdown triggers model switch flow', async () => {
     await page.click('.nav-btn[data-panel="config"]');
 

@@ -216,6 +216,28 @@ const COPILOT_RPC = (() => {
     return await apiCall("/api/workiq/query", { query, sessionId }, WORKIQ_TIMEOUT_MS);
   }
 
+  async function getWorkiqStatus() {
+    try {
+      const res = await fetch(`${_baseUrl}/api/workiq/status`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return await res.json();
+    } catch (err) {
+      return {
+        ok: false,
+        available: false,
+        tool: "skill",
+        route: null,
+        probe: {
+          available: false,
+          ambiguous: false,
+          reason: err.message,
+          content: "",
+        },
+        error: err.message,
+      };
+    }
+  }
+
   async function getQuota() {
     const res = await apiCall("/api/quota");
     return res.quota || {};
@@ -374,6 +396,7 @@ const COPILOT_RPC = (() => {
     listLocalSkills,
     executeSkill,
     workiqQuery,
+    getWorkiqStatus,
     getQuota,
     switchModel,
     createSession,

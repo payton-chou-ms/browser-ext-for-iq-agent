@@ -462,6 +462,9 @@ async function handleMessage(msg) {
     case "WORKIQ_QUERY":
       return await COPILOT_RPC.workiqQuery(msg.query, msg.sessionId);
 
+    case "GET_WORKIQ_STATUS":
+      return await COPILOT_RPC.getWorkiqStatus();
+
     // Quota
     case "GET_QUOTA":
       return await COPILOT_RPC.getQuota();

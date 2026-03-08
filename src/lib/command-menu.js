@@ -413,7 +413,10 @@
             .test(response.content);
 
         if (response?.ok && response?.content && !toolUnavailable) {
-          CHAT.addBotMessage?.(response.content);
+          CHAT.addBotMessage?.(response.content, {
+            source: "workiq",
+            sourceLabel: "WorkIQ",
+          });
         } else {
           // Tool not available or query failed — fall back to streaming
           const workiqPrompt = toolUnavailable

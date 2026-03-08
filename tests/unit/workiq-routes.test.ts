@@ -51,6 +51,8 @@ describe("workiq routes", () => {
     expect(isWorkIqToolUnavailable("I won’t fabricate M365 search results.")).toBe(true);
     expect(isWorkIqToolUnavailable("The workiq skill is no longer available in the current skill registry.")).toBe(true);
     expect(isWorkIqToolUnavailable("Work IQ 技能目前不可用於此會話。可用的技能清單中沒有 `workiq` skill。")).toBe(true);
+    expect(isWorkIqToolUnavailable("WORKIQ_UNAVAILABLE: Work IQ skill 未在此 session 的可用技能清單中。目前可用的技能包括 `foundry_agent_skill`、`gen-img`。")).toBe(true);
+    expect(isWorkIqToolUnavailable("WorkIQ skill 工具目前無法使用。根據專案架構，WorkIQ 功能需要透過本地 Proxy 服務存取 M365 API。")).toBe(true);
     expect(isWorkIqToolUnavailable("Here are the three latest decks I found.")).toBe(false);
   });
 
@@ -79,6 +81,36 @@ describe("workiq routes", () => {
         unavailable: true,
         toolUsed: "/workiq:workiq via copilot -p",
         liveDataSource: "none",
+        messageId: null,
+      })
+    );
+  });
+
+  test("treats explicit WORKIQ_UNAVAILABLE prefix as unavailable query result", async () => {
+    const routes: RouteTable = {};
+    const captured: Captured = {};
+    const deps = createDeps(captured, {
+      data: {
+        content: "WORKIQ_UNAVAILABLE: Work IQ skill 尚未在此專案中配置。",
+        messageId: "msg-explicit-unavailable",
+      },
+    });
+    deps.execFile = vi.fn((_file, _args, _options, callback) => {
+      callback(null, "WORKIQ_UNAVAILABLE: Work IQ skill 尚未在此專案中配置。", "");
+      return {} as never;
+    }) as never;
+
+    registerWorkiqRoutes(routes, deps);
+
+    await routes["POST /api/workiq/query"]!({} as never, {} as never);
+
+    expect(captured.status).toBe(200);
+    expect(captured.body).toEqual(
+      expect.objectContaining({
+        ok: true,
+        unavailable: true,
+        liveDataConfirmed: false,
+        liveDataSource: "none",
       })
     );
   });
@@ -86,16 +118,18 @@ describe("workiq routes", () => {
   test("keeps successful skill response available", async () => {
     const routes: RouteTable = {};
     const captured: Captured = {};
+    const deps = createDeps(captured, {
+      data: {
+        content: "Title: AKS deck\nOwner: Alex\nUpdated: 2026-03-07",
+        messageId: "msg-2",
+      },
+    });
+    deps.execFile = vi.fn((_file, _args, _options, callback) => {
+      callback(null, "Title: AKS deck\nOwner: Alex\nUpdated: 2026-03-07", "");
+      return {} as never;
+    }) as never;
 
-    registerWorkiqRoutes(
-      routes,
-      createDeps(captured, {
-        data: {
-          content: "Title: AKS deck\nOwner: Alex\nUpdated: 2026-03-07",
-          messageId: "msg-2",
-        },
-      })
-    );
+    registerWorkiqRoutes(routes, deps);
 
     await routes["POST /api/workiq/query"]!({} as never, {} as never);
 
@@ -104,14 +138,15 @@ describe("workiq routes", () => {
       expect.objectContaining({
         ok: true,
         unavailable: false,
-        toolUsed: "/workiq:workiq",
+        toolUsed: "/workiq:workiq via copilot -p",
         liveDataConfirmed: true,
         liveDataSource: "skill",
+        messageId: null,
       })
     );
   });
 
-  test("falls back to direct copilot cli when headless session lacks workiq skill", async () => {
+  test("queries WorkIQ directly through copilot cli even when sdk session lacks skill", async () => {
     const routes: RouteTable = {};
     const captured: Captured = {};
     const deps = createDeps(captured, {
@@ -141,6 +176,8 @@ describe("workiq routes", () => {
         content: expect.stringContaining("Azure AI Speech deck"),
       })
     );
+    expect(deps.execFile).toHaveBeenCalledTimes(1);
+    expect(deps.ensureClient).not.toHaveBeenCalled();
   });
 
   test("rejects untrusted origin for workiq routes", async () => {
@@ -188,7 +225,6 @@ describe("workiq routes", () => {
       expect.objectContaining({
         ok: true,
         available: false,
-        skillToolAvailable: true,
         tool: "skill",
         route: "/workiq:workiq via copilot -p",
         probe: expect.objectContaining({
@@ -202,16 +238,18 @@ describe("workiq routes", () => {
   test("probe endpoint returns explicit availability marker when skill is live", async () => {
     const routes: RouteTable = {};
     const captured: Captured = {};
+    const deps = createDeps(captured, {
+      data: {
+        content: "WORKIQ_AVAILABLE",
+        messageId: "msg-4",
+      },
+    });
+    deps.execFile = vi.fn((_file, _args, _options, callback) => {
+      callback(null, "WORKIQ_AVAILABLE", "");
+      return {} as never;
+    }) as never;
 
-    registerWorkiqRoutes(
-      routes,
-      createDeps(captured, {
-        data: {
-          content: "WORKIQ_AVAILABLE",
-          messageId: "msg-4",
-        },
-      })
-    );
+    registerWorkiqRoutes(routes, deps);
 
     await routes["POST /api/workiq/probe"]!({} as never, {} as never);
 
@@ -220,14 +258,13 @@ describe("workiq routes", () => {
       expect.objectContaining({
         ok: true,
         available: true,
-        skillToolAvailable: true,
-        route: "/workiq:workiq",
+        route: "/workiq:workiq via copilot -p",
         ambiguous: false,
       })
     );
   });
 
-  test("status falls back to direct copilot cli probe when headless session lacks workiq skill", async () => {
+  test("status uses direct copilot cli probe when sdk session lacks workiq skill", async () => {
     const routes: RouteTable = {};
     const captured: Captured = {};
     const deps = createDeps(captured, {

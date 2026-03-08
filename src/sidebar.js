@@ -96,7 +96,7 @@
     // Build all messages off-DOM in a DocumentFragment (P3-13)
     const frag = document.createDocumentFragment();
     for (const msg of tab.chatHistory || []) {
-      const msgEl = CHAT.createMessage?.(msg.role, msg.content);
+      const msgEl = CHAT.createMessage?.(msg.role, msg.content, msg);
       if (msgEl) frag.appendChild(msgEl);
     }
 
@@ -226,6 +226,7 @@
     }
     if (id === "achievements") PANELS.achievements?.renderAchievementPanel?.();
     if (id === "context")      PANELS.context?.fetchCliContext?.();
+    if (id === "config")       loadWorkiqStatus();
   }
 
   function bindNotificationsScrollFallback() {
@@ -277,6 +278,95 @@
       }
     } catch (err) {
       UTILS.debugLog?.("ERR", "loadCliConfig error:", err.message);
+    }
+  }
+
+  function setWorkiqStatusView({ state, text, route, reason }) {
+    const pillEl = document.getElementById("config-workiq-status-pill");
+    const textEl = document.getElementById("config-workiq-status-text");
+    const routeEl = document.getElementById("config-workiq-route");
+    const reasonEl = document.getElementById("config-workiq-reason");
+
+    if (pillEl) {
+      pillEl.className = `workiq-status-pill workiq-status-pill-${state}`;
+      pillEl.textContent = state === "available"
+        ? "可用"
+        : state === "unavailable"
+          ? "不可用"
+          : state === "checking"
+            ? "檢查中"
+            : "未檢查";
+    }
+    if (textEl) textEl.textContent = text || "—";
+    if (routeEl) routeEl.textContent = route || "—";
+    if (reasonEl) reasonEl.textContent = reason || "—";
+  }
+
+  async function loadWorkiqStatus() {
+    setWorkiqStatusView({
+      state: "checking",
+      text: "正在檢查 Work IQ 狀態...",
+      route: "—",
+      reason: "—",
+    });
+
+    try {
+      const res = await UTILS.sendToBackground?.({ type: "GET_WORKIQ_STATUS" });
+      const available = res?.ok && res?.available === true;
+      setWorkiqStatusView({
+        state: available ? "available" : "unavailable",
+        text: available ? "Work IQ 目前可用" : "Work IQ 目前不可用",
+        route: typeof res?.route === "string" ? res.route : "—",
+        reason: typeof res?.probe?.reason === "string" && res.probe.reason.trim()
+          ? res.probe.reason
+          : typeof res?.error === "string" && res.error.trim()
+            ? res.error
+            : "—",
+      });
+      return res;
+    } catch (err) {
+      setWorkiqStatusView({
+        state: "unavailable",
+        text: "Work IQ 狀態檢查失敗",
+        route: "—",
+        reason: err.message,
+      });
+      return { ok: false, error: err.message };
+    }
+  }
+
+  async function runWorkiqQueryTest() {
+    const queryEl = document.getElementById("config-workiq-query");
+    const resultEl = document.getElementById("config-workiq-query-result");
+    const query = queryEl?.value?.trim() || "";
+
+    if (!query) {
+      UTILS.showToast?.("請先輸入 Work IQ Query");
+      return;
+    }
+
+    if (resultEl) resultEl.textContent = "查詢中...";
+
+    try {
+      const chatState = CHAT.getState?.() || {};
+      const res = await UTILS.sendToBackground?.({
+        type: "WORKIQ_QUERY",
+        query,
+        sessionId: chatState.currentSessionId || undefined,
+      });
+
+      const summary = [
+        `ok: ${res?.ok === true ? "true" : "false"}`,
+        `toolUsed: ${res?.toolUsed || "—"}`,
+        `unavailable: ${res?.unavailable === true ? "true" : "false"}`,
+        `liveDataConfirmed: ${res?.liveDataConfirmed === true ? "true" : "false"}`,
+        "",
+        res?.content || res?.error || JSON.stringify(res || {}, null, 2),
+      ].join("\n");
+
+      if (resultEl) resultEl.textContent = summary;
+    } catch (err) {
+      if (resultEl) resultEl.textContent = `查詢失敗\n\n${err.message}`;
     }
   }
 
@@ -336,6 +426,14 @@
   document.getElementById("config-language")?.addEventListener("change", (e) => {
     THEME_MOD.applyLanguage?.(e.target.value);
     UTILS.showToast?.(I18N_MOD.t?.("messages.languageChanged", "Language switched"));
+  });
+
+  document.getElementById("btn-check-workiq-status")?.addEventListener("click", () => {
+    loadWorkiqStatus();
+  });
+
+  document.getElementById("btn-run-workiq-query")?.addEventListener("click", () => {
+    runWorkiqQueryTest();
   });
 
   // Extension reload shortcut
@@ -634,6 +732,7 @@
     }
     PANELS.usage?.updateStats?.();
     loadCliConfig();
+    loadWorkiqStatus();
     CONN.checkConnection?.("cold-start");
     PANELS.mcp?.initMcpPanel?.();
     PANELS.proactive?.restoreProactiveState?.();

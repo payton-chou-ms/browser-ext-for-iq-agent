@@ -526,6 +526,39 @@
               <button class="action-btn" id="btn-disconnect" style="display: none;">斷開連線</button>
             </div>
           </div>
+          <div class="glass-card">
+            <div class="card-header"><span class="card-icon">💼</span><h3>Work IQ</h3></div>
+            <div class="config-form">
+              <div class="workiq-status-row">
+                <span class="workiq-status-pill workiq-status-pill-idle" id="config-workiq-status-pill">未檢查</span>
+                <span class="text-muted" id="config-workiq-status-text">點擊下方按鈕檢查 Work IQ 狀態</span>
+              </div>
+              <div class="workiq-meta-grid">
+                <div class="info-group">
+                  <label>Route</label>
+                  <p id="config-workiq-route" class="info-value">—</p>
+                </div>
+                <div class="info-group">
+                  <label>Reason</label>
+                  <p id="config-workiq-reason" class="info-value">—</p>
+                </div>
+              </div>
+              <div class="action-row">
+                <button class="action-btn" id="btn-check-workiq-status">檢查 Work IQ 狀態</button>
+              </div>
+              <div class="form-group">
+                <label for="config-workiq-query">測試 Query</label>
+                <textarea id="config-workiq-query" class="form-textarea" placeholder="例如：我這週的重要 email 或 check latest microsoft foundry deck"></textarea>
+              </div>
+              <div class="action-row">
+                <button class="action-btn primary" id="btn-run-workiq-query">執行 Work IQ Query</button>
+              </div>
+              <div class="form-group">
+                <label for="config-workiq-query-result">Query Result</label>
+                <pre id="config-workiq-query-result" class="config-result-box">尚未執行</pre>
+              </div>
+            </div>
+          </div>
           <!-- Appearance & Language -->
           <div class="glass-card">
             <div class="card-header"><span class="card-icon">🎨</span><h3 id="config-ui-title">外觀與語言</h3></div>

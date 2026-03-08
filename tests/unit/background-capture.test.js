@@ -87,6 +87,7 @@ async function loadBackground(chromeMock) {
     setBaseUrl: vi.fn(),
     getBaseUrl: vi.fn(() => "http://127.0.0.1:8321"),
     checkConnection: vi.fn(async () => ({ connected: false })),
+    getWorkiqStatus: vi.fn(async () => ({ ok: true, available: true })),
   };
   globalThis.chrome = chromeMock;
 
@@ -147,5 +148,21 @@ describe("background screenshot capture", () => {
 
     expect(res.ok).toBe(false);
     expect(String(res.error || "")).toContain("找不到目前瀏覽分頁");
+  });
+
+  test("forwards GET_WORKIQ_STATUS to copilot rpc", async () => {
+    const chromeMock = createChromeMock();
+    await loadBackground(chromeMock);
+
+    globalThis.COPILOT_RPC.getWorkiqStatus.mockResolvedValueOnce({
+      ok: true,
+      available: false,
+      route: "/workiq:workiq",
+    });
+
+    const res = await sendBackgroundMessage({ type: "GET_WORKIQ_STATUS" });
+
+    expect(globalThis.COPILOT_RPC.getWorkiqStatus).toHaveBeenCalledTimes(1);
+    expect(res).toEqual({ ok: true, available: false, route: "/workiq:workiq" });
   });
 });

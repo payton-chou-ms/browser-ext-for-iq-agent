@@ -177,9 +177,13 @@
   }
 
   // ── DOM Helpers ──
-  function createMessage(role, text) {
+  function createMessage(role, text, options = {}) {
     const div = document.createElement("div");
     div.className = `message ${role}`;
+
+    if (options.source) {
+      div.dataset.source = String(options.source);
+    }
 
     const avatar = document.createElement("div");
     avatar.className = "msg-avatar";
@@ -187,6 +191,13 @@
 
     const bubble = document.createElement("div");
     bubble.className = "msg-bubble";
+
+    if (role === "bot" && options.sourceLabel) {
+      const sourceBadge = document.createElement("div");
+      sourceBadge.className = "msg-source-badge";
+      sourceBadge.textContent = String(options.sourceLabel);
+      bubble.appendChild(sourceBadge);
+    }
 
     // Content wrapper
     const content = document.createElement("div");
@@ -411,12 +422,17 @@
     hideSuggestions();
   }
 
-  function addBotMessage(text) {
+  function addBotMessage(text, options = {}) {
     const chatMessages = document.getElementById("chat-messages");
     const utils = root.utils || {};
-    const msg = createMessage("bot", text);
+    const msg = createMessage("bot", text, options);
     if (chatMessages) chatMessages.appendChild(msg);
-    pushChatHistory({ role: "bot", content: text });
+    pushChatHistory({
+      role: "bot",
+      content: text,
+      ...(options.source ? { source: options.source } : {}),
+      ...(options.sourceLabel ? { sourceLabel: options.sourceLabel } : {}),
+    });
     utils.trimContainerChildren?.(chatMessages, CONFIG.MAX_CHAT_HISTORY_ENTRIES || 200);
     utils.scrollToBottom?.();
     return msg;
