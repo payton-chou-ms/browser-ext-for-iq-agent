@@ -458,6 +458,9 @@ routes["GET /api/image"] = async (req, res) => {
         res.end();
       }
     });
+    res.on("close", () => {
+      stream.destroy();
+    });
     stream.pipe(res);
     log("IMAGE", `Served: ${path.basename(resolvedPath)} (${stat.size} bytes)`);
   } catch (err) {

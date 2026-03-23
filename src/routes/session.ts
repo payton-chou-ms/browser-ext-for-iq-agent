@@ -42,6 +42,7 @@ function runGitAsync(args: string[], cwd: string): Promise<string> {
 
 const GIT_CONTEXT_TTL_MS = 30_000; // 30 seconds
 let cachedGitContext: { context: SessionRuntimeContext; expiresAt: number } | null = null;
+let pendingGitContext: Promise<SessionRuntimeContext> | null = null;
 
 function parseRepository(remoteUrl: string, gitRoot: string): string {
   if (remoteUrl) {
@@ -107,18 +108,29 @@ async function getSessionRuntimeContext(): Promise<SessionRuntimeContext> {
     return cachedGitContext.context;
   }
 
-  const cwd = process.cwd();
-  const gitRoot = await runGitAsync(["rev-parse", "--show-toplevel"], cwd);
-  const gitCwd = gitRoot || cwd;
-  const [branch, remoteUrl] = await Promise.all([
-    runGitAsync(["rev-parse", "--abbrev-ref", "HEAD"], gitCwd),
-    runGitAsync(["config", "--get", "remote.origin.url"], gitCwd),
-  ]);
-  const repository = parseRepository(remoteUrl, gitRoot);
+  // Deduplicate concurrent requests — reuse in-flight promise
+  if (pendingGitContext) return pendingGitContext;
 
-  const context: SessionRuntimeContext = { cwd, gitRoot, repository, branch };
-  cachedGitContext = { context, expiresAt: Date.now() + GIT_CONTEXT_TTL_MS };
-  return context;
+  pendingGitContext = (async () => {
+    const cwd = process.cwd();
+    const gitRoot = await runGitAsync(["rev-parse", "--show-toplevel"], cwd);
+    const gitCwd = gitRoot || cwd;
+    const [branch, remoteUrl] = await Promise.all([
+      runGitAsync(["rev-parse", "--abbrev-ref", "HEAD"], gitCwd),
+      runGitAsync(["config", "--get", "remote.origin.url"], gitCwd),
+    ]);
+    const repository = parseRepository(remoteUrl, gitRoot);
+
+    const context: SessionRuntimeContext = { cwd, gitRoot, repository, branch };
+    cachedGitContext = { context, expiresAt: Date.now() + GIT_CONTEXT_TTL_MS };
+    return context;
+  })();
+
+  try {
+    return await pendingGitContext;
+  } finally {
+    pendingGitContext = null;
+  }
 }
 
 export function registerSessionRoutes(routes: RouteTable, deps: SessionRouteDeps): void {
