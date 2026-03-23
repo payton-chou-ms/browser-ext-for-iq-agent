@@ -16,10 +16,12 @@
     }
   }
 
+  const _escapeMap = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
+  const _escapeRe = /[&<>"']/g;
+
   function escapeHtml(str) {
-    const div = document.createElement("div");
-    div.textContent = str;
-    return div.innerHTML;
+    if (!str) return "";
+    return String(str).replace(_escapeRe, (ch) => _escapeMap[ch]);
   }
 
   function showToast(message) {

@@ -1,5 +1,5 @@
 import { approveAll } from "@github/copilot-sdk";
-import { spawnSync } from "node:child_process";
+import { execFile } from "node:child_process";
 import path from "node:path";
 import fs from "node:fs";
 import type { RouteTable, SessionRouteDeps } from "../shared/types.js";
@@ -20,19 +20,29 @@ type SessionRuntimeContext = {
   branch: string;
 };
 
-function runGit(args: string[], cwd: string): string {
-  try {
-    const result = spawnSync("git", args, {
-      cwd,
-      encoding: "utf-8",
-      stdio: ["ignore", "pipe", "ignore"],
-    });
-    if (result.status !== 0) return "";
-    return (result.stdout || "").trim();
-  } catch {
-    return "";
-  }
+function runGitAsync(args: string[], cwd: string): Promise<string> {
+  return new Promise((resolve) => {
+    try {
+      execFile("git", args, {
+        cwd,
+        encoding: "utf-8",
+        timeout: 5000,
+      }, (error, stdout) => {
+        if (error) {
+          resolve("");
+          return;
+        }
+        resolve((stdout || "").trim());
+      });
+    } catch {
+      resolve("");
+    }
+  });
 }
+
+const GIT_CONTEXT_TTL_MS = 30_000; // 30 seconds
+let cachedGitContext: { context: SessionRuntimeContext; expiresAt: number } | null = null;
+let pendingGitContext: Promise<SessionRuntimeContext> | null = null;
 
 function parseRepository(remoteUrl: string, gitRoot: string): string {
   if (remoteUrl) {
@@ -93,20 +103,34 @@ function transformImagePaths(content: string, httpPort: number): string {
   return transformed;
 }
 
-function getSessionRuntimeContext(): SessionRuntimeContext {
-  const cwd = process.cwd();
-  const gitRoot = runGit(["rev-parse", "--show-toplevel"], cwd);
-  const gitCwd = gitRoot || cwd;
-  const branch = runGit(["rev-parse", "--abbrev-ref", "HEAD"], gitCwd);
-  const remoteUrl = runGit(["config", "--get", "remote.origin.url"], gitCwd);
-  const repository = parseRepository(remoteUrl, gitRoot);
+async function getSessionRuntimeContext(): Promise<SessionRuntimeContext> {
+  if (cachedGitContext && cachedGitContext.expiresAt > Date.now()) {
+    return cachedGitContext.context;
+  }
 
-  return {
-    cwd,
-    gitRoot,
-    repository,
-    branch,
-  };
+  // Deduplicate concurrent requests — reuse in-flight promise
+  if (pendingGitContext) return pendingGitContext;
+
+  pendingGitContext = (async () => {
+    const cwd = process.cwd();
+    const gitRoot = await runGitAsync(["rev-parse", "--show-toplevel"], cwd);
+    const gitCwd = gitRoot || cwd;
+    const [branch, remoteUrl] = await Promise.all([
+      runGitAsync(["rev-parse", "--abbrev-ref", "HEAD"], gitCwd),
+      runGitAsync(["config", "--get", "remote.origin.url"], gitCwd),
+    ]);
+    const repository = parseRepository(remoteUrl, gitRoot);
+
+    const context: SessionRuntimeContext = { cwd, gitRoot, repository, branch };
+    cachedGitContext = { context, expiresAt: Date.now() + GIT_CONTEXT_TTL_MS };
+    return context;
+  })();
+
+  try {
+    return await pendingGitContext;
+  } finally {
+    pendingGitContext = null;
+  }
 }
 
 export function registerSessionRoutes(routes: RouteTable, deps: SessionRouteDeps): void {
@@ -172,7 +196,7 @@ export function registerSessionRoutes(routes: RouteTable, deps: SessionRouteDeps
     sessions.set(sid, session);
 
     log("SESSION", `Created session: ${sid}`);
-    jsonRes(res, 200, { ok: true, sessionId: sid, ...getSessionRuntimeContext() });
+    jsonRes(res, 200, { ok: true, sessionId: sid, ...(await getSessionRuntimeContext()) });
   };
 
   routes["POST /api/session/resume"] = async (req, res) => {
@@ -185,7 +209,7 @@ export function registerSessionRoutes(routes: RouteTable, deps: SessionRouteDeps
       onPermissionRequest: approveAll,
     });
     sessions.set(body.sessionId, session);
-    jsonRes(res, 200, { ok: true, sessionId: body.sessionId, ...getSessionRuntimeContext() });
+    jsonRes(res, 200, { ok: true, sessionId: body.sessionId, ...(await getSessionRuntimeContext()) });
   };
 
   routes["POST /api/session/list"] = async (_req, res) => {

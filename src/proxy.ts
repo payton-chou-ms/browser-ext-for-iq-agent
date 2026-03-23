@@ -433,13 +433,8 @@ routes["GET /api/image"] = async (req, res) => {
     return;
   }
   
-  if (!fs.existsSync(resolvedPath)) {
-    jsonRes(res, 404, { ok: false, error: "File not found" });
-    return;
-  }
-  
   try {
-    const imageBuffer = fs.readFileSync(resolvedPath);
+    const stat = await fs.promises.stat(resolvedPath);
     const ext = path.extname(resolvedPath).toLowerCase();
     const mimeTypes: Record<string, string> = {
       ".png": "image/png",
@@ -452,13 +447,29 @@ routes["GET /api/image"] = async (req, res) => {
     
     res.writeHead(200, {
       "Content-Type": contentType,
-      "Content-Length": imageBuffer.length,
+      "Content-Length": stat.size,
       "Cache-Control": "public, max-age=3600",
     });
-    res.end(imageBuffer);
-    log("IMAGE", `Served: ${path.basename(resolvedPath)} (${imageBuffer.length} bytes)`);
+    const stream = fs.createReadStream(resolvedPath);
+    stream.on("error", (err) => {
+      if (!res.headersSent) {
+        jsonRes(res, 500, { ok: false, error: err.message });
+      } else {
+        res.end();
+      }
+    });
+    res.on("close", () => {
+      stream.destroy();
+    });
+    stream.pipe(res);
+    log("IMAGE", `Served: ${path.basename(resolvedPath)} (${stat.size} bytes)`);
   } catch (err) {
-    jsonRes(res, 500, { ok: false, error: (err as Error).message });
+    const code = (err as NodeJS.ErrnoException).code;
+    if (code === "ENOENT") {
+      jsonRes(res, 404, { ok: false, error: "File not found" });
+    } else {
+      jsonRes(res, 500, { ok: false, error: (err as Error).message });
+    }
   }
 };
 
